@@ -1,0 +1,247 @@
+[
+    {
+        "id": "ds-001",
+        "title": "NYC Yellow Taxi Trips 2023",
+        "description": "Daily trip records from yellow taxis in New York City, including pickup/dropoff times, locations, and fares.",
+        "source": "Socrata",
+        "types": [
+            "spatial",
+            "temporal",
+            "numerical"
+        ],
+        "temporal_coverage": {
+            "start": "2023-01-01",
+            "end": "2023-12-31"
+        },
+        "spatial_coverage": {
+            "bbox": [
+                40.47,
+                -74.26,
+                40.92,
+                -73.7
+            ],
+            "label": "New York City"
+        },
+        "relevance_score": 0.98
+    },
+    {
+        "id": "ds-002",
+        "title": "Global Surface Temperature Anomalies",
+        "description": "Monthly surface temperature anomalies relative to the 1951-1980 average, provided by NASA GISS.",
+        "source": "Zenodo",
+        "types": [
+            "temporal",
+            "numerical"
+        ],
+        "temporal_coverage": {
+            "start": "1880-01-01",
+            "end": "2024-03-01"
+        },
+        "spatial_coverage": {
+            "bbox": [
+                -90.0,
+                -180.0,
+                90.0,
+                180.0
+            ],
+            "label": "Global"
+        },
+        "relevance_score": 0.85
+    },
+    {
+        "id": "ds-003",
+        "title": "Brooklyn Tree Census 2022",
+        "description": "Location, species, and health status of every street tree in the borough of Brooklyn.",
+        "source": "NYC Open Data",
+        "types": [
+            "spatial",
+            "categorical"
+        ],
+        "temporal_coverage": {
+            "start": "2022-04-01",
+            "end": "2022-10-31"
+        },
+        "spatial_coverage": {
+            "bbox": [
+                40.57,
+                -74.04,
+                40.74,
+                -73.83
+            ],
+            "label": "Brooklyn, NY"
+        },
+        "relevance_score": 0.92
+    },
+    {
+        "id": "ds-004",
+        "title": "US Consumer Price Index (CPI)",
+        "description": "A measure of the average change over time in the prices paid by urban consumers for a market basket of consumer goods.",
+        "source": "Bureau of Labor Statistics",
+        "types": [
+            "numerical",
+            "temporal"
+        ],
+        "temporal_coverage": {
+            "start": "1913-01-01",
+            "end": "2024-04-01"
+        },
+        "spatial_coverage": {
+            "bbox": [
+                24.39,
+                -124.84,
+                49.38,
+                -66.88
+            ],
+            "label": "United States"
+        },
+        "relevance_score": 0.77
+    },
+    {
+        "id": "ds-005",
+        "title": "World Bank Population Growth Estimates",
+        "description": "Annual population growth rate (percentage) for all countries from 1960 to the present.",
+        "source": "World Bank",
+        "types": [
+            "numerical",
+            "temporal",
+            "categorical"
+        ],
+        "temporal_coverage": {
+            "start": "1960-01-01",
+            "end": "2023-12-31"
+        },
+        "spatial_coverage": {
+            "bbox": [
+                -90.0,
+                -180.0,
+                90.0,
+                180.0
+            ],
+            "label": "Global"
+        },
+        "relevance_score": 0.88
+    },
+    {
+        "id": "ds-006",
+        "title": "California Wildfire Perimeters 2010-2024",
+        "description": "Geospatial perimeters of significant wildfires across California, updated through the most recent fire season.",
+        "source": "CAL FIRE",
+        "types": [
+            "spatial",
+            "temporal"
+        ],
+        "temporal_coverage": {
+            "start": "2010-01-01",
+            "end": "2024-05-01"
+        },
+        "spatial_coverage": {
+            "bbox": [
+                32.53,
+                -124.41,
+                42.01,
+                -114.13
+            ],
+            "label": "California"
+        },
+        "relevance_score": 0.95
+    },
+    {
+        "id": "ds-007",
+        "title": "Airbnb Listings London March 2024",
+        "description": "Snapshot of Airbnb listings in London including price, room type, and reviews.",
+        "source": "Inside Airbnb",
+        "types": [
+            "spatial",
+            "categorical",
+            "numerical"
+        ],
+        "temporal_coverage": {
+            "start": "2024-03-10",
+            "end": "2024-03-11"
+        },
+        "spatial_coverage": {
+            "bbox": [
+                51.28,
+                -0.51,
+                51.69,
+                0.33
+            ],
+            "label": "London, UK"
+        },
+        "relevance_score": 0.82
+    },
+    {
+        "id": "ds-008",
+        "title": "Historical Exchange Rates: EUR to USD",
+        "description": "Daily closing exchange rates for the Euro against the US Dollar.",
+        "source": "European Central Bank",
+        "types": [
+            "numerical",
+            "temporal"
+        ],
+        "temporal_coverage": {
+            "start": "1999-01-04",
+            "end": "2024-05-10"
+        },
+        "spatial_coverage": {
+            "bbox": [
+                0,
+                0,
+                0,
+                0
+            ],
+            "label": "Europe/USA"
+        },
+        "relevance_score": 0.7
+    },
+    {
+        "id": "ds-009",
+        "title": "Seattle Bike Counter Data",
+        "description": "Hourly bicycle counts on key trails and bridges across the city of Seattle.",
+        "source": "Seattle.gov",
+        "types": [
+            "spatial",
+            "numerical",
+            "temporal"
+        ],
+        "temporal_coverage": {
+            "start": "2014-01-01",
+            "end": "2024-04-30"
+        },
+        "spatial_coverage": {
+            "bbox": [
+                47.48,
+                -122.43,
+                47.73,
+                -122.24
+            ],
+            "label": "Seattle, WA"
+        },
+        "relevance_score": 0.91
+    },
+    {
+        "id": "ds-010",
+        "title": "COVID-19 Vaccination Progress by Country",
+        "description": "Consolidated dataset of total vaccinations, people vaccinated, and daily vaccination rates globally.",
+        "source": "Our World in Data",
+        "types": [
+            "numerical",
+            "temporal",
+            "categorical"
+        ],
+        "temporal_coverage": {
+            "start": "2020-12-01",
+            "end": "2024-01-01"
+        },
+        "spatial_coverage": {
+            "bbox": [
+                -90.0,
+                -180.0,
+                90.0,
+                180.0
+            ],
+            "label": "Global"
+        },
+        "relevance_score": 0.89
+    }
+]

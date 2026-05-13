@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.13.0
+    container_name: opensearch
+    environment:
+      - cluster.name=auctus-opensearch-cluster
+      - node.name=auctus-node-1
+      - discovery.type=single-node
+      - network.host=0.0.0.0
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - bootstrap.memory_lock=true
+      - DISABLE_SECURITY_PLUGIN=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - 9200:9200
+      - 9600:9600
+    restart: unless-stopped
+
+  dashboards:
+    image: opensearchproject/opensearch-dashboards:2.13.0
+    container_name: opensearch-dashboards
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - 5601:5601
+    depends_on:
+      - opensearch
+    restart: unless-stopped
+
+  backend:
+    image: python:3.12-slim
+    container_name: auctus-backend
+    volumes:
+      - ./backend:/app
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    environment:
+      - PYTHONUNBUFFERED=1
+    ports:
+      - 8000:8000
+    depends_on:
+      - opensearch
+    restart: unless-stopped
+
+volumes:
+  opensearch-data:
+    driver: local
