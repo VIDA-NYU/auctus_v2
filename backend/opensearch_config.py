@@ -20,6 +20,7 @@ DATASETS_MAPPING = {
     "settings": {
         "number_of_shards": 1,
         "number_of_replicas": 0,
+        "index.knn": True,
         "analysis": {
             "analyzer": {
                 "text_analyzer": {
@@ -32,6 +33,13 @@ DATASETS_MAPPING = {
     "mappings": {
         "properties": {
             "id": {"type": "keyword"},
+            "embedding_metadata": {
+                "type": "object",
+                "properties": {
+                    "model_name": {"type": "keyword"},
+                    "version": {"type": "integer"},
+                },
+            },
             "title": {
                 "type": "text",
                 "analyzer": "text_analyzer",
@@ -53,6 +61,15 @@ DATASETS_MAPPING = {
             "spatial_coverage": {
                 "type": "geo_shape",
                 "strategy": "recursive",
+            },
+            "dataset_vector": {
+                "type": "knn_vector",
+                "dimension": 384,
+                "method": {
+                    "name": "hnsw",
+                    "engine": "nmslib",
+                    
+                },
             },
             "relevance_score": {"type": "float"},
         }

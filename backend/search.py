@@ -1,5 +1,7 @@
 from typing import List, Optional
+import json
 import os
+from functools import lru_cache
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -10,7 +12,20 @@ except Exception:  # pragma: no cover - runtime
     OpenSearch = None
     helpers = None
 
+try:
+    from sentence_transformers import SentenceTransformer
+except Exception:  # pragma: no cover - runtime
+    SentenceTransformer = None
+
 router = APIRouter()
+EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+
+
+@lru_cache(maxsize=1)
+def get_embedding_model():
+    if SentenceTransformer is None:
+        raise RuntimeError("sentence-transformers not available")
+    return SentenceTransformer(EMBEDDING_MODEL_NAME)
 
 
 class SearchQueryRequest(BaseModel):
@@ -45,6 +60,15 @@ def get_client():
     return OpenSearch(**conn_kwargs)
 
 
+def build_query_vector(keywords: str) -> List[float]:
+    model = get_embedding_model()
+    vector = model.encode([keywords], convert_to_numpy=True)[0]
+    try:
+        return vector.tolist()
+    except Exception:
+        return [float(x) for x in vector]
+
+
 @router.post("/api/v1/search")
 async def search(req: SearchQueryRequest):
     try:
@@ -52,40 +76,34 @@ async def search(req: SearchQueryRequest):
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-    must_clauses = []
+    filter_clauses = []
+    should_clauses = []
+    query_vector = None
 
     if req.keywords:
-        must_clauses.append(
-            {
-                "multi_match": {
-                    "query": req.keywords,
-                    "fields": ["title^2", "description"],
-                    "operator": "and",
-                }
-            }
-        )
+        query_vector = build_query_vector(req.keywords)
 
-    if req.source:
-        # support both single string and list of strings
-        if isinstance(req.source, list):
-            must_clauses.append({"terms": {"source": req.source}})
-        else:
-            must_clauses.append({"term": {"source": {"value": req.source}}})
+    if isinstance(req.source, list):
+        source_values = [item for item in req.source if item]
+        if source_values:
+            filter_clauses.append({"terms": {"source": source_values}})
+    elif req.source:
+        filter_clauses.append({"term": {"source": {"value": req.source}}})
 
-    if req.types:
-        # support both single string and list of strings
-        if isinstance(req.types, list):
-            must_clauses.append({"terms": {"types": req.types}})
-        else:
-            must_clauses.append({"term": {"types": {"value": req.types}}})
+    if isinstance(req.types, list):
+        type_values = [item for item in req.types if item]
+        if type_values:
+            filter_clauses.append({"terms": {"types": type_values}})
+    elif req.types:
+        filter_clauses.append({"term": {"types": {"value": req.types}}})
 
     # Temporal overlap: ensure dataset window overlaps requested window
     if req.temporal_start:
         # dataset.end >= temporal_start
-        must_clauses.append({"range": {"temporal_coverage.end": {"gte": req.temporal_start}}})
+        filter_clauses.append({"range": {"temporal_coverage.end": {"gte": req.temporal_start}}})
     if req.temporal_end:
         # dataset.start <= temporal_end
-        must_clauses.append({"range": {"temporal_coverage.start": {"lte": req.temporal_end}}})
+        filter_clauses.append({"range": {"temporal_coverage.start": {"lte": req.temporal_end}}})
 
     if req.bbox:
         try:
@@ -94,7 +112,7 @@ async def search(req: SearchQueryRequest):
             raise HTTPException(status_code=400, detail="Invalid bbox format; expected [min_lon, min_lat, max_lon, max_lat]")
 
         envelope = [[min_lon, max_lat], [max_lon, min_lat]]
-        must_clauses.append(
+        filter_clauses.append(
             {
                 "geo_shape": {
                     "spatial_coverage.bbox": {
@@ -105,16 +123,41 @@ async def search(req: SearchQueryRequest):
             }
         )
 
-    body = {
-        "query": {"bool": {"must": must_clauses}} if must_clauses else {"match_all": {}},
+    if req.keywords:
+        should_clauses.append(
+            {
+                "multi_match": {
+                    "query": req.keywords,
+                    "fields": ["title^2", "description"],
+                }
+            }
+        )
+        should_clauses.append(
+            {
+                "knn": {
+                    "dataset_vector": {
+                        "vector": query_vector,
+                        "k": 10,
+                    }
+                }
+            }
+        )
+
+    query_bool = {"filter": filter_clauses}
+    if should_clauses:
+        query_bool["should"] = should_clauses
+
+    payload = {
+        "query": {"bool": query_bool},
         "aggs": {
             "sources_count": {"terms": {"field": "source"}},
             "types_count": {"terms": {"field": "types"}},
         },
     }
+    # print("RAW OPENSEARCH PAYLOAD:", json.dumps(payload, indent=2))
 
     try:
-        resp = client.search(index="datasets", body=body, size=req.limit, from_=req.offset)
+        resp = client.search(index="datasets_v2", body=payload, size=req.limit, from_=req.offset)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Search backend error: {exc}")
 

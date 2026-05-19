@@ -22,8 +22,13 @@ except Exception as exc:  # pragma: no cover - runtime dependency
     print("Install with: pip install opensearch-py")
     raise
 
+try:
+    from sentence_transformers import SentenceTransformer
+except Exception:
+    SentenceTransformer = None
 
-INDEX_NAME = "datasets"
+
+INDEX_NAME = "datasets_v2"
 BASE_DIR = os.path.dirname(__file__)
 DATA_PATH = os.path.join(BASE_DIR, "data", "synthetic_datasets_v2.json")
 
@@ -53,26 +58,64 @@ def get_client():
 
 MAPPING = {
     "settings": {
-        "index": {"number_of_shards": 1, "number_of_replicas": 0}
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "index.knn": True,
+        "analysis": {
+            "analyzer": {
+                "text_analyzer": {
+                    "type": "standard",
+                    "stopwords": "_english_",
+                }
+            }
+        },
     },
     "mappings": {
         "properties": {
             "id": {"type": "keyword"},
-            "title": {"type": "text", "analyzer": "standard"},
-            "description": {"type": "text", "analyzer": "standard"},
+            "embedding_metadata": {
+                "type": "object",
+                "properties": {
+                    "model_name": {"type": "keyword"},
+                    "version": {"type": "integer"},
+                },
+            },
+            "title": {
+                "type": "text",
+                "analyzer": "text_analyzer",
+                "fields": {"keyword": {"type": "keyword"}},
+            },
+            "description": {
+                "type": "text",
+                "analyzer": "text_analyzer",
+            },
             "source": {"type": "keyword"},
             "download_url": {"type": "keyword", "index": False},
             "types": {"type": "keyword"},
             "temporal_coverage": {
+                "type": "object",
                 "properties": {
                     "start": {"type": "date", "format": "yyyy-MM-dd"},
                     "end": {"type": "date", "format": "yyyy-MM-dd"},
-                }
+                },
             },
             "spatial_coverage": {
-                "properties": {"label": {"type": "text"}, "bbox": {"type": "geo_shape"}}
+                "type": "object",
+                "properties": {
+                    "label": {"type": "text"},
+                    "bbox": {"type": "geo_shape", "strategy": "recursive"},
+                },
+            },
+            "dataset_vector": {
+                "type": "knn_vector",
+                "dimension": 384,
+                "method": {
+                    "name": "hnsw",
+                    "engine": "nmslib",
+                },
             },
             "profiler_metadata": {
+                "type": "object",
                 "properties": {
                     "nb_rows": {"type": "long"},
                     "nb_profiled_rows": {"type": "long"},
@@ -89,7 +132,7 @@ MAPPING = {
                             "plot": {"type": "object", "enabled": False},
                         },
                     },
-                }
+                },
             },
         }
     },
@@ -189,6 +232,45 @@ def main():
     print(f"Loading synthetic data from {DATA_PATH}...")
     docs = load_data(DATA_PATH)
     print(f"Loaded {len(docs)} documents; sample id: {docs[0].get('id') if docs else 'n/a'}")
+
+    # Generate embeddings for each document using sentence-transformers
+    if SentenceTransformer is None:
+        print("Missing required package 'sentence-transformers'.")
+        print("Install with: pip install sentence-transformers")
+        sys.exit(1)
+
+    print("Loading embedding model 'all-MiniLM-L6-v2'...")
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+
+    # Prepare texts by concatenating title + description
+    texts = []
+    for doc in docs:
+        title = doc.get('title') or ''
+        descr = doc.get('description') or ''
+        texts.append(f"{title}\n\n{descr}")
+
+    print(f"Generating embeddings for {len(texts)} documents...")
+    try:
+        embeddings = model.encode(texts, convert_to_numpy=True)
+    except Exception as e:
+        print("Error generating embeddings:", e)
+        raise
+
+    # Attach embedding vector and metadata to each document
+    for i, doc in enumerate(docs):
+        vec = embeddings[i]
+        # Convert numpy array to plain list of floats
+        try:
+            vec_list = vec.tolist()
+        except Exception:
+            # Fallback: iterate values
+            vec_list = [float(x) for x in vec]
+
+        doc['dataset_vector'] = vec_list
+        doc['embedding_metadata'] = {
+            'model_name': 'all-MiniLM-L6-v2',
+            'version': 1,
+        }
 
     bulk_index(client, docs)
 
