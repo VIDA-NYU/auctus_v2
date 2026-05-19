@@ -200,7 +200,7 @@ def init_db():
         count = index_count(client, INDEX_NAME)
         if count == 0:
             logger.info(f"Index {INDEX_NAME} is empty. Loading data...")
-            data_file = Path(__file__).parent / "data" / "synthetic_datasets.json"
+            data_file = Path(__file__).parent / "data" / "synthetic_datasets_v2.json"
             load_and_ingest_data(client, INDEX_NAME, str(data_file))
         else:
             logger.info(f"Index {INDEX_NAME} already has {count} documents")

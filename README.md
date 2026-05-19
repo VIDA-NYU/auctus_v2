@@ -38,8 +38,8 @@ Run the FastAPI backend locally for better debugging and instant reloads. From t
 ```bash
 cd backend
 # optional: create and activate a virtualenv
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 
 # run the backend (lifespan hooks will initialize OpenSearch if available)

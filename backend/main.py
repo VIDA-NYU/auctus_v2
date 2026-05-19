@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 from opensearch_config import INDEX_NAME, get_client, init_db
+from search import router as search_router
 
 # Configure logging
 logging.basicConfig(
@@ -33,6 +34,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Auctus v2 API", lifespan=lifespan)
+
+# Include API routers
+app.include_router(search_router)
 
 # --- CORS Configuration ---
 # This allows your React app to communicate with the backend

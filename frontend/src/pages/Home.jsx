@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Calendar, Database, FileText, MapPin, Search } from 'lucide-react'
+import { MapContainer, TileLayer, Rectangle, useMapEvents, useMap } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
 
 const filters = [
   {
@@ -35,9 +37,16 @@ const filters = [
 
 function Home() {
   const navigate = useNavigate()
-  const [query, setQuery] = useState('')
+
+  const [stagedFilters, setStagedFilters] = useState({
+    keywords: '',
+    source: [],
+    types: [],
+    temporal_start: '',
+    temporal_end: '',
+    bbox: null,
+  })
   const [activeFilter, setActiveFilter] = useState(null)
-  const [filterValues, setFilterValues] = useState({})
 
   const activeFilterConfig = useMemo(
     () => filters.find((filter) => filter.id === activeFilter),
@@ -46,11 +55,59 @@ function Home() {
 
   const ActiveFilterIcon = activeFilterConfig?.icon
 
+  // MapClickTarget: Properly tracks two clicks for bounding box drawing using useMapEvents
+  function MapClickTarget({ onBBoxChange }) {
+    const clicksRef = useRef([])
+    const mapInstance = useMap()
+
+    useMapEvents({
+      click(e) {
+        clicksRef.current.push([e.latlng.lng, e.latlng.lat])
+        if (clicksRef.current.length === 2) {
+          const [a, b] = clicksRef.current
+          const minLon = Math.min(a[0], b[0])
+          const minLat = Math.min(a[1], b[1])
+          const maxLon = Math.max(a[0], b[0])
+          const maxLat = Math.max(a[1], b[1])
+          onBBoxChange([minLon, minLat, maxLon, maxLat])
+          clicksRef.current = [] // Reset for redraw
+        }
+      },
+    })
+
+    return null
+  }
+
   const handleSearch = () => {
-    // Navigation to results page
-    if (query.trim()) {
-      navigate(`/results?q=${encodeURIComponent(query)}`)
+    // Check if at least ONE filter is set
+    const hasKeywords = stagedFilters.keywords && stagedFilters.keywords.trim() !== ''
+    const hasSources = Array.isArray(stagedFilters.source) && stagedFilters.source.length > 0
+    const hasTypes = Array.isArray(stagedFilters.types) && stagedFilters.types.length > 0
+    const hasTemporalStart = stagedFilters.temporal_start
+    const hasTemporalEnd = stagedFilters.temporal_end
+    const hasBbox = stagedFilters.bbox
+
+    if (!hasKeywords && !hasSources && !hasTypes && !hasTemporalStart && !hasTemporalEnd && !hasBbox) {
+      return // No filters set, don't proceed
     }
+
+    const params = new URLSearchParams()
+    if (hasKeywords) {
+      params.set('q', stagedFilters.keywords.trim())
+    } else {
+      params.set('q', '') // Allow empty keywords for filter-only search
+    }
+    if (Array.isArray(stagedFilters.source) && stagedFilters.source.length > 0) {
+      stagedFilters.source.forEach((s) => params.append('source', s))
+    }
+    if (Array.isArray(stagedFilters.types) && stagedFilters.types.length > 0) {
+      stagedFilters.types.forEach((t) => params.append('types', t))
+    }
+    if (stagedFilters.temporal_start) params.set('temporal_start', stagedFilters.temporal_start)
+    if (stagedFilters.temporal_end) params.set('temporal_end', stagedFilters.temporal_end)
+    if (stagedFilters.bbox) params.set('bbox', stagedFilters.bbox.join(','))
+
+    navigate(`/results?${params.toString()}`)
   }
 
   const handleKeyDown = (event) => {
@@ -64,11 +121,8 @@ function Home() {
     setActiveFilter((current) => (current === filterId ? null : filterId))
   }
 
-  const updateFilterValue = (filterId, value) => {
-    setFilterValues((current) => ({
-      ...current,
-      [filterId]: value,
-    }))
+  const updateStaged = (key, value) => {
+    setStagedFilters((s) => ({ ...s, [key]: value }))
   }
 
   return (
@@ -99,12 +153,12 @@ function Home() {
             Search datasets
           </label>
           <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-5 py-4 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.45)] transition-shadow focus-within:shadow-[0_16px_40px_-18px_rgba(100,81,140,0.35)]">
-            <Search className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
+            {/* <Search className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" /> */}
             <input
               id="landing-search"
               type="text"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              value={stagedFilters.keywords}
+              onChange={(event) => updateStaged('keywords', event.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Search for datasets ..."
               className="w-full bg-transparent text-base text-slate-900 placeholder:text-slate-400 focus:outline-none sm:text-lg"
@@ -112,9 +166,23 @@ function Home() {
             <button
               type="button"
               onClick={handleSearch}
-              className="rounded-full bg-[#64518c] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#56457a] focus:outline-none focus:ring-2 focus:ring-[#64518c] focus:ring-offset-2"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#64518c] transition hover:bg-[#64518c]/10 focus:outline-none focus:ring-2 focus:ring-[#64518c] focus:ring-offset-2"
+              aria-label="Search"
             >
-              Search
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2.5}
+                stroke="currentColor"
+                className="h-5 w-5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.604 10.604Z"
+                />
+              </svg>
             </button>
           </div>
 
@@ -147,15 +215,129 @@ function Home() {
                 {ActiveFilterIcon ? (
                   <ActiveFilterIcon className="h-4 w-4 text-[#64518c]" aria-hidden="true" />
                 ) : null}
-                  {activeFilterConfig.label} filter
+                {activeFilterConfig.label} filter
               </div>
-              <input
-                type={activeFilterConfig.inputType}
-                value={filterValues[activeFilterConfig.id] ?? ''}
-                onChange={(event) => updateFilterValue(activeFilterConfig.id, event.target.value)}
-                placeholder={activeFilterConfig.placeholder}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#64518c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#64518c]/20"
-              />
+
+              {activeFilterConfig.id === 'source' ? (
+                (() => {
+                  const SOURCE_OPTIONS = [
+                    'Socrata',
+                    'CKAN',
+                    'Local',
+                    'NYC Open Data',
+                    'World Bank',
+                    'Zenodo',
+                    'CAL FIRE',
+                    'Inside Airbnb',
+                    'European Central Bank',
+                    'Our World in Data',
+                  ]
+
+                  const toggleSource = (val) => {
+                    setStagedFilters((s) => {
+                      const arr = Array.isArray(s.source) ? [...s.source] : []
+                      const idx = arr.indexOf(val)
+                      if (idx === -1) arr.push(val)
+                      else arr.splice(idx, 1)
+                      return { ...s, source: arr }
+                    })
+                  }
+
+                  return (
+                    <div className="grid grid-cols-2 gap-2">
+                      {SOURCE_OPTIONS.map((opt) => (
+                        <label key={opt} className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={Array.isArray(stagedFilters.source) && stagedFilters.source.includes(opt)}
+                            onChange={() => toggleSource(opt)}
+                            className="h-4 w-4 rounded border-slate-200 text-[#64518c] focus:ring-[#64518c]"
+                          />
+                          <span className="text-slate-700">{opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )
+                })()
+              ) : activeFilterConfig.id === 'dataType' ? (
+                (() => {
+                  const TYPE_OPTIONS = ['spatial', 'numerical', 'temporal', 'categorical']
+
+                  const toggleType = (val) => {
+                    setStagedFilters((s) => {
+                      const arr = Array.isArray(s.types) ? [...s.types] : []
+                      const idx = arr.indexOf(val)
+                      if (idx === -1) arr.push(val)
+                      else arr.splice(idx, 1)
+                      return { ...s, types: arr }
+                    })
+                  }
+
+                  return (
+                    <div className="grid grid-cols-2 gap-2">
+                      {TYPE_OPTIONS.map((opt) => (
+                        <label key={opt} className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={Array.isArray(stagedFilters.types) && stagedFilters.types.includes(opt)}
+                            onChange={() => toggleType(opt)}
+                            className="h-4 w-4 rounded border-slate-200 text-[#64518c] focus:ring-[#64518c]"
+                          />
+                          <span className="text-slate-700">{opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )
+                })()
+              ) : activeFilterConfig.id === 'date' ? (
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={stagedFilters.temporal_start}
+                    onChange={(e) => updateStaged('temporal_start', e.target.value)}
+                    className="w-1/2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-[#64518c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#64518c]/20"
+                  />
+                  <input
+                    type="date"
+                    value={stagedFilters.temporal_end}
+                    onChange={(e) => updateStaged('temporal_end', e.target.value)}
+                    className="w-1/2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-[#64518c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#64518c]/20"
+                  />
+                </div>
+              ) : activeFilterConfig.id === 'location' ? (
+                <div className="w-full space-y-2">
+                  <div className="w-full h-56 rounded-md overflow-hidden">
+                    <MapContainer
+                      center={[40.7128, -74.006]}
+                      zoom={10}
+                      className="h-full w-full"
+                      whenReady={(mapInstance) => {
+                        setTimeout(() => mapInstance.target.invalidateSize(), 100)
+                      }}
+                    >
+                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                      <MapClickTarget onBBoxChange={(bb) => updateStaged('bbox', bb)} />
+                      {stagedFilters.bbox ? (
+                        <Rectangle
+                          bounds={[
+                            [stagedFilters.bbox[1], stagedFilters.bbox[0]],
+                            [stagedFilters.bbox[3], stagedFilters.bbox[2]],
+                          ]}
+                        />
+                      ) : null}
+                    </MapContainer>
+                  </div>
+                  <p className="text-xs text-slate-500 px-1">Click two points on the map to draw a bounding box.</p>
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={stagedFilters[activeFilterConfig.id] ?? ''}
+                  onChange={(event) => updateStaged(activeFilterConfig.id, event.target.value)}
+                  placeholder={activeFilterConfig.placeholder}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#64518c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#64518c]/20"
+                />
+              )}
             </div>
           ) : null}
 

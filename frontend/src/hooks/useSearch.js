@@ -16,7 +16,15 @@ export function useSearch(query, filters = {}) {
   const [totalResults, setTotalResults] = useState(0)
 
   useEffect(() => {
-    if (!query || query.trim() === '') {
+    // Allow search if query is present OR if filters are set
+    const hasQuery = query && query.trim() !== ''
+    const hasSources = Array.isArray(filters.source) && filters.source.length > 0
+    const hasTypes = Array.isArray(filters.types) && filters.types.length > 0
+    const hasTemporalStart = filters.temporal_start
+    const hasTemporalEnd = filters.temporal_end
+    const hasBbox = filters.bbox
+
+    if (!hasQuery && !hasSources && !hasTypes && !hasTemporalStart && !hasTemporalEnd && !hasBbox) {
       setResults([])
       setTotalResults(0)
       setError(null)
@@ -28,13 +36,21 @@ export function useSearch(query, filters = {}) {
       setError(null)
 
       try {
-        const response = await axios.post(`${API_BASE_URL}/search`, {
-          query: query.trim(),
-          filters: Object.keys(filters).length > 0 ? filters : null,
-        })
+        const payload = {
+          keywords: query.trim(),
+          source: filters.source || null,
+          types: filters.types || null,
+          temporal_start: filters.temporal_start || null,
+          temporal_end: filters.temporal_end || null,
+          bbox: filters.bbox || null,
+          limit: typeof filters.limit === 'number' ? filters.limit : 20,
+          offset: typeof filters.offset === 'number' ? filters.offset : 0,
+        }
+
+        const response = await axios.post(`${API_BASE_URL}/api/v1/search`, payload)
 
         setResults(response.data.results || [])
-        setTotalResults(response.data.total_results || 0)
+        setTotalResults(response.data.total || 0)
       } catch (err) {
         console.error('Search error:', err)
         setError(

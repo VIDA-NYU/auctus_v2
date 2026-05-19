@@ -37,6 +37,26 @@ function ResultsPage() {
   const [activeFilter, setActiveFilter] = useState(null)
   const [filterValues, setFilterValues] = useState({})
 
+  const filtersFromParams = useMemo(() => {
+    const f = {}
+    const sources = searchParams.getAll('source')
+    const types = searchParams.getAll('types')
+    const temporal_start = searchParams.get('temporal_start')
+    const temporal_end = searchParams.get('temporal_end')
+    const bboxStr = searchParams.get('bbox')
+    if (sources && sources.length > 0) f.source = sources
+    if (types && types.length > 0) f.types = types
+    if (temporal_start) f.temporal_start = temporal_start
+    if (temporal_end) f.temporal_end = temporal_end
+    if (bboxStr) {
+      const parts = bboxStr.split(',').map((v) => parseFloat(v))
+      if (parts.length === 4 && parts.every((n) => !Number.isNaN(n))) {
+        f.bbox = parts
+      }
+    }
+    return f
+  }, [searchParams.toString()])
+
   const activeFilterConfig = useMemo(
     () => filters.find((filter) => filter.id === activeFilter),
     [activeFilter],
@@ -44,7 +64,7 @@ function ResultsPage() {
 
   const ActiveFilterIcon = activeFilterConfig?.icon
 
-  const { results, loading, error, totalResults } = useSearch(query, filterValues)
+  const { results, loading, error, totalResults } = useSearch(query, filtersFromParams)
 
   const handleSearch = (newQuery) => {
     setSearchParams({ q: newQuery })

@@ -1,0 +1,1239 @@
+[
+  {
+    "id": "ds-001",
+    "title": "NYC Yellow Taxi Trips 2023",
+    "description": "Daily trip records from yellow taxis in New York City, including pickup/dropoff times, locations, and fares.",
+    "source": "Socrata",
+    "download_url": "https://data.cityofnewyork.us/api/views/ds-001/rows.csv",
+    "types": [
+      "spatial",
+      "temporal",
+      "numerical"
+    ],
+    "temporal_coverage": {
+      "start": "2023-01-01",
+      "end": "2023-12-31"
+    },
+    "spatial_coverage": {
+      "label": "New York City",
+      "bbox": {
+        "type": "envelope",
+        "coordinates": [
+          [
+            -74.26,
+            40.92
+          ],
+          [
+            -73.7,
+            40.47
+          ]
+        ]
+      }
+    },
+    "profiler_metadata": {
+      "nb_rows": 1000,
+      "nb_profiled_rows": 100,
+      "nb_columns": 8,
+      "columns": [
+        {
+          "name": "trip_id",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.029,
+          "num_distinct_values": 69,
+          "mean": 4058.19,
+          "stddev": 1663.36,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 8553.9
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 16,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "pickup_datetime",
+          "structural_type": "http://schema.org/Date",
+          "semantic_types": []
+        },
+        {
+          "name": "dropoff_datetime",
+          "structural_type": "http://schema.org/Date",
+          "semantic_types": []
+        },
+        {
+          "name": "pickup_lon",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.038,
+          "num_distinct_values": 497,
+          "mean": 915.13,
+          "stddev": 1516.83,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 4885.7
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 6,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "pickup_lat",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.04,
+          "num_distinct_values": 369,
+          "mean": 4654.79,
+          "stddev": 108.01,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 6136.8
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 18,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "fare_amount",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.015,
+          "num_distinct_values": 487,
+          "mean": 3044.02,
+          "stddev": 1365.25,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 3785.5
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 8,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "passenger_count",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.018,
+          "num_distinct_values": 397,
+          "mean": 2976.0,
+          "stddev": 954.68,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 8138.1
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 15,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "payment_type",
+          "structural_type": "http://schema.org/Text",
+          "semantic_types": [],
+          "num_distinct_values": 27,
+          "plot": {
+            "type": "histogram_categorical",
+            "data": [
+              {
+                "bin": "A",
+                "count": 12
+              }
+            ]
+          }
+        }
+      ],
+      "nb_spatial_columns": 0,
+      "nb_categorical_columns": 1,
+      "nb_numerical_columns": 5,
+      "types": [
+        "categorical",
+        "numerical",
+        "temporal"
+      ],
+      "attribute_keywords": [
+        "trip_id",
+        "pickup_datetime",
+        "dropoff_datetime",
+        "pickup_lon",
+        "pickup_lat",
+        "fare_amount",
+        "passenger_count",
+        "payment_type"
+      ],
+      "sample": "trip_id,pickup_datetime,dropoff_datetime,pickup_lon,pickup_lat,fare_amount,passenger_count,payment_type\r\n4961,2023-01-01,2023-01-01,2233,4618,8364,9029,sample_text",
+      "_profiling_times": {
+        "steps": {
+          "1_load_data": 0.0051,
+          "2_geo_batch_predict": 0.2765
+        },
+        "total": 1.242
+      }
+    }
+  },
+  {
+    "id": "ds-002",
+    "title": "Global Surface Temperature Anomalies",
+    "description": "Monthly surface temperature anomalies relative to the 1951-1980 average, provided by NASA GISS.",
+    "source": "Zenodo",
+    "download_url": "https://zenodo.org/records/ds-002/files/data.csv",
+    "types": [
+      "temporal",
+      "numerical"
+    ],
+    "temporal_coverage": {
+      "start": "1880-01-01",
+      "end": "2024-03-01"
+    },
+    "spatial_coverage": {
+      "label": "Global",
+      "bbox": {
+        "type": "envelope",
+        "coordinates": [
+          [
+            -180.0,
+            90.0
+          ],
+          [
+            180.0,
+            -90.0
+          ]
+        ]
+      }
+    },
+    "profiler_metadata": {
+      "nb_rows": 100,
+      "nb_profiled_rows": 100,
+      "nb_columns": 3,
+      "columns": [
+        {
+          "name": "year_month",
+          "structural_type": "http://schema.org/Date",
+          "semantic_types": []
+        },
+        {
+          "name": "anomaly_celsius",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.035,
+          "num_distinct_values": 420,
+          "mean": 414.77,
+          "stddev": 1569.07,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 6898.7
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 13,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "reference_baseline",
+          "structural_type": "http://schema.org/Text",
+          "semantic_types": []
+        }
+      ],
+      "nb_spatial_columns": 0,
+      "nb_categorical_columns": 0,
+      "nb_numerical_columns": 1,
+      "types": [
+        "numerical",
+        "text",
+        "temporal"
+      ],
+      "attribute_keywords": [
+        "year_month",
+        "anomaly_celsius",
+        "reference_baseline"
+      ],
+      "sample": "year_month,anomaly_celsius,reference_baseline\r\n1880-01-01,1887,sample_text",
+      "_profiling_times": {
+        "steps": {
+          "1_load_data": 0.0056,
+          "2_geo_batch_predict": 0.0294
+        },
+        "total": 1.167
+      }
+    }
+  },
+  {
+    "id": "ds-003",
+    "title": "Brooklyn Tree Census 2022",
+    "description": "Location, species, and health status of every street tree in the borough of Brooklyn.",
+    "source": "NYC Open Data",
+    "download_url": "https://example.org/datasets/ds-003/download.csv",
+    "types": [
+      "spatial",
+      "categorical"
+    ],
+    "temporal_coverage": {
+      "start": "2022-04-01",
+      "end": "2022-10-31"
+    },
+    "spatial_coverage": {
+      "label": "Brooklyn, NY",
+      "bbox": {
+        "type": "envelope",
+        "coordinates": [
+          [
+            -74.04,
+            40.74
+          ],
+          [
+            -73.83,
+            40.57
+          ]
+        ]
+      }
+    },
+    "profiler_metadata": {
+      "nb_rows": 5000,
+      "nb_profiled_rows": 100,
+      "nb_columns": 4,
+      "columns": [
+        {
+          "name": "tree_id",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.041,
+          "num_distinct_values": 267,
+          "mean": 4904.26,
+          "stddev": 1471.76,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 144.3
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 13,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "species_common",
+          "structural_type": "http://schema.org/Text",
+          "semantic_types": []
+        },
+        {
+          "name": "health",
+          "structural_type": "http://schema.org/Text",
+          "semantic_types": [],
+          "num_distinct_values": 10,
+          "plot": {
+            "type": "histogram_categorical",
+            "data": [
+              {
+                "bin": "A",
+                "count": 25
+              }
+            ]
+          }
+        },
+        {
+          "name": "wkt_geom",
+          "structural_type": "http://schema.org/GeoCoordinates",
+          "semantic_types": [],
+          "geo_classifier": {
+            "label": "point",
+            "confidence": 0.8662,
+            "source": "ml+validated"
+          }
+        }
+      ],
+      "nb_spatial_columns": 1,
+      "nb_categorical_columns": 1,
+      "nb_numerical_columns": 1,
+      "types": [
+        "categorical",
+        "numerical",
+        "text",
+        "spatial"
+      ],
+      "attribute_keywords": [
+        "tree_id",
+        "species_common",
+        "health",
+        "wkt_geom"
+      ],
+      "sample": "tree_id,species_common,health,wkt_geom\r\n7479,sample_text,sample_text,POINT (-73.935 40.655)",
+      "_profiling_times": {
+        "steps": {
+          "1_load_data": 0.0039,
+          "2_geo_batch_predict": 0.2584
+        },
+        "total": 1.959
+      }
+    }
+  },
+  {
+    "id": "ds-004",
+    "title": "US Consumer Price Index (CPI)",
+    "description": "A measure of the average change over time in the prices paid by urban consumers for a market basket of consumer goods.",
+    "source": "Bureau of Labor Statistics",
+    "download_url": "https://example.org/datasets/ds-004/download.csv",
+    "types": [
+      "numerical",
+      "temporal"
+    ],
+    "temporal_coverage": {
+      "start": "1913-01-01",
+      "end": "2024-04-01"
+    },
+    "spatial_coverage": {
+      "label": "United States",
+      "bbox": {
+        "type": "envelope",
+        "coordinates": [
+          [
+            -124.84,
+            49.38
+          ],
+          [
+            -66.88,
+            24.39
+          ]
+        ]
+      }
+    },
+    "profiler_metadata": {
+      "nb_rows": 100,
+      "nb_profiled_rows": 100,
+      "nb_columns": 3,
+      "columns": [
+        {
+          "name": "period",
+          "structural_type": "http://schema.org/Date",
+          "semantic_types": []
+        },
+        {
+          "name": "cpi_all_items",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.007,
+          "num_distinct_values": 465,
+          "mean": 2111.15,
+          "stddev": 1151.32,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 9895.4
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 20,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "area_name",
+          "structural_type": "http://schema.org/Text",
+          "semantic_types": []
+        }
+      ],
+      "nb_spatial_columns": 0,
+      "nb_categorical_columns": 0,
+      "nb_numerical_columns": 1,
+      "types": [
+        "numerical",
+        "text",
+        "temporal"
+      ],
+      "attribute_keywords": [
+        "period",
+        "cpi_all_items",
+        "area_name"
+      ],
+      "sample": "period,cpi_all_items,area_name\r\n1913-01-01,1864,sample_text",
+      "_profiling_times": {
+        "steps": {
+          "1_load_data": 0.0011,
+          "2_geo_batch_predict": 0.1782
+        },
+        "total": 1.566
+      }
+    }
+  },
+  {
+    "id": "ds-005",
+    "title": "World Bank Population Growth Estimates",
+    "description": "Annual population growth rate (percentage) for all countries from 1960 to the present.",
+    "source": "World Bank",
+    "download_url": "https://api.worldbank.org/v2/en/country/all/indicator/ds-005.csv",
+    "types": [
+      "numerical",
+      "temporal",
+      "categorical"
+    ],
+    "temporal_coverage": {
+      "start": "1960-01-01",
+      "end": "2023-12-31"
+    },
+    "spatial_coverage": {
+      "label": "Global",
+      "bbox": {
+        "type": "envelope",
+        "coordinates": [
+          [
+            -180.0,
+            90.0
+          ],
+          [
+            180.0,
+            -90.0
+          ]
+        ]
+      }
+    },
+    "profiler_metadata": {
+      "nb_rows": 5000,
+      "nb_profiled_rows": 100,
+      "nb_columns": 3,
+      "columns": [
+        {
+          "name": "country",
+          "structural_type": "http://schema.org/Text",
+          "semantic_types": [],
+          "num_distinct_values": 6,
+          "plot": {
+            "type": "histogram_categorical",
+            "data": [
+              {
+                "bin": "A",
+                "count": 26
+              }
+            ]
+          }
+        },
+        {
+          "name": "year",
+          "structural_type": "http://schema.org/Date",
+          "semantic_types": []
+        },
+        {
+          "name": "pop_growth_pct",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.026,
+          "num_distinct_values": 393,
+          "mean": 3311.43,
+          "stddev": 83.01,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 679.1
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 3,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        }
+      ],
+      "nb_spatial_columns": 0,
+      "nb_categorical_columns": 1,
+      "nb_numerical_columns": 1,
+      "types": [
+        "categorical",
+        "numerical",
+        "temporal"
+      ],
+      "attribute_keywords": [
+        "country",
+        "year",
+        "pop_growth_pct"
+      ],
+      "sample": "country,year,pop_growth_pct\r\nGlobal,1960-01-01,1150",
+      "_profiling_times": {
+        "steps": {
+          "1_load_data": 0.0073,
+          "2_geo_batch_predict": 0.1498
+        },
+        "total": 1.654
+      }
+    }
+  },
+  {
+    "id": "ds-006",
+    "title": "California Wildfire Perimeters 2010-2024",
+    "description": "Geospatial perimeters of significant wildfires across California, updated through the most recent fire season.",
+    "source": "CAL FIRE",
+    "download_url": "https://example.org/datasets/ds-006/download.csv",
+    "types": [
+      "spatial",
+      "temporal"
+    ],
+    "temporal_coverage": {
+      "start": "2010-01-01",
+      "end": "2024-05-01"
+    },
+    "spatial_coverage": {
+      "label": "California",
+      "bbox": {
+        "type": "envelope",
+        "coordinates": [
+          [
+            -124.41,
+            42.01
+          ],
+          [
+            -114.13,
+            32.53
+          ]
+        ]
+      }
+    },
+    "profiler_metadata": {
+      "nb_rows": 5000,
+      "nb_profiled_rows": 100,
+      "nb_columns": 4,
+      "columns": [
+        {
+          "name": "fire_id",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.021,
+          "num_distinct_values": 167,
+          "mean": 2457.65,
+          "stddev": 161.8,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 5163.2
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 10,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "start_date",
+          "structural_type": "http://schema.org/Date",
+          "semantic_types": []
+        },
+        {
+          "name": "end_date",
+          "structural_type": "http://schema.org/Date",
+          "semantic_types": []
+        },
+        {
+          "name": "perimeter_wkt",
+          "structural_type": "http://schema.org/GeoCoordinates",
+          "semantic_types": [],
+          "geo_classifier": {
+            "label": "point",
+            "confidence": 0.8866,
+            "source": "ml+validated"
+          }
+        }
+      ],
+      "nb_spatial_columns": 1,
+      "nb_categorical_columns": 0,
+      "nb_numerical_columns": 1,
+      "types": [
+        "numerical",
+        "spatial",
+        "temporal"
+      ],
+      "attribute_keywords": [
+        "fire_id",
+        "start_date",
+        "end_date",
+        "perimeter_wkt"
+      ],
+      "sample": "fire_id,start_date,end_date,perimeter_wkt\r\n5129,2010-01-01,2010-01-01,POINT (-119.27 37.27)",
+      "_profiling_times": {
+        "steps": {
+          "1_load_data": 0.0014,
+          "2_geo_batch_predict": 0.094
+        },
+        "total": 2.066
+      }
+    }
+  },
+  {
+    "id": "ds-007",
+    "title": "Airbnb Listings London March 2024",
+    "description": "Snapshot of Airbnb listings in London including price, room type, and reviews.",
+    "source": "Inside Airbnb",
+    "download_url": "https://example.org/datasets/ds-007/download.csv",
+    "types": [
+      "spatial",
+      "categorical",
+      "numerical"
+    ],
+    "temporal_coverage": {
+      "start": "2024-03-10",
+      "end": "2024-03-11"
+    },
+    "spatial_coverage": {
+      "label": "London, UK",
+      "bbox": {
+        "type": "envelope",
+        "coordinates": [
+          [
+            -0.51,
+            51.69
+          ],
+          [
+            0.33,
+            51.28
+          ]
+        ]
+      }
+    },
+    "profiler_metadata": {
+      "nb_rows": 100,
+      "nb_profiled_rows": 100,
+      "nb_columns": 4,
+      "columns": [
+        {
+          "name": "listing_id",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.044,
+          "num_distinct_values": 31,
+          "mean": 3727.51,
+          "stddev": 1751.11,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 2140.4
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 12,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "room_type",
+          "structural_type": "http://schema.org/Text",
+          "semantic_types": [],
+          "num_distinct_values": 28,
+          "plot": {
+            "type": "histogram_categorical",
+            "data": [
+              {
+                "bin": "A",
+                "count": 14
+              }
+            ]
+          }
+        },
+        {
+          "name": "price_usd",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.033,
+          "num_distinct_values": 202,
+          "mean": 1071.24,
+          "stddev": 588.43,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 4111.6
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 15,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "location",
+          "structural_type": "http://schema.org/GeoCoordinates",
+          "semantic_types": [],
+          "geo_classifier": {
+            "label": "point",
+            "confidence": 0.9031,
+            "source": "ml+validated"
+          }
+        }
+      ],
+      "nb_spatial_columns": 1,
+      "nb_categorical_columns": 1,
+      "nb_numerical_columns": 2,
+      "types": [
+        "categorical",
+        "numerical",
+        "spatial"
+      ],
+      "attribute_keywords": [
+        "listing_id",
+        "room_type",
+        "price_usd",
+        "location"
+      ],
+      "sample": "listing_id,room_type,price_usd,location\r\n8168,sample_text,3539,POINT (-0.09 51.485)",
+      "_profiling_times": {
+        "steps": {
+          "1_load_data": 0.0011,
+          "2_geo_batch_predict": 0.2792
+        },
+        "total": 2.588
+      }
+    }
+  },
+  {
+    "id": "ds-008",
+    "title": "Historical Exchange Rates: EUR to USD",
+    "description": "Daily closing exchange rates for the Euro against the US Dollar.",
+    "source": "European Central Bank",
+    "download_url": "https://example.org/datasets/ds-008/download.csv",
+    "types": [
+      "numerical",
+      "temporal"
+    ],
+    "temporal_coverage": {
+      "start": "1999-01-04",
+      "end": "2024-05-10"
+    },
+    "spatial_coverage": {
+      "label": "New York City",
+      "bbox": {
+        "type": "envelope",
+        "coordinates": [
+          [-74.26, 40.92],
+          [-73.7, 40.47]
+        ]
+      }
+    },
+    "profiler_metadata": {
+      "nb_rows": 500,
+      "nb_profiled_rows": 100,
+      "nb_columns": 2,
+      "columns": [
+        {
+          "name": "date",
+          "structural_type": "http://schema.org/Date",
+          "semantic_types": []
+        },
+        {
+          "name": "eur_usd",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.012,
+          "num_distinct_values": 461,
+          "mean": 2580.18,
+          "stddev": 566.01,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 6782.0
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 15,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        }
+      ],
+      "nb_spatial_columns": 0,
+      "nb_categorical_columns": 0,
+      "nb_numerical_columns": 1,
+      "types": [
+        "numerical",
+        "temporal"
+      ],
+      "attribute_keywords": [
+        "date",
+        "eur_usd"
+      ],
+      "sample": "date,eur_usd\r\n1999-01-04,5084",
+      "_profiling_times": {
+        "steps": {
+          "1_load_data": 0.0082,
+          "2_geo_batch_predict": 0.0252
+        },
+        "total": 2.462
+      }
+    }
+  },
+  {
+    "id": "ds-009",
+    "title": "Seattle Bike Counter Data",
+    "description": "Hourly bicycle counts on key trails and bridges across the city of Seattle.",
+    "source": "Seattle.gov",
+    "download_url": "https://example.org/datasets/ds-009/download.csv",
+    "types": [
+      "spatial",
+      "numerical",
+      "temporal"
+    ],
+    "temporal_coverage": {
+      "start": "2014-01-01",
+      "end": "2024-04-30"
+    },
+    "spatial_coverage": {
+      "label": "Seattle, WA",
+      "bbox": {
+        "type": "envelope",
+        "coordinates": [
+          [
+            -122.43,
+            47.73
+          ],
+          [
+            -122.24,
+            47.48
+          ]
+        ]
+      }
+    },
+    "profiler_metadata": {
+      "nb_rows": 5000,
+      "nb_profiled_rows": 100,
+      "nb_columns": 4,
+      "columns": [
+        {
+          "name": "counter_id",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.006,
+          "num_distinct_values": 108,
+          "mean": 2068.01,
+          "stddev": 1783.29,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 5684.1
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 14,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "timestamp",
+          "structural_type": "http://schema.org/Date",
+          "semantic_types": []
+        },
+        {
+          "name": "bicycle_count",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.045,
+          "num_distinct_values": 130,
+          "mean": 3620.08,
+          "stddev": 222.86,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 9786.6
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 12,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "point_wkt",
+          "structural_type": "http://schema.org/GeoCoordinates",
+          "semantic_types": [],
+          "geo_classifier": {
+            "label": "point",
+            "confidence": 0.9521,
+            "source": "ml+validated"
+          }
+        }
+      ],
+      "nb_spatial_columns": 1,
+      "nb_categorical_columns": 0,
+      "nb_numerical_columns": 2,
+      "types": [
+        "numerical",
+        "spatial",
+        "temporal"
+      ],
+      "attribute_keywords": [
+        "counter_id",
+        "timestamp",
+        "bicycle_count",
+        "point_wkt"
+      ],
+      "sample": "counter_id,timestamp,bicycle_count,point_wkt\r\n3961,2014-01-01,8993,POINT (-122.335 47.605)",
+      "_profiling_times": {
+        "steps": {
+          "1_load_data": 0.0092,
+          "2_geo_batch_predict": 0.1605
+        },
+        "total": 1.637
+      }
+    }
+  },
+  {
+    "id": "ds-010",
+    "title": "COVID-19 Vaccination Progress by Country",
+    "description": "Consolidated dataset of total vaccinations, people vaccinated, and daily vaccination rates globally.",
+    "source": "Our World in Data",
+    "download_url": "https://ourworldindata.org/grapher/ds-010.csv",
+    "types": [
+      "numerical",
+      "temporal",
+      "categorical"
+    ],
+    "temporal_coverage": {
+      "start": "2020-12-01",
+      "end": "2024-01-01"
+    },
+    "spatial_coverage": {
+      "label": "Global",
+      "bbox": {
+        "type": "envelope",
+        "coordinates": [
+          [
+            -180.0,
+            90.0
+          ],
+          [
+            180.0,
+            -90.0
+          ]
+        ]
+      }
+    },
+    "profiler_metadata": {
+      "nb_rows": 1000,
+      "nb_profiled_rows": 100,
+      "nb_columns": 4,
+      "columns": [
+        {
+          "name": "country",
+          "structural_type": "http://schema.org/Text",
+          "semantic_types": [],
+          "num_distinct_values": 22,
+          "plot": {
+            "type": "histogram_categorical",
+            "data": [
+              {
+                "bin": "A",
+                "count": 36
+              }
+            ]
+          }
+        },
+        {
+          "name": "date",
+          "structural_type": "http://schema.org/Date",
+          "semantic_types": []
+        },
+        {
+          "name": "people_vaccinated",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.01,
+          "num_distinct_values": 22,
+          "mean": 1091.12,
+          "stddev": 1944.27,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 8253.9
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 13,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        },
+        {
+          "name": "daily_vaccinations",
+          "structural_type": "http://schema.org/Number",
+          "semantic_types": [],
+          "unclean_values_ratio": 0.044,
+          "num_distinct_values": 438,
+          "mean": 4622.02,
+          "stddev": 1483.92,
+          "coverage": [
+            {
+              "range": {
+                "gte": 0.0,
+                "lte": 1838.2
+              }
+            }
+          ],
+          "plot": {
+            "type": "histogram_numerical",
+            "data": [
+              {
+                "count": 14,
+                "bin_start": 0.0,
+                "bin_end": 100.0
+              }
+            ]
+          }
+        }
+      ],
+      "nb_spatial_columns": 0,
+      "nb_categorical_columns": 1,
+      "nb_numerical_columns": 2,
+      "types": [
+        "categorical",
+        "numerical",
+        "temporal"
+      ],
+      "attribute_keywords": [
+        "country",
+        "date",
+        "people_vaccinated",
+        "daily_vaccinations"
+      ],
+      "sample": "country,date,people_vaccinated,daily_vaccinations\r\nGlobal,2020-12-01,4452,8465",
+      "_profiling_times": {
+        "steps": {
+          "1_load_data": 0.0037,
+          "2_geo_batch_predict": 0.2442
+        },
+        "total": 0.859
+      }
+    }
+  }
+]
