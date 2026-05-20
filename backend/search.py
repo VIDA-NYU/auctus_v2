@@ -157,7 +157,7 @@ async def search(req: SearchQueryRequest):
     # print("RAW OPENSEARCH PAYLOAD:", json.dumps(payload, indent=2))
 
     try:
-        resp = client.search(index="datasets_v2", body=payload, size=req.limit, from_=req.offset)
+        resp = client.search(index="auctus_catalog_master", body=payload, size=req.limit, from_=req.offset)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Search backend error: {exc}")
 

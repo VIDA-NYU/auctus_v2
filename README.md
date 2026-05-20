@@ -48,6 +48,8 @@ python main.py
 
 Note: `python main.py` runs the FastAPI app with the built-in startup lifecycle that configures OpenSearch automatically. You may instead run `uvicorn main:app --reload` if you prefer `uvicorn` directly.
 
+If this is the first time setting up the backend, run `python initialize_opensearch.py` once to create the OpenSearch index. More details are in the backend README.
+
 Step 4 — The UI
 
 Run the React frontend with Vite:
@@ -65,7 +67,7 @@ Automated Initialization (Infrastructure as Code)
 
 To minimize setup friction, the backend performs automated initialization when it starts:
 
-- Configures OpenSearch mappings on `datasets_v2` (text analyzers, `geo_shape` for spatial coverage, and date types for temporal coverage).
+- Configures OpenSearch mappings on `auctus_catalog_master` (text analyzers, `geo_shape` for spatial coverage, and date types for temporal coverage).
 - Seeds the index with synthetic datasets from `backend/data/synthetic_datasets.json` if the index is empty.
 - Transforms ingestion bounding boxes into GeoJSON `envelope` shapes so spatial queries work out-of-the-box.
 - The development `docker-compose.yml` disables OpenSearch security to provide a zero-config developer experience (do not use this in production).
@@ -123,7 +125,7 @@ Troubleshooting
 - Verifying data in Dashboards (Discover)
 
   1. Open OpenSearch Dashboards at http://localhost:5601
-  2. Go to the "Discover" app (the left nav) and create/select an index pattern for `datasets_v2`.
+  2. Go to the "Discover" app (the left nav) and create/select an index pattern for `auctus_catalog_master`.
   3. Refresh the index pattern fields and search for sample documents. If the index is empty, restart the backend (it will seed synthetic data on first run) or check the backend logs for errors during initialization.
 
 - If `POST /search` returns 404 in the browser console

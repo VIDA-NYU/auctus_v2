@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Initialize a clean OpenSearch index `datasets` and bulk-load v2 synthetic data.
+"""Initialize a clean OpenSearch index `datasets` and bulk-load synthetic data.
 
 Usage: run from repository root or the `backend/` directory:
 
@@ -7,7 +7,7 @@ Usage: run from repository root or the `backend/` directory:
 
 The script connects to http://localhost:9200 by default. It will delete
 the `datasets` index if present, create it with the supplied mapping, and
-bulk-index records from `backend/data/synthetic_datasets_v2.json`.
+bulk-index records from `backend/data/synthetic_datasets.json`.
 """
 import json
 import os
@@ -28,9 +28,9 @@ except Exception:
     SentenceTransformer = None
 
 
-INDEX_NAME = "datasets_v2"
+AUCTUS_INDEX_NAME = "auctus_catalog_master"
 BASE_DIR = os.path.dirname(__file__)
-DATA_PATH = os.path.join(BASE_DIR, "data", "synthetic_datasets_v2.json")
+DATA_PATH = os.path.join(BASE_DIR, "data", "synthetic_datasets.json")
 
 
 def get_client():
@@ -145,14 +145,14 @@ def load_data(path):
 
 
 def recreate_index(client):
-    if client.indices.exists(index=INDEX_NAME):
-        print(f"Index '{INDEX_NAME}' exists — deleting...")
-        client.indices.delete(index=INDEX_NAME)
+    if client.indices.exists(index=AUCTUS_INDEX_NAME):
+        print(f"Index '{AUCTUS_INDEX_NAME}' exists — deleting...")
+        client.indices.delete(index=AUCTUS_INDEX_NAME)
         # small pause to let the cluster register deletion
         time.sleep(0.5)
 
-    print(f"Creating index '{INDEX_NAME}' with mappings...")
-    client.indices.create(index=INDEX_NAME, body=MAPPING)
+    print(f"Creating index '{AUCTUS_INDEX_NAME}' with mappings...")
+    client.indices.create(index=AUCTUS_INDEX_NAME, body=MAPPING)
 
 def bulk_index(client, docs):
     print(f"Preparing {len(docs)} documents for bulk indexing...")
@@ -160,7 +160,7 @@ def bulk_index(client, docs):
     for doc in docs:
         action = {
             "_op_type": "index",
-            "_index": INDEX_NAME,
+            "_index": AUCTUS_INDEX_NAME,
             "_id": doc.get("id"),
             "_source": doc,
         }
@@ -192,7 +192,7 @@ def bulk_index(client, docs):
 #     for doc in docs:
 #         action = {
 #             "_op_type": "index",
-#             "_index": INDEX_NAME,
+#             "_index": AUCTUS_INDEX_NAME,
 #             "_id": doc.get("id"),
 #             "_source": doc,
 #         }
@@ -275,7 +275,7 @@ def main():
     bulk_index(client, docs)
 
     print("Indexing finished. Refreshing index...")
-    client.indices.refresh(index=INDEX_NAME)
+    client.indices.refresh(index=AUCTUS_INDEX_NAME)
     print("Done.")
 
 

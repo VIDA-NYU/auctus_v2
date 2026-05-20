@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 OPENSEARCH_HOST = "localhost"
 OPENSEARCH_PORT = 9200
-INDEX_NAME = "datasets_v2"
-# Define the mapping for datasets_v2 index
+AUCTUS_INDEX_NAME = "auctus_catalog_master"
+# Define the mapping for auctus_catalog_master index
 DATASETS_MAPPING = {
     "settings": {
         "number_of_shards": 1,
@@ -194,7 +194,7 @@ def init_db():
     Initialize the OpenSearch database.
 
     - Connects to OpenSearch
-    - Creates datasets_v2 index if it doesn't exist
+    - Creates auctus_catalog_master index if it doesn't exist
     - Loads synthetic data if the index is empty
     """
     try:
@@ -217,7 +217,7 @@ def init_db():
         count = index_count(client, INDEX_NAME)
         if count == 0:
             logger.info(f"Index {INDEX_NAME} is empty. Loading data...")
-            data_file = Path(__file__).parent / "data" / "synthetic_datasets_v2.json"
+            data_file = Path(__file__).parent / "data" / "synthetic_datasets.json"
             load_and_ingest_data(client, INDEX_NAME, str(data_file))
         else:
             logger.info(f"Index {INDEX_NAME} already has {count} documents")

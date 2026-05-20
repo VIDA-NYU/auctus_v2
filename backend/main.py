@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 
-from opensearch_config import INDEX_NAME, get_client, init_db
+from opensearch_config import AUCTUS_INDEX_NAME, get_client, init_db
 from search import router as search_router
 
 # Configure logging
@@ -66,7 +66,7 @@ def read_root():
 
 @app.post("/search")
 async def search(request: SearchRequest):
-    """Search datasets_v2 via OpenSearch multi_match against title and description."""
+    """Search auctus_catalog_master via OpenSearch multi_match against title and description."""
     try:
         client = get_client()
 
@@ -94,7 +94,7 @@ async def search(request: SearchRequest):
             }
         }
 
-        response = client.search(index=INDEX_NAME, body=search_body)
+        response = client.search(index=AUCTUS_INDEX_NAME, body=search_body)
         hits = response.get("hits", {}).get("hits", [])
 
         results = []
