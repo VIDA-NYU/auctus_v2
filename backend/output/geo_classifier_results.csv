@@ -1,0 +1,10 @@
+name,values,label
+Latitude,"['40.70441', '40.77358', '40.62661']",latitude
+Longitude,"['-74.0159', '-73.945', '-74.0778']",longitude
+Location,"['POINT (-74.0159 40.70441)', 'POINT (-73.945 40.77358)', 'POINT (-74.0778 40.62661)']",point
+Latitude,"['40.70441', '40.77358', '40.62661']",latitude
+Longitude,"['-74.0159', '-73.945', '-74.0778']",longitude
+Location,"['POINT (-74.0159 40.70441)', 'POINT (-73.945 40.77358)', 'POINT (-74.0778 40.62661)']",point
+Latitude,"['40.70441', '40.77358', '40.62661']",latitude
+Longitude,"['-74.0159', '-73.945', '-74.0778']",longitude
+Location,"['POINT (-74.0159 40.70441)', 'POINT (-73.945 40.77358)', 'POINT (-74.0778 40.62661)']",point

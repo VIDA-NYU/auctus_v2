@@ -1,0 +1,1449 @@
+{
+  "id": "i7jb-7jku",
+  "title": "Public Restrooms",
+  "description": "This dataset contains information about the public restrooms in New York City. Each row contains as much of the following information as is currently available: the name of the restroom, location information (including geographic coordinates), the location type, operator, any seasonality, hours of operation, ADA accessibility level for facility, the number and gender designation of the stalls, changing stations availability in each restroom, and any specific notes regarding access or location. \n\nNote: Public restroom availability is subject to change due to maintenance needs, construction, or other factors. This dataset may not reflect real time conditions.",
+  "source": "Socrata",
+  "download_url": "https://data.cityofnewyork.us/api/views/i7jb-7jku/rows.csv?accessType=DOWNLOAD",
+  "types": [
+    "categorical",
+    "spatial"
+  ],
+  "temporal_coverage": {
+    "start": null,
+    "end": null
+  },
+  "spatial_coverage": {
+    "label": "New York City",
+    "bbox": {
+      "type": "envelope",
+      "coordinates": [
+        [
+          -74.2326,
+          40.903731
+        ],
+        [
+          -73.714847,
+          40.515281
+        ]
+      ]
+    }
+  },
+  "profiler_metadata": {
+    "nb_rows": 448,
+    "nb_profiled_rows": 448,
+    "nb_columns": 14,
+    "columns": [
+      {
+        "name": "Facility Name",
+        "structural_type": "http://schema.org/Text",
+        "semantic_types": [],
+        "num_distinct_values": 443
+      },
+      {
+        "name": "Location Type",
+        "structural_type": "http://schema.org/Text",
+        "semantic_types": [
+          "http://schema.org/Enumeration"
+        ],
+        "num_distinct_values": 5,
+        "plot": {
+          "type": "histogram_categorical",
+          "data": [
+            {
+              "bin": "Library",
+              "count": 91
+            },
+            {
+              "bin": "Park",
+              "count": 346
+            },
+            {
+              "bin": "Privately Owned Public Space",
+              "count": 5
+            },
+            {
+              "bin": "Public Plaza",
+              "count": 3
+            },
+            {
+              "bin": "Transit",
+              "count": 3
+            }
+          ]
+        }
+      },
+      {
+        "name": "Operator",
+        "structural_type": "http://schema.org/Text",
+        "semantic_types": [
+          "http://schema.org/Enumeration"
+        ],
+        "num_distinct_values": 21,
+        "plot": {
+          "type": "histogram_categorical",
+          "data": [
+            {
+              "bin": "BPL",
+              "count": 26
+            },
+            {
+              "bin": "NYC Parks",
+              "count": 307
+            },
+            {
+              "bin": "NYC Parks Concessionaire",
+              "count": 29
+            },
+            {
+              "bin": "NYPL",
+              "count": 37
+            },
+            {
+              "bin": "QPL",
+              "count": 28
+            }
+          ]
+        }
+      },
+      {
+        "name": "Status",
+        "structural_type": "http://schema.org/Text",
+        "semantic_types": [
+          "http://schema.org/Enumeration"
+        ],
+        "num_distinct_values": 3,
+        "plot": {
+          "type": "histogram_categorical",
+          "data": [
+            {
+              "bin": "Closed for Construction",
+              "count": 6
+            },
+            {
+              "bin": "Not Operational",
+              "count": 29
+            },
+            {
+              "bin": "Operational",
+              "count": 413
+            }
+          ]
+        }
+      },
+      {
+        "name": "Open",
+        "structural_type": "http://schema.org/Text",
+        "semantic_types": [
+          "http://schema.org/Enumeration"
+        ],
+        "missing_values_ratio": 0.06473214285714286,
+        "num_distinct_values": 3,
+        "plot": {
+          "type": "histogram_categorical",
+          "data": [
+            {
+              "bin": "Future",
+              "count": 1
+            },
+            {
+              "bin": "Seasonal",
+              "count": 57
+            },
+            {
+              "bin": "Year Round",
+              "count": 361
+            }
+          ]
+        }
+      },
+      {
+        "name": "Hours of Operation",
+        "structural_type": "http://schema.org/Text",
+        "semantic_types": [
+          "http://schema.org/Text"
+        ],
+        "missing_values_ratio": 0.08035714285714286,
+        "plot": {
+          "type": "histogram_text",
+          "data": [
+            {
+              "bin": "00",
+              "count": 753
+            },
+            {
+              "bin": "pm",
+              "count": 618
+            },
+            {
+              "bin": "am",
+              "count": 430
+            },
+            {
+              "bin": "10",
+              "count": 396
+            },
+            {
+              "bin": "8am",
+              "count": 277
+            }
+          ]
+        }
+      },
+      {
+        "name": "Accessibility",
+        "structural_type": "http://schema.org/Text",
+        "semantic_types": [
+          "http://schema.org/Enumeration"
+        ],
+        "missing_values_ratio": 0.171875,
+        "num_distinct_values": 3,
+        "plot": {
+          "type": "histogram_categorical",
+          "data": [
+            {
+              "bin": "Fully Accessible",
+              "count": 253
+            },
+            {
+              "bin": "Not Accessible",
+              "count": 93
+            },
+            {
+              "bin": "Partially Accessible",
+              "count": 25
+            }
+          ]
+        }
+      },
+      {
+        "name": "Restroom Type",
+        "structural_type": "http://schema.org/Text",
+        "semantic_types": [
+          "http://schema.org/Enumeration"
+        ],
+        "missing_values_ratio": 0.13616071428571427,
+        "num_distinct_values": 5,
+        "plot": {
+          "type": "histogram_categorical",
+          "data": [
+            {
+              "bin": "Both Single-Stall All Gender and Multi-Stall W/M",
+              "count": 50
+            },
+            {
+              "bin": "Multi-Stall All Gender Restrooms",
+              "count": 1
+            },
+            {
+              "bin": "Multi-Stall W/M Restrooms",
+              "count": 270
+            },
+            {
+              "bin": "Single -Stall All Gender Restroom(s)",
+              "count": 2
+            },
+            {
+              "bin": "Single-Stall All Gender Restroom(s)",
+              "count": 64
+            }
+          ]
+        }
+      },
+      {
+        "name": "Changing Stations",
+        "structural_type": "http://schema.org/Text",
+        "semantic_types": [
+          "http://schema.org/Enumeration"
+        ],
+        "missing_values_ratio": 0.09375,
+        "num_distinct_values": 6,
+        "plot": {
+          "type": "histogram_categorical",
+          "data": [
+            {
+              "bin": "\"Yes, in men's restroom only\"",
+              "count": 9
+            },
+            {
+              "bin": "\"Yes, in single-stall all gender restroom only\"",
+              "count": 10
+            },
+            {
+              "bin": "\"Yes, in women's restroom only\"",
+              "count": 32
+            },
+            {
+              "bin": "No",
+              "count": 78
+            },
+            {
+              "bin": "Yes",
+              "count": 273
+            }
+          ]
+        }
+      },
+      {
+        "name": "Additional Notes",
+        "structural_type": "http://schema.org/Text",
+        "semantic_types": [
+          "http://schema.org/Text"
+        ],
+        "missing_values_ratio": 0.9308035714285714,
+        "plot": {
+          "type": "histogram_text",
+          "data": [
+            {
+              "bin": "to",
+              "count": 27
+            },
+            {
+              "bin": "is",
+              "count": 24
+            },
+            {
+              "bin": "yes",
+              "count": 21
+            },
+            {
+              "bin": "a",
+              "count": 21
+            },
+            {
+              "bin": "key",
+              "count": 21
+            }
+          ]
+        }
+      },
+      {
+        "name": "Website",
+        "structural_type": "http://schema.org/Text",
+        "semantic_types": [
+          "http://schema.org/URL"
+        ],
+        "missing_values_ratio": 0.7834821428571429,
+        "num_distinct_values": 93
+      },
+      {
+        "name": "Latitude",
+        "structural_type": "http://schema.org/Float",
+        "semantic_types": [
+          "http://schema.org/latitude"
+        ],
+        "geo_classifier": {
+          "label": "latitude",
+          "confidence": 0.9890083074569702,
+          "source": "ml+validated"
+        },
+        "mean": 40.72809986383931,
+        "stddev": 0.08502290059184446,
+        "coverage": [
+          {
+            "range": {
+              "gte": 40.552432,
+              "lte": 40.66262
+            }
+          },
+          {
+            "range": {
+              "gte": 40.67405,
+              "lte": 40.76821
+            }
+          },
+          {
+            "range": {
+              "gte": 40.784843,
+              "lte": 40.888903
+            }
+          }
+        ],
+        "plot": {
+          "type": "histogram_numerical",
+          "data": [
+            {
+              "count": 6,
+              "bin_start": 40.515281,
+              "bin_end": 40.554126000000004
+            },
+            {
+              "count": 26,
+              "bin_start": 40.554126000000004,
+              "bin_end": 40.592971
+            },
+            {
+              "count": 33,
+              "bin_start": 40.592971,
+              "bin_end": 40.631816
+            },
+            {
+              "count": 44,
+              "bin_start": 40.631816,
+              "bin_end": 40.670661
+            },
+            {
+              "count": 76,
+              "bin_start": 40.670661,
+              "bin_end": 40.709506000000005
+            },
+            {
+              "count": 86,
+              "bin_start": 40.709506000000005,
+              "bin_end": 40.748351
+            },
+            {
+              "count": 54,
+              "bin_start": 40.748351,
+              "bin_end": 40.787196
+            },
+            {
+              "count": 57,
+              "bin_start": 40.787196,
+              "bin_end": 40.826041000000004
+            },
+            {
+              "count": 40,
+              "bin_start": 40.826041000000004,
+              "bin_end": 40.864886
+            },
+            {
+              "count": 26,
+              "bin_start": 40.864886,
+              "bin_end": 40.903731
+            }
+          ]
+        }
+      },
+      {
+        "name": "Longitude",
+        "structural_type": "http://schema.org/Float",
+        "semantic_types": [
+          "http://schema.org/longitude"
+        ],
+        "geo_classifier": {
+          "label": "longitude",
+          "confidence": 0.9919536709785461,
+          "source": "ml+validated"
+        },
+        "mean": -73.92081812723211,
+        "stddev": 0.09021636892302683,
+        "coverage": [
+          {
+            "range": {
+              "gte": -74.169255,
+              "lte": -73.978243
+            }
+          },
+          {
+            "range": {
+              "gte": -73.97181,
+              "lte": -73.876823
+            }
+          },
+          {
+            "range": {
+              "gte": -73.8603,
+              "lte": -73.731839
+            }
+          }
+        ],
+        "plot": {
+          "type": "histogram_numerical",
+          "data": [
+            {
+              "count": 5,
+              "bin_start": -74.2326,
+              "bin_end": -74.1808247
+            },
+            {
+              "count": 6,
+              "bin_start": -74.1808247,
+              "bin_end": -74.1290494
+            },
+            {
+              "count": 12,
+              "bin_start": -74.1290494,
+              "bin_end": -74.07727410000001
+            },
+            {
+              "count": 8,
+              "bin_start": -74.07727410000001,
+              "bin_end": -74.02549880000001
+            },
+            {
+              "count": 88,
+              "bin_start": -74.02549880000001,
+              "bin_end": -73.9737235
+            },
+            {
+              "count": 116,
+              "bin_start": -73.9737235,
+              "bin_end": -73.9219482
+            },
+            {
+              "count": 89,
+              "bin_start": -73.9219482,
+              "bin_end": -73.8701729
+            },
+            {
+              "count": 62,
+              "bin_start": -73.8701729,
+              "bin_end": -73.81839760000001
+            },
+            {
+              "count": 40,
+              "bin_start": -73.81839760000001,
+              "bin_end": -73.76662230000001
+            },
+            {
+              "count": 22,
+              "bin_start": -73.76662230000001,
+              "bin_end": -73.714847
+            }
+          ]
+        }
+      },
+      {
+        "name": "Location",
+        "structural_type": "http://schema.org/GeoCoordinates",
+        "semantic_types": [],
+        "geo_classifier": {
+          "label": "point",
+          "confidence": 0.9714621901512146,
+          "source": "ml+validated"
+        }
+      }
+    ],
+    "nb_spatial_columns": 1,
+    "nb_categorical_columns": 7,
+    "types": [
+      "categorical",
+      "spatial"
+    ],
+    "spatial_coverage": [
+      {
+        "type": "latlong",
+        "column_names": [
+          "Latitude",
+          "Longitude"
+        ],
+        "column_indexes": [
+          11,
+          12
+        ],
+        "geohashes4": [
+          {
+            "hash": "1211302313122",
+            "number": 5
+          },
+          {
+            "hash": "1211302313123",
+            "number": 2
+          },
+          {
+            "hash": "1211302313132",
+            "number": 3
+          },
+          {
+            "hash": "1211302313313",
+            "number": 7
+          },
+          {
+            "hash": "1211302313310",
+            "number": 15
+          },
+          {
+            "hash": "1211302313311",
+            "number": 11
+          },
+          {
+            "hash": "1211302313312",
+            "number": 3
+          },
+          {
+            "hash": "1211302313300",
+            "number": 14
+          },
+          {
+            "hash": "1211302313303",
+            "number": 6
+          },
+          {
+            "hash": "1211302313302",
+            "number": 9
+          },
+          {
+            "hash": "1211302313301",
+            "number": 13
+          },
+          {
+            "hash": "1211302313330",
+            "number": 6
+          },
+          {
+            "hash": "1211302313331",
+            "number": 3
+          },
+          {
+            "hash": "1211302313332",
+            "number": 9
+          },
+          {
+            "hash": "1211302313321",
+            "number": 3
+          },
+          {
+            "hash": "1211302313320",
+            "number": 3
+          },
+          {
+            "hash": "1211302313323",
+            "number": 10
+          },
+          {
+            "hash": "1211302313322",
+            "number": 4
+          },
+          {
+            "hash": "1211302313020",
+            "number": 3
+          },
+          {
+            "hash": "1211302313022",
+            "number": 3
+          },
+          {
+            "hash": "1211302313023",
+            "number": 4
+          },
+          {
+            "hash": "1211302313021",
+            "number": 1
+          },
+          {
+            "hash": "1211302313002",
+            "number": 4
+          },
+          {
+            "hash": "1211302313000",
+            "number": 2
+          },
+          {
+            "hash": "1211302313003",
+            "number": 1
+          },
+          {
+            "hash": "1211302313033",
+            "number": 3
+          },
+          {
+            "hash": "1211302313211",
+            "number": 14
+          },
+          {
+            "hash": "1211302313213",
+            "number": 11
+          },
+          {
+            "hash": "1211302313210",
+            "number": 5
+          },
+          {
+            "hash": "1211302313212",
+            "number": 7
+          },
+          {
+            "hash": "1211302313231",
+            "number": 3
+          },
+          {
+            "hash": "1211302313230",
+            "number": 4
+          },
+          {
+            "hash": "1211302313232",
+            "number": 5
+          },
+          {
+            "hash": "1211302313233",
+            "number": 2
+          },
+          {
+            "hash": "1211302313203",
+            "number": 6
+          },
+          {
+            "hash": "1211302313200",
+            "number": 7
+          },
+          {
+            "hash": "1211302313201",
+            "number": 2
+          },
+          {
+            "hash": "1211302313221",
+            "number": 8
+          },
+          {
+            "hash": "1211302313220",
+            "number": 2
+          },
+          {
+            "hash": "1211302312311",
+            "number": 5
+          },
+          {
+            "hash": "1211302312310",
+            "number": 4
+          },
+          {
+            "hash": "1211302312312",
+            "number": 3
+          },
+          {
+            "hash": "1211302312313",
+            "number": 3
+          },
+          {
+            "hash": "1211302312332",
+            "number": 1
+          },
+          {
+            "hash": "1211302312131",
+            "number": 5
+          },
+          {
+            "hash": "1211302312130",
+            "number": 3
+          },
+          {
+            "hash": "1211302312101",
+            "number": 3
+          },
+          {
+            "hash": "1211302312103",
+            "number": 1
+          },
+          {
+            "hash": "1211302312110",
+            "number": 1
+          },
+          {
+            "hash": "1211302310233",
+            "number": 2
+          },
+          {
+            "hash": "1211302310323",
+            "number": 1
+          },
+          {
+            "hash": "1211302310320",
+            "number": 1
+          },
+          {
+            "hash": "1211302310322",
+            "number": 1
+          },
+          {
+            "hash": "1211302331101",
+            "number": 5
+          },
+          {
+            "hash": "1211302331100",
+            "number": 7
+          },
+          {
+            "hash": "1211302331102",
+            "number": 3
+          },
+          {
+            "hash": "1211302331103",
+            "number": 4
+          },
+          {
+            "hash": "1211302331110",
+            "number": 5
+          },
+          {
+            "hash": "1211302331112",
+            "number": 4
+          },
+          {
+            "hash": "1211302331111",
+            "number": 3
+          },
+          {
+            "hash": "1211302331130",
+            "number": 5
+          },
+          {
+            "hash": "1211302331120",
+            "number": 2
+          },
+          {
+            "hash": "1211302331121",
+            "number": 2
+          },
+          {
+            "hash": "1211302331010",
+            "number": 1
+          },
+          {
+            "hash": "1211302331013",
+            "number": 7
+          },
+          {
+            "hash": "1211302331012",
+            "number": 1
+          },
+          {
+            "hash": "1211302331011",
+            "number": 4
+          },
+          {
+            "hash": "1211302331031",
+            "number": 1
+          },
+          {
+            "hash": "1211302331002",
+            "number": 1
+          },
+          {
+            "hash": "1211302330113",
+            "number": 5
+          },
+          {
+            "hash": "1211302330111",
+            "number": 3
+          },
+          {
+            "hash": "1211303202202",
+            "number": 11
+          },
+          {
+            "hash": "1211303202200",
+            "number": 9
+          },
+          {
+            "hash": "1211303202203",
+            "number": 19
+          },
+          {
+            "hash": "1211303202201",
+            "number": 1
+          },
+          {
+            "hash": "1211303202230",
+            "number": 11
+          },
+          {
+            "hash": "1211303202231",
+            "number": 8
+          },
+          {
+            "hash": "1211303202233",
+            "number": 2
+          },
+          {
+            "hash": "1211303202232",
+            "number": 8
+          },
+          {
+            "hash": "1211303202222",
+            "number": 2
+          },
+          {
+            "hash": "1211303202221",
+            "number": 11
+          },
+          {
+            "hash": "1211303202223",
+            "number": 4
+          },
+          {
+            "hash": "1211303202213",
+            "number": 7
+          },
+          {
+            "hash": "1211303202212",
+            "number": 6
+          },
+          {
+            "hash": "1211303202322",
+            "number": 4
+          },
+          {
+            "hash": "1211303202320",
+            "number": 8
+          },
+          {
+            "hash": "1211303202321",
+            "number": 5
+          },
+          {
+            "hash": "1211303202323",
+            "number": 1
+          },
+          {
+            "hash": "1211303220011",
+            "number": 5
+          },
+          {
+            "hash": "1211303220000",
+            "number": 2
+          },
+          {
+            "hash": "1211303220002",
+            "number": 1
+          },
+          {
+            "hash": "1211303220001",
+            "number": 2
+          },
+          {
+            "hash": "1211303220100",
+            "number": 1
+          }
+        ],
+        "ranges": [
+          {
+            "range": {
+              "type": "envelope",
+              "coordinates": [
+                [
+                  -74.148523,
+                  40.74986
+                ],
+                [
+                  -73.914,
+                  40.57172
+                ]
+              ]
+            }
+          },
+          {
+            "range": {
+              "type": "envelope",
+              "coordinates": [
+                [
+                  -73.978243,
+                  40.88764
+                ],
+                [
+                  -73.8253,
+                  40.752076
+                ]
+              ]
+            }
+          },
+          {
+            "range": {
+              "type": "envelope",
+              "coordinates": [
+                [
+                  -73.8902,
+                  40.77015
+                ],
+                [
+                  -73.731839,
+                  40.59244
+                ]
+              ]
+            }
+          }
+        ],
+        "number": 448
+      },
+      {
+        "type": "point",
+        "column_names": [
+          "Location"
+        ],
+        "column_indexes": [
+          13
+        ],
+        "geohashes4": [
+          {
+            "hash": "1211302313122",
+            "number": 5
+          },
+          {
+            "hash": "1211302313123",
+            "number": 2
+          },
+          {
+            "hash": "1211302313132",
+            "number": 3
+          },
+          {
+            "hash": "1211302313313",
+            "number": 7
+          },
+          {
+            "hash": "1211302313310",
+            "number": 15
+          },
+          {
+            "hash": "1211302313311",
+            "number": 11
+          },
+          {
+            "hash": "1211302313312",
+            "number": 3
+          },
+          {
+            "hash": "1211302313300",
+            "number": 14
+          },
+          {
+            "hash": "1211302313303",
+            "number": 6
+          },
+          {
+            "hash": "1211302313302",
+            "number": 9
+          },
+          {
+            "hash": "1211302313301",
+            "number": 13
+          },
+          {
+            "hash": "1211302313330",
+            "number": 6
+          },
+          {
+            "hash": "1211302313331",
+            "number": 3
+          },
+          {
+            "hash": "1211302313332",
+            "number": 9
+          },
+          {
+            "hash": "1211302313321",
+            "number": 3
+          },
+          {
+            "hash": "1211302313320",
+            "number": 3
+          },
+          {
+            "hash": "1211302313323",
+            "number": 10
+          },
+          {
+            "hash": "1211302313322",
+            "number": 4
+          },
+          {
+            "hash": "1211302313020",
+            "number": 3
+          },
+          {
+            "hash": "1211302313022",
+            "number": 3
+          },
+          {
+            "hash": "1211302313023",
+            "number": 4
+          },
+          {
+            "hash": "1211302313021",
+            "number": 1
+          },
+          {
+            "hash": "1211302313002",
+            "number": 4
+          },
+          {
+            "hash": "1211302313000",
+            "number": 2
+          },
+          {
+            "hash": "1211302313003",
+            "number": 1
+          },
+          {
+            "hash": "1211302313033",
+            "number": 3
+          },
+          {
+            "hash": "1211302313211",
+            "number": 14
+          },
+          {
+            "hash": "1211302313213",
+            "number": 11
+          },
+          {
+            "hash": "1211302313210",
+            "number": 5
+          },
+          {
+            "hash": "1211302313212",
+            "number": 7
+          },
+          {
+            "hash": "1211302313231",
+            "number": 3
+          },
+          {
+            "hash": "1211302313230",
+            "number": 4
+          },
+          {
+            "hash": "1211302313232",
+            "number": 5
+          },
+          {
+            "hash": "1211302313233",
+            "number": 2
+          },
+          {
+            "hash": "1211302313203",
+            "number": 6
+          },
+          {
+            "hash": "1211302313200",
+            "number": 6
+          },
+          {
+            "hash": "1211302313201",
+            "number": 2
+          },
+          {
+            "hash": "1211302313221",
+            "number": 8
+          },
+          {
+            "hash": "1211302313220",
+            "number": 2
+          },
+          {
+            "hash": "1211302312311",
+            "number": 4
+          },
+          {
+            "hash": "1211302312310",
+            "number": 4
+          },
+          {
+            "hash": "1211302312312",
+            "number": 3
+          },
+          {
+            "hash": "1211302312313",
+            "number": 3
+          },
+          {
+            "hash": "1211302312332",
+            "number": 1
+          },
+          {
+            "hash": "1211302312131",
+            "number": 5
+          },
+          {
+            "hash": "1211302312130",
+            "number": 3
+          },
+          {
+            "hash": "1211302312101",
+            "number": 3
+          },
+          {
+            "hash": "1211302312103",
+            "number": 1
+          },
+          {
+            "hash": "1211302312110",
+            "number": 1
+          },
+          {
+            "hash": "1211302310233",
+            "number": 2
+          },
+          {
+            "hash": "1211302310323",
+            "number": 1
+          },
+          {
+            "hash": "1211302310320",
+            "number": 1
+          },
+          {
+            "hash": "1211302310322",
+            "number": 1
+          },
+          {
+            "hash": "1211302331101",
+            "number": 5
+          },
+          {
+            "hash": "1211302331100",
+            "number": 7
+          },
+          {
+            "hash": "1211302331102",
+            "number": 3
+          },
+          {
+            "hash": "1211302331103",
+            "number": 4
+          },
+          {
+            "hash": "1211302331110",
+            "number": 5
+          },
+          {
+            "hash": "1211302331112",
+            "number": 4
+          },
+          {
+            "hash": "1211302331111",
+            "number": 3
+          },
+          {
+            "hash": "1211302331130",
+            "number": 5
+          },
+          {
+            "hash": "1211302331120",
+            "number": 2
+          },
+          {
+            "hash": "1211302331121",
+            "number": 2
+          },
+          {
+            "hash": "1211302331010",
+            "number": 1
+          },
+          {
+            "hash": "1211302331013",
+            "number": 7
+          },
+          {
+            "hash": "1211302331012",
+            "number": 1
+          },
+          {
+            "hash": "1211302331011",
+            "number": 4
+          },
+          {
+            "hash": "1211302331031",
+            "number": 1
+          },
+          {
+            "hash": "1211302331002",
+            "number": 1
+          },
+          {
+            "hash": "1211302330113",
+            "number": 5
+          },
+          {
+            "hash": "1211302330111",
+            "number": 3
+          },
+          {
+            "hash": "1211303202202",
+            "number": 11
+          },
+          {
+            "hash": "1211303202200",
+            "number": 9
+          },
+          {
+            "hash": "1211303202203",
+            "number": 19
+          },
+          {
+            "hash": "1211303202201",
+            "number": 1
+          },
+          {
+            "hash": "1211303202230",
+            "number": 11
+          },
+          {
+            "hash": "1211303202231",
+            "number": 8
+          },
+          {
+            "hash": "1211303202233",
+            "number": 2
+          },
+          {
+            "hash": "1211303202232",
+            "number": 7
+          },
+          {
+            "hash": "1211303202222",
+            "number": 2
+          },
+          {
+            "hash": "1211303202221",
+            "number": 11
+          },
+          {
+            "hash": "1211303202223",
+            "number": 4
+          },
+          {
+            "hash": "1211303202213",
+            "number": 7
+          },
+          {
+            "hash": "1211303202212",
+            "number": 6
+          },
+          {
+            "hash": "1211303202322",
+            "number": 4
+          },
+          {
+            "hash": "1211303202320",
+            "number": 8
+          },
+          {
+            "hash": "1211303202321",
+            "number": 5
+          },
+          {
+            "hash": "1211303202323",
+            "number": 1
+          },
+          {
+            "hash": "1211303220011",
+            "number": 5
+          },
+          {
+            "hash": "1211303220000",
+            "number": 2
+          },
+          {
+            "hash": "1211303220002",
+            "number": 1
+          },
+          {
+            "hash": "1211303220001",
+            "number": 2
+          },
+          {
+            "hash": "1211303220100",
+            "number": 1
+          }
+        ],
+        "ranges": [
+          {
+            "range": {
+              "type": "envelope",
+              "coordinates": [
+                [
+                  -74.149616,
+                  40.74986
+                ],
+                [
+                  -73.9144,
+                  40.561486
+                ]
+              ]
+            }
+          },
+          {
+            "range": {
+              "type": "envelope",
+              "coordinates": [
+                [
+                  -73.978243,
+                  40.88764
+                ],
+                [
+                  -73.8253,
+                  40.752076
+                ]
+              ]
+            }
+          },
+          {
+            "range": {
+              "type": "envelope",
+              "coordinates": [
+                [
+                  -73.893106,
+                  40.77015
+                ],
+                [
+                  -73.731839,
+                  40.59244
+                ]
+              ]
+            }
+          }
+        ],
+        "number": 445
+      }
+    ],
+    "attribute_keywords": [
+      "Facility Name",
+      "Facility",
+      "Name",
+      "Location Type",
+      "Location",
+      "Type",
+      "Operator",
+      "Status",
+      "Open",
+      "Hours of Operation",
+      "Hours",
+      "of",
+      "Operation",
+      "Accessibility",
+      "Restroom Type",
+      "Restroom",
+      "Type",
+      "Changing Stations",
+      "Changing",
+      "Stations",
+      "Additional Notes",
+      "Additional",
+      "Notes",
+      "Website",
+      "Latitude",
+      "Longitude",
+      "Location"
+    ],
+    "sample": "Facility Name,Location Type,Operator,Status,Open,Hours of Operation,Accessibility,Restroom Type,Changing Stations,Additional Notes,Website,Latitude,Longitude,Location\r\nBig Bush Playground,Park,NYC Parks,Operational,Seasonal,\"8am-4pm, Open later seasonally\",Not Accessible,Multi-Stall W/M Restrooms,\"\"\"Yes, in women's restroom only\"\"\",,,40.74025,-73.9027,POINT (-73.9027 40.74025)\r\nRosewood Playground,Park,NYC Parks,Operational,Year Round,\"8am-4pm, Open later seasonally\",Fully Accessible,Multi-Stall W/M Restrooms,\"\"\"Yes, in women's restroom only\"\"\",,,40.87298,-73.8711,POINT (-73.8711 40.87298)\r\nClaremont Zone 1,Park,NYC Parks,Operational,Year Round,\"8am-4pm, Open later seasonally\",Fully Accessible,Multi-Stall W/M Restrooms,\"\"\"Yes, in men's restroom only\"\"\",,,40.84151,-73.9068,POINT (-73.9068 40.84151)\r\nRussell Sage Playground,Park,NYC Parks,Operational,Year Round,\"8am-4pm, Open later seasonally\",Not Accessible,Multi-Stall W/M Restrooms,\"\"\"Yes, in women's restroom only\"\"\",,,40.72396,-73.8516,POINT (-73.8516 40.72396)\r\n\"Highlawn Library, BPL\",Library,BPL,Operational,Year Round,\"Monday\t10 am - 6 pm\nTuesday\t1 pm - 8 pm\nWednesday\t10 am - 6 pm\nThursday\t10 am - 8 pm\nFriday\t10 am - 6 pm\nSaturday\t10 am - 5 pm\nSunday\tCLOSED\",Fully Accessible,Single-Stall All Gender Restroom(s),Yes,,https://www.bklynlibrary.org/locations/highlawn,40.605701,-73.986248,POINT (-73.986248 40.605701)\r\n\"North Hills Library, QPL\",Library,QPL,Operational,Year Round,\"Sunday: Closed \nMonday: 10:00 am - 6:00 pm \nTuesday: 1:00 pm - 6:00 pm \nWednesday: 10:00 am - 6:00 pm \nThursday: 12:00 pm - 8:00 pm...\",,Single-Stall All Gender Restroom(s),Yes,\"Yes, a key is needed to enter\",https://www.queenslibrary.org/about-us/locations/north-hills,40.759262,-73.731839,POINT (-73.731839 40.759262)\r\n\"Paerdegat Library, BPL\",Library,BPL,Operational,Year Round,\"Monday\t10 am - 6 pm\nTuesday\t1 pm - 8 pm\nWednesday\t10 am - 6 pm\nThursday\t10 am - 8 pm\nFriday\t10 am - 6 pm\nSaturday\t10 am - 5 pm\nSunday\tCLOSED\",Fully Accessible,Both Single-Stall All Gender and Multi-Stall W/M,Yes,,https://www.bklynlibrary.org/locations/paerdegat,40.632645,-73.919986,POINT (-73.919986 40.632645)\r\n\"St. George Library Center, NYPL\",Library,NYPL,Operational,Year Round,\"Sunday: Closed \nMonday: 10:00 am - 7:00 pm \nTuesday: 10:00 am - 7:00 pm \nWednesday: 10:00 am - 7:00 pm  \nThursday: 10:00 am - 7:00 pm...\",Fully Accessible,Both Single-Stall All Gender and Multi-Stall W/M,\"\"\"Yes, in single-stall all gender restroom only\"\"\",,https://www.nypl.org/locations/st-george-library-center,40.641808,-74.07668,POINT (-74.07668 40.641808)\r\n\"Ulmer Park Library, BPL\",Library,BPL,Operational,Year Round,\"Monday\t10 am - 6 pm\nTuesday\t1 pm - 8 pm\nWednesday\t10 am - 6 pm\nThursday\t10 am - 8 pm\nFriday\t10 am - 6 pm\nSaturday\t10 am - 5 pm\nSunday\tCLOSED\",Fully Accessible,Single-Stall All Gender Restroom(s),Yes,,https://www.bklynlibrary.org/locations/ulmer-park,40.592693,-73.988629,POINT (-73.988629 40.592693)\r\nPaerdegat Basin Marina 1,Park,NYC Parks Concessionaire,Operational,Year Round,9:00am-5:00pm,Partially Accessible,Multi-Stall W/M Restrooms,No,,,40.624409,-73.903769,POINT (-73.903769 40.624409)\r\n\"Auburndale Library, QPL\",Library,QPL,Operational,Year Round,\"Sunday: Closed \nMonday: 10:00 am - 6:00 pm \nTuesday: 1:00 pm - 6:00 pm \nWednesday: 10:00 am - 6:00 pm \nThursday: 12:00 pm - 8:00 pm...\",,Single-Stall All Gender Restroom(s),Yes,\"Yes, a key is needed to enter\",https://www.queenslibrary.org/about-us/locations/auburndale,40.773755,-73.796343,POINT (-73.796343 40.773755)\r\nHouston St Playground,Park,NYC Parks,Operational,Year Round,\"8am-4pm, Open later seasonally\",Fully Accessible,Multi-Stall W/M Restrooms,Yes,,,40.72244,-73.9912,POINT (-73.9912 40.72244)\r\nLuther Gulick Park,Park,NYC Parks,Operational,Year Round,\"8am-4pm, Open later seasonally\",Fully Accessible,Multi-Stall W/M Restrooms,Yes,,,40.71594,-73.9816,POINT (-73.9816 40.71594)\r\nLawrence Playground,Park,NYC Parks,Not Operational,,,Fully Accessible,Multi-Stall W/M Restrooms,Yes,,,40.74845,-73.8337,POINT (-73.8337 40.74845)\r\nAlbemarle Playground,Park,NYC Parks,Operational,Year Round,\"8am-4pm, Open later seasonally\",Fully Accessible,Multi-Stall W/M Restrooms,Yes,,,40.64604,-73.9805,POINT (-73.9805 40.64604)\r\nBeach 17 Playground,Park,NYC Parks,Operational,Year Round,12:00pm-10:00pm,Not Accessible,Multi-Stall W/M Restrooms,Yes,,,40.59419,-73.7506,POINT (-73.7506 40.59419)\r\nVan Cortlandt Golf Course,Park,NYC Parks Concessionaire,Operational,Year Round,6:00am-8:00pm Daily,Fully Accessible,Multi-Stall W/M Restrooms,No,,,40.896614,-73.887601,POINT (-73.887601 40.896614)\r\n\"Glen Oaks Library, QPL\",Library,QPL,Operational,Year Round,\"Sunday: Closed \nMonday: 10:00 am - 6:00 pm \nTuesday: 1:00 pm - 6:00 pm \nWednesday: 10:00 am - 6:00 pm \nThursday: 12:00 pm - 8:00 pm...\",,Single-Stall All Gender Restroom(s),Yes,\"Yes, a key is needed to enter\",https://www.queenslibrary.org/about-us/locations/glen-oaks,40.745181,-73.714847,POINT (-73.714847 40.745181)\r\nBedford Playground,Park,NYC Parks,Operational,Seasonal,\"8am-4pm, Open later seasonally\",Fully Accessible,Multi-Stall W/M Restrooms,No,,,40.7081,-73.9641,POINT (-73.9641 40.7081)\r\nAmpere Playground,Park,NYC Parks,Operational,Year Round,\"8am-4pm, Open later seasonally\",Fully Accessible,Multi-Stall W/M Restrooms,Yes,,,40.68144,-73.8568,POINT (-73.8568 40.68144)\r\n",
+    "_profiling_times": {
+      "steps": {
+        "1_load_data": 0.009590124944224954,
+        "2_geo_batch_predict": 0.3396524589625187,
+        "3_process_columns": 0.09878879197640345,
+        "4_latlong_pairing": 5.8416975662112236e-05,
+        "5_spatial_coverage": 0.009859167039394379,
+        "6_temporal_coverage": 1.7332960851490498e-05,
+        "sample_extraction": 0.0030442500137723982
+      },
+      "total": 2.2898774159839377
+    },
+    "_sample_telemetry": {
+      "path": "/var/folders/vn/rj875l2s0jn7j_ws64swymmc0000gn/T/tmp868la9w9.csv",
+      "bytes_loaded": 102826,
+      "bytes_human": "100.42 KiB",
+      "newline_count": 965,
+      "truncated_by_rows": true,
+      "truncated_by_bytes": false
+    },
+    "nb_temporal_columns": 0,
+    "nb_numerical_columns": 0,
+    "spatial_bbox": [
+      -74.2326,
+      40.515281,
+      -73.714847,
+      40.903731
+    ]
+  },
+  "errors": []
+}

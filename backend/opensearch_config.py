@@ -50,6 +50,7 @@ DATASETS_MAPPING = {
                 "analyzer": "text_analyzer",
             },
             "source": {"type": "keyword"},
+            "download_url": {"type": "keyword", "index": False},
             "types": {"type": "keyword"},
             "temporal_coverage": {
                 "type": "object",
@@ -61,6 +62,27 @@ DATASETS_MAPPING = {
             "spatial_coverage": {
                 "type": "geo_shape",
                 "strategy": "recursive",
+            },
+            "profiler_metadata": {
+                "type": "object",
+                "properties": {
+                    "nb_rows": {"type": "long"},
+                    "nb_profiled_rows": {"type": "long"},
+                    "nb_columns": {"type": "long"},
+                    "nb_spatial_columns": {"type": "integer"},
+                    "nb_temporal_columns": {"type": "integer"},
+                    "nb_numerical_columns": {"type": "integer"},
+                    "nb_categorical_columns": {"type": "integer"},
+                    "attribute_keywords": {"type": "text", "analyzer": "standard"},
+                    "columns": {
+                        "type": "nested",
+                        "properties": {
+                            "name": {"type": "keyword"},
+                            "structural_type": {"type": "keyword"},
+                            "semantic_types": {"type": "keyword"},
+                        },
+                    },
+                },
             },
             "dataset_vector": {
                 "type": "knn_vector",
@@ -205,22 +227,22 @@ def init_db():
         logger.info(f"OpenSearch cluster health: {health['status']}")
 
         # Check if index exists
-        if not index_exists(client, INDEX_NAME):
-            logger.info(f"Index {INDEX_NAME} does not exist. Creating...")
-            if create_index(client, INDEX_NAME, DATASETS_MAPPING):
-                logger.info(f"Successfully created index {INDEX_NAME}")
+        if not index_exists(client, AUCTUS_INDEX_NAME):
+            logger.info(f"Index {AUCTUS_INDEX_NAME} does not exist. Creating...")
+            if create_index(client, AUCTUS_INDEX_NAME, DATASETS_MAPPING):
+                logger.info(f"Successfully created index {AUCTUS_INDEX_NAME}")
             else:
-                logger.error(f"Failed to create index {INDEX_NAME}")
+                logger.error(f"Failed to create index {AUCTUS_INDEX_NAME}")
                 return
 
         # Check if index is empty
-        count = index_count(client, INDEX_NAME)
+        count = index_count(client, AUCTUS_INDEX_NAME)
         if count == 0:
-            logger.info(f"Index {INDEX_NAME} is empty. Loading data...")
+            logger.info(f"Index {AUCTUS_INDEX_NAME} is empty. Loading data...")
             data_file = Path(__file__).parent / "data" / "synthetic_datasets.json"
-            load_and_ingest_data(client, INDEX_NAME, str(data_file))
+            load_and_ingest_data(client, AUCTUS_INDEX_NAME, str(data_file))
         else:
-            logger.info(f"Index {INDEX_NAME} already has {count} documents")
+            logger.info(f"Index {AUCTUS_INDEX_NAME} already has {count} documents")
 
     except Exception as e:
         logger.error(f"Error initializing database: {e}")

@@ -1,0 +1,4 @@
+httpx>=0.28.1
+python-dateutil>=2.9.0.post0
+# atlas-profiler is expected to be available in the project environment.
+# If it is distributed separately in your org, install it here as well.
