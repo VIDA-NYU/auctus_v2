@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
-"""Phase 1 Socrata ingestion spike for Auctus v2.
+"""Socrata Transformation and Profiling Engine for Auctus v2.
 
-This script validates the ingestion path against the NYC Public Restrooms
-Socrata dataset (4x4 identifier: i7jb-7jku) using an async workflow:
-
-1. Fetch Socrata metadata with httpx.
-2. Stream a safe CSV sample into a temporary file (up to 500 rows or 2 MiB).
-3. Run the project's atlas-profiler library against the sample using Pandas.
-4. Harmonize spatial boundaries (handling State Plane vs decimal degrees fallback).
-5. Print a unified JSON block that matches the synthetic_datasets.json schema.
+This module streams CSV datasets from Socrata portals, profiles them using
+atlas-profiler, and normalizes the results into unified metadata records for
+downstream ingestion, storage, and search indexing.
 """
 
 from __future__ import annotations
@@ -20,6 +15,7 @@ import logging
 import math
 import re
 import tempfile
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,16 +26,29 @@ from atlas_profiler import process_dataset
 from dateutil.parser import parse as parse_datetime
 import httpx
 
-LOGGER = logging.getLogger("test_socrata_ingest")
+LOGGER = logging.getLogger("crawlers.socrata.transformer")
 
-DATASET_ID = "i7jb-7jku"
-SOCRATA_BASE_URL = "https://data.cityofnewyork.us"
-METADATA_URL = f"{SOCRATA_BASE_URL}/api/views/{DATASET_ID}.json"
-RAW_CSV_URL = f"{SOCRATA_BASE_URL}/api/views/{DATASET_ID}/rows.csv?accessType=DOWNLOAD"
-MAX_SAMPLE_ROWS = 500
-MAX_SAMPLE_BYTES = 2 * 1024 * 1024
-HTTP_TIMEOUT = httpx.Timeout(30.0, connect=15.0)
-NYC_FALLBACK_BBOX = [-74.259, 40.477, -73.7, 40.917]
+# Configuration defaults (can be overridden from backend/config/config.json)
+DEFAULT_MAX_SAMPLE_ROWS = 500
+DEFAULT_MAX_SAMPLE_BYTES = 2 * 1024 * 1024
+DEFAULT_HTTP_TIMEOUT_SECONDS = 30.0
+
+
+def _load_active_portal_config() -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return (portal_config, pipeline_settings) for the active portal from config/config.json."""
+    cfg = {}
+    try:
+        cfg_path = Path(__file__).resolve().parents[2] / "config" / "config.json"
+        with open(cfg_path, "r", encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except Exception:
+        LOGGER.debug("No config.json found or failed to load; using defaults")
+
+    active = cfg.get("active_portal")
+    portals = cfg.get("portals", {})
+    portal_cfg = portals.get(active, {}) if active else {}
+    pipeline_settings = cfg.get("pipeline_settings", {})
+    return portal_cfg, pipeline_settings
 
 LAT_NAME_RE = re.compile(r"(^|[^a-z])(lat|latitude)([^a-z]|$)", re.IGNORECASE)
 LON_NAME_RE = re.compile(r"(^|[^a-z])(lon|lng|long|longitude)([^a-z]|$)", re.IGNORECASE)
@@ -91,9 +100,14 @@ def _normalize_iso_date(value: Any) -> str | None:
         return None
 
 
-async def fetch_socrata_metadata(client: httpx.AsyncClient, dataset_id: str) -> dict[str, Any]:
-    """Fetch the Socrata view metadata payload and extract core catalog fields."""
-    response = await client.get(METADATA_URL)
+async def fetch_socrata_metadata(client: httpx.AsyncClient, dataset_id: str, base_url: str) -> dict[str, Any]:
+    """Fetch the Socrata view metadata payload and extract core catalog fields.
+
+    `base_url` should be the portal base (e.g. https://data.cityofnewyork.us)
+    """
+    metadata_url = f"{base_url.rstrip('/')}/api/views/{dataset_id}.json"
+    raw_csv_url = f"{base_url.rstrip('/')}/api/views/{dataset_id}/rows.csv?accessType=DOWNLOAD"
+    response = await client.get(metadata_url)
     response.raise_for_status()
     payload = response.json()
 
@@ -101,11 +115,7 @@ async def fetch_socrata_metadata(client: httpx.AsyncClient, dataset_id: str) -> 
     description = payload.get("description") or payload.get("notes") or payload.get("blurb") or ""
     publisher = payload.get("ownerDisplayName") or payload.get("attribution") or payload.get("ownerName") or ""
     
-    download_url = (
-        payload.get("downloadUrl")
-        or payload.get("csvDownloadUrl")
-        or RAW_CSV_URL
-    )
+    download_url = payload.get("downloadUrl") or payload.get("csvDownloadUrl") or raw_csv_url
 
     return {
         "id": dataset_id,
@@ -137,10 +147,14 @@ def _readable_bytes(num_bytes: int) -> str:
 async def stream_csv_sample(
     client: httpx.AsyncClient,
     csv_url: str,
-    max_rows: int = MAX_SAMPLE_ROWS,
-    max_bytes: int = MAX_SAMPLE_BYTES,
+    max_rows: int | None = None,
+    max_bytes: int | None = None,
 ) -> SampleStats:
     """Stream a bounded sample from the CSV endpoint into a temp file."""
+    if max_rows is None:
+        max_rows = DEFAULT_MAX_SAMPLE_ROWS
+    if max_bytes is None:
+        max_bytes = DEFAULT_MAX_SAMPLE_BYTES
     tmp = tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".csv")
     bytes_written = 0
     newline_count = 0
@@ -285,13 +299,21 @@ def _valid_bbox(bbox: Any) -> bool:
     )
 
 
-def _safe_bbox_from_profiler_or_sample(profiler_output: dict[str, Any], inferred_bbox: list[float] | None) -> list[float]:
+def _safe_bbox_from_profiler_or_sample(
+    profiler_output: dict[str, Any],
+    inferred_bbox: list[float] | None,
+    fallback_bbox: list[float],
+) -> list[float]:
     """Return an explicit WGS84 bounding box or fallback cleanly for State Plane numbers."""
     candidate = profiler_output.get("spatial_bbox") or profiler_output.get("bbox") or inferred_bbox
     if _valid_bbox(candidate):
         return [float(v) for v in candidate]
 
-    return NYC_FALLBACK_BBOX.copy()
+    # fallback to configured bbox if present, else use conservative default
+    if _valid_bbox(fallback_bbox):
+        return [float(v) for v in fallback_bbox]
+
+    return [-180.0, -90.0, 180.0, 90.0]
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +324,7 @@ def _merge_profiler_output(
     profiler_output: dict[str, Any],
     sample_stats: SampleStats,
     spatial_bbox: list[float] | None,
+    fallback_bbox: list[float],
 ) -> dict[str, Any]:
     """Flatten atlas-profiler fields directly into profiler_metadata layout."""
     
@@ -334,35 +357,57 @@ def _merge_profiler_output(
     meta.setdefault("nb_categorical_columns", profiler_output.get("nb_categorical_columns", 0))
     
     # Compute safe validated internal spatial coordinates
-    meta["spatial_bbox"] = _safe_bbox_from_profiler_or_sample(profiler_output, spatial_bbox)
+    meta["spatial_bbox"] = _safe_bbox_from_profiler_or_sample(profiler_output, spatial_bbox, fallback_bbox)
 
     return meta
 
 
-async def build_validation_record() -> dict[str, Any]:
-    """Run the full workflow and return a single catalog-shaped JSON record."""
-    errors: list[str] = []
+async def build_validation_record(
+    dataset_id: str,
+    base_url: str | None = None,
+    max_sample_rows: int | None = None,
+    max_sample_bytes: int | None = None,
+    http_timeout_seconds: float | None = None,
+    fallback_bbox: list[float] | None = None,
+    spatial_label: str | None = None,
+) -> dict[str, Any]:
+    """Run the full workflow for a specific Socrata dataset and return a catalog-shaped JSON record.
 
-    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
+    Configuration for portals and pipeline limits is read from `backend/config/config.json`.
+    """
+    portal_cfg, pipeline_settings = _load_active_portal_config()
+    base_url = base_url or portal_cfg.get("base_url", "https://data.cityofnewyork.us")
+    fallback_bbox = fallback_bbox or portal_cfg.get("fallback_bbox", [-180.0, -90.0, 180.0, 90.0])
+    spatial_label = spatial_label if spatial_label is not None else portal_cfg.get("label", "")
+
+    max_rows = int(max_sample_rows if max_sample_rows is not None else pipeline_settings.get("max_sample_rows", DEFAULT_MAX_SAMPLE_ROWS))
+    max_bytes = int(max_sample_bytes if max_sample_bytes is not None else pipeline_settings.get("max_sample_bytes", DEFAULT_MAX_SAMPLE_BYTES))
+    timeout_seconds = float(http_timeout_seconds if http_timeout_seconds is not None else pipeline_settings.get("http_timeout_seconds", DEFAULT_HTTP_TIMEOUT_SECONDS))
+    http_timeout = httpx.Timeout(timeout_seconds, connect=15.0)
+
+    errors: list[str] = []
+    raw_csv_url = f"{base_url.rstrip('/')}/api/views/{dataset_id}/rows.csv?accessType=DOWNLOAD"
+
+    async with httpx.AsyncClient(timeout=http_timeout, follow_redirects=True) as client:
         try:
-            socrata = await fetch_socrata_metadata(client, DATASET_ID)
+            socrata = await fetch_socrata_metadata(client, dataset_id, base_url)
         except Exception as exc:
             LOGGER.exception("Metadata fetch failed")
             socrata = {
-                "id": DATASET_ID,
-                "title": DATASET_ID,
+                "id": dataset_id,
+                "title": dataset_id,
                 "description": "",
                 "publisher": "",
                 "source": "Socrata",
                 "last_update_date": None,
-                "download_url": RAW_CSV_URL,
-                "raw_csv_url": RAW_CSV_URL,
+                "download_url": raw_csv_url,
+                "raw_csv_url": raw_csv_url,
                 "socrata_metadata": {},
             }
             errors.append(f"metadata_fetch_error: {exc}")
 
         try:
-            sample_stats = await stream_csv_sample(client, socrata["raw_csv_url"])
+            sample_stats = await stream_csv_sample(client, socrata["raw_csv_url"], max_rows=max_rows, max_bytes=max_bytes)
         except Exception as exc:
             LOGGER.exception("CSV sampling failed")
             errors.append(f"sample_stream_error: {exc}")
@@ -409,6 +454,7 @@ async def build_validation_record() -> dict[str, Any]:
         profiler_output,
         sample_stats,
         spatial_bbox,
+        fallback_bbox,
     )
 
     record = {
@@ -426,7 +472,7 @@ async def build_validation_record() -> dict[str, Any]:
             "end": temporal_end,
         },
         "spatial_coverage": {
-            "label": "New York City",
+            "label": spatial_label,
             "bbox": {
                 "type": "envelope",
                 "coordinates": [
@@ -445,18 +491,13 @@ async def build_validation_record() -> dict[str, Any]:
 async def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-    try:
-        record = await build_validation_record()
-    except Exception as exc:
-        record = {
-            "id": DATASET_ID,
-            "title": "NYC Public Restrooms",
-            "source": "Socrata",
-            "download_url": RAW_CSV_URL,
-            "errors": [f"fatal_error: {exc}"],
-        }
+    if len(sys.argv) < 2:
+        print("Usage: python -m crawlers.socrata.transformer <dataset_id>")
+        raise SystemExit(2)
 
-    print(json.dumps(record, indent=2, ensure_ascii=False, default=str))
+    dataset_id = sys.argv[1]
+    result = await build_validation_record(dataset_id)
+    print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
 
 
 if __name__ == "__main__":

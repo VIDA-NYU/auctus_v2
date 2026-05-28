@@ -1,36 +1,35 @@
 #!/usr/bin/env python3
-"""Initialize a clean OpenSearch index `datasets` and bulk-load synthetic data.
+"""Initialize a clean OpenSearch index and apply schema mappings.
 
 Usage: run from repository root or the `backend/` directory:
 
-    python initialize_opensearch.py
+    python -m storage.initialize_os
 
-The script connects to http://localhost:9200 by default. It will delete
-the `datasets` index if present, create it with the supplied mapping, and
-bulk-index records from `backend/data/synthetic_datasets.json`.
+The script connects to http://localhost:9200 by default. It deletes the
+`auctus_catalog_master` index if present and recreates it with the supplied
+mapping. It also attempts to create an index pattern in OpenSearch Dashboards
+at http://localhost:5601 for immediate UI access.
 """
-import json
 import os
 import time
 import sys
-from pprint import pformat
 
 try:
-    from opensearchpy import OpenSearch, helpers
+    from opensearchpy import OpenSearch
 except Exception as exc:  # pragma: no cover - runtime dependency
     print("Required package 'opensearch-py' is not installed.")
     print("Install with: pip install opensearch-py")
     raise
 
 try:
-    from sentence_transformers import SentenceTransformer
-except Exception:
-    SentenceTransformer = None
+    import httpx
+except Exception as exc:  # pragma: no cover - runtime dependency
+    print("Required package 'httpx' is not installed.")
+    print("Install with: pip install httpx")
+    raise
 
 
 AUCTUS_INDEX_NAME = "auctus_catalog_master"
-BASE_DIR = os.path.dirname(__file__)
-DATA_PATH = os.path.join(BASE_DIR, "data", "synthetic_datasets.json")
 
 
 def get_client():
@@ -138,12 +137,6 @@ MAPPING = {
     },
 }
 
-
-def load_data(path):
-    with open(path, "r") as fh:
-        return json.load(fh)
-
-
 def recreate_index(client):
     if client.indices.exists(index=AUCTUS_INDEX_NAME):
         print(f"Index '{AUCTUS_INDEX_NAME}' exists — deleting...")
@@ -154,64 +147,43 @@ def recreate_index(client):
     print(f"Creating index '{AUCTUS_INDEX_NAME}' with mappings...")
     client.indices.create(index=AUCTUS_INDEX_NAME, body=MAPPING)
 
-def bulk_index(client, docs):
-    print(f"Preparing {len(docs)} documents for bulk indexing...")
-    actions = []
-    for doc in docs:
-        action = {
-            "_op_type": "index",
-            "_index": AUCTUS_INDEX_NAME,
-            "_id": doc.get("id"),
-            "_source": doc,
+
+def create_dashboard_index_pattern():
+    """Automatically create the index pattern in OpenSearch Dashboards.
+    
+    This allows developers to immediately browse the `auctus_catalog_master`
+    index without manual configuration via the Dashboards UI.
+    
+    Fails gracefully if Dashboards is not available or still bootstrapping.
+    """
+    dashboards_url = "http://localhost:5601"
+    pattern_url = f"{dashboards_url}/api/saved_objects/index-pattern/{AUCTUS_INDEX_NAME}"
+    
+    payload = {
+        "attributes": {
+            "title": AUCTUS_INDEX_NAME
         }
-        actions.append(action)
-
-    start = time.time()
+    }
+    
+    headers = {
+        "osd-xsrf": "true",
+        "Content-Type": "application/json"
+    }
+    
     try:
-        # Capture both the success count and the detailed response/failures list
-        success, details = helpers.bulk(client, actions, raise_on_error=False)
-        
-        # If there are failures, print them out clearly
-        if isinstance(details, list) and len(details) > 0:
-            print("\n❌ OPENSEARCH INDEXING ERRORS DETECTD:")
-            for item in details:
-                # Look for items that don't have a 201 (Created) or 200 (OK) status
-                for op, info in item.items():
-                    if info.get('status', 200) not in [200, 201]:
-                        print(f"Document ID {info.get('_id')} failed! Error: {info.get('error')}\n")
-                        
+        response = httpx.post(pattern_url, json=payload, headers=headers, timeout=5.0)
+        if response.status_code in [200, 201]:
+            print(f"✨ OpenSearch Dashboards index pattern '{AUCTUS_INDEX_NAME}' automatically created.")
+        elif response.status_code == 409:
+            # Pattern may already exist; this is not an error
+            print(f"ℹ️  OpenSearch Dashboards index pattern '{AUCTUS_INDEX_NAME}' already exists.")
+        else:
+            print(f"⚠️  Failed to create Dashboards index pattern (HTTP {response.status_code}). Continuing without it.")
     except Exception as exc:
-        print("Bulk indexing raised an exception:", exc)
-        raise
-        
-    duration = time.time() - start
-    print(f"Bulk indexing completed: {success} docs indexed in {duration:.2f}s")
-# def bulk_index(client, docs):
-#     print(f"Preparing {len(docs)} documents for bulk indexing...")
-#     actions = []
-#     for doc in docs:
-#         action = {
-#             "_op_type": "index",
-#             "_index": AUCTUS_INDEX_NAME,
-#             "_id": doc.get("id"),
-#             "_source": doc,
-#         }
-#         actions.append(action)
+        # Dashboards may not be running; fail gracefully
+        print(f"⚠️  OpenSearch Dashboards is not available ({exc}). Skipping index pattern creation.")
+        print("    You can manually create the index pattern via the Dashboards UI at http://localhost:5601")
 
-#     start = time.time()
-#     success, failures = 0, []
-#     try:
-#         resp = helpers.bulk(client, actions, raise_on_error=False)
-#         # helpers.bulk returns (success_count, details) normally when raise_on_error=False
-#         if isinstance(resp, tuple):
-#             success = resp[0]
-#         else:
-#             success = resp
-#     except Exception as exc:
-#         print("Bulk indexing raised an exception:", exc)
-#         raise
-#     duration = time.time() - start
-#     print(f"Bulk indexing completed: {success} docs indexed in {duration:.2f}s")
 
 
 def main():
@@ -228,55 +200,10 @@ def main():
         sys.exit(1)
 
     recreate_index(client)
-
-    print(f"Loading synthetic data from {DATA_PATH}...")
-    docs = load_data(DATA_PATH)
-    print(f"Loaded {len(docs)} documents; sample id: {docs[0].get('id') if docs else 'n/a'}")
-
-    # Generate embeddings for each document using sentence-transformers
-    if SentenceTransformer is None:
-        print("Missing required package 'sentence-transformers'.")
-        print("Install with: pip install sentence-transformers")
-        sys.exit(1)
-
-    print("Loading embedding model 'all-MiniLM-L6-v2'...")
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-
-    # Prepare texts by concatenating title + description
-    texts = []
-    for doc in docs:
-        title = doc.get('title') or ''
-        descr = doc.get('description') or ''
-        texts.append(f"{title}\n\n{descr}")
-
-    print(f"Generating embeddings for {len(texts)} documents...")
-    try:
-        embeddings = model.encode(texts, convert_to_numpy=True)
-    except Exception as e:
-        print("Error generating embeddings:", e)
-        raise
-
-    # Attach embedding vector and metadata to each document
-    for i, doc in enumerate(docs):
-        vec = embeddings[i]
-        # Convert numpy array to plain list of floats
-        try:
-            vec_list = vec.tolist()
-        except Exception:
-            # Fallback: iterate values
-            vec_list = [float(x) for x in vec]
-
-        doc['dataset_vector'] = vec_list
-        doc['embedding_metadata'] = {
-            'model_name': 'all-MiniLM-L6-v2',
-            'version': 1,
-        }
-
-    bulk_index(client, docs)
-
-    print("Indexing finished. Refreshing index...")
-    client.indices.refresh(index=AUCTUS_INDEX_NAME)
-    print("Done.")
+    print("✅ OpenSearch index 'auctus_catalog_master' initialized cleanly with schema mappings.")
+    
+    # Attempt to create dashboard index pattern automatically
+    create_dashboard_index_pattern()
 
 
 if __name__ == "__main__":

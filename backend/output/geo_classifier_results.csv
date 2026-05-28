@@ -8,3 +8,97 @@ Location,"['POINT (-74.0159 40.70441)', 'POINT (-73.945 40.77358)', 'POINT (-74.
 Latitude,"['40.70441', '40.77358', '40.62661']",latitude
 Longitude,"['-74.0159', '-73.945', '-74.0778']",longitude
 Location,"['POINT (-74.0159 40.70441)', 'POINT (-73.945 40.77358)', 'POINT (-74.0778 40.62661)']",point
+Latitude,"['40.70441', '40.77358', '40.62661']",latitude
+Longitude,"['-74.0159', '-73.945', '-74.0778']",longitude
+Location,"['POINT (-74.0159 40.70441)', 'POINT (-73.945 40.77358)', 'POINT (-74.0778 40.62661)']",point
+Borough,"['BROOKLYN', 'QUEENS', 'BRONX']",borough
+Street Name,"['51 STREET', '135 ROAD', 'QUEENS BLVD']",address
+Bin #,"['3137917', '4284335', '4050525']",bin
+City Owned,['Y'],city
+Street Frontage,"['0', '142', '80']",address
+Special District 1,"['MX-1', 'BR', 'MID']",borough_code
+Special District 2,"['MS4', 'MIH', 'IBZ']",borough_code
+LATITUDE,"['40.638728', '40.669797', '40.727573']",latitude
+LONGITUDE,"['-74.00125', '-73.729699', '-73.855368']",longitude
+COUNCIL DISTRICT,"['38', '31', '29']",borough_code
+NTA,"['Borough Park', 'Rosedale', 'Forest Hills']",borough
+Incident Zip,"['11355', '11691', '11414']",zip5
+Incident Address,"['57-29 157 STREET', '836 DORIAN COURT', '163-38 99 STREET']",address
+Cross Street 1,"['BOOTH MEMORIAL AVENUE', 'DEAD END', '163 AVENUE']",address
+Cross Street 2,"['59 AVENUE', 'BEACH 9 STREET', '164 AVENUE']",address
+Intersection Street 1,"['39 PLACE', '50 STREET', '12 AVENUE']",address
+Intersection Street 2,"['40 STREET', '12 AVENUE', 'WEST  138 STREET']",address
+Address Type,"['INTERSECTION', 'ADDRESS', 'BLOCKFACE']",address
+City,"['Flushing', 'Far Rockaway', 'Howard Beach']",city
+Landmark,"['BAILEY AVENUE', 'WEST   29 STREET', '43 STREET']",address
+Community Board,"['07 QUEENS', '14 QUEENS', '10 QUEENS']",borough
+Council District,"['20', '31', '32']",borough_code
+Borough,"['QUEENS', 'BROOKLYN', 'Unspecified']",borough
+X Coordinate (State Plane),"['1036594', '1055136', '1030741']",x_coord
+Park Borough,"['QUEENS', 'BROOKLYN', 'Unspecified']",borough
+Bridge Highway Direction,"['Westbound/To BQE', 'West/Staten Island Bound', 'Southbound/Downtown']",address
+Latitude,"['40.742141', '40.602866', '40.652546']",latitude
+Longitude,"['-73.811104', '-73.744725', '-73.832452']",longitude
+Location,"['POINT (-73.811104327562 40.742140932539)', 'POINT (-73.74472461177 40.602865969373)', 'POINT (-73.832451597242 40.652546181812)']",point
+Work Location Borough,"['MANHATTAN', 'BRONX', 'BROOKLYN']",borough
+BOROUGH,"['BROOKLYN', 'BRONX', 'MANHATTAN']",borough
+ZIP CODE,"['11230', '11208', '11233']",zip5
+LATITUDE,"['40.62179', '40.667202', '40.683304']",latitude
+LONGITUDE,"['-73.970024', '-73.8665', '-73.917274']",longitude
+OFF STREET NAME,"['61        Ed Koch queensborough bridge', '1211      LORING AVENUE', '344       BAYCHESTER AVENUE']",address
+BOROUGH,"['BROOKLYN', 'QUEENS', 'STATEN ISLAND']",borough
+Bin #,"['3185434', '4623172', '5174573']",bin
+Street Name,"['BAY 34 ST', 'BEACH 215 STREET', 'RICHMOND TERRACE']",address
+Zip Code,"['11214', '11697', '10301']",zip5
+Special District 1,"['SRD', 'BR', 'TA']",borough_code
+Owner's House Street Name,"['WEST 6 ST', 'ROCKAWAY POINT BOULEVARD', 'MAIN ST, SUITE 502']",address
+Owner’s House City,"['BROOKLYN', 'ROCKAWAY POINT', 'NEW YORK']",address
+Owner’s House Zip Code,"['11214', '11697', '11201']",zip5
+LATITUDE,"['40.599043', '40.55486', '40.645602']",latitude
+LONGITUDE,"['-73.992006', '-73.923824', '-74.092344']",longitude
+COUNCIL_DISTRICT,"['47', '32', '49']",borough_code
+Borough,"['QUEENS', 'BRONX', 'BROOKLYN']",borough
+Street Name,"['135 ROAD', 'QUEENS BLVD', 'LINCOLN AVE']",address
+Bin #,"['4284335', '4050525', '2130735']",bin
+City Owned,['Y'],city
+Street Frontage,"['0', '142', '80']",address
+Special District 1,"['MX-1', 'BR', 'MID']",borough_code
+Special District 2,"['MS4', 'MIH', 'IBZ']",borough_code
+LATITUDE,"['40.669797', '40.727573', '40.807149']",latitude
+LONGITUDE,"['-73.729699', '-73.855368', '-73.929969']",longitude
+COUNCIL DISTRICT,"['31', '29', '8']",borough_code
+Incident Zip,"['11209', '10452', '11221']",zip5
+Incident Address,"['423 100 STREET', '972 WOODYCREST AVENUE', '714 HART STREET']",address
+Cross Street 1,"['4 AVENUE', 'WEST  163 STREET', 'CENTRAL AVENUE']",address
+Cross Street 2,"['FORT HAMILTON PARKWAY', 'WEST  164 STREET', 'WILSON AVENUE']",address
+Intersection Street 1,"['4 AVENUE', 'WEST  163 STREET', 'CENTRAL AVENUE']",address
+Intersection Street 2,"['FORT HAMILTON PARKWAY', 'WEST  164 STREET', 'WILSON AVENUE']",address
+Address Type,"['ADDRESS', 'INTERSECTION', 'BLOCKFACE']",address
+City,"['BROOKLYN', 'BRONX', 'NEW YORK']",city
+Landmark,"['100 STREET', 'WOODYCREST AVENUE', 'HART STREET']",address
+Community Board,"['10 BROOKLYN', '04 BRONX', '04 BROOKLYN']",borough
+Council District,"['43', '8', '37']",borough_code
+Borough,"['BROOKLYN', 'BRONX', 'MANHATTAN']",borough
+Park Borough,"['BROOKLYN', 'BRONX', 'MANHATTAN']",borough
+Taxi Company Borough,['QUEENS'],borough
+Taxi Pick Up Location,"['7 AVENUE AND WEST   55 STREET, MANHATTAN, NY, 10019', '11-39 49 AVENUE, QUEENS (LONG ISLAND CITY), NY, 11101', 'LA GUARDIA AIRPORT, QUEENS (EAST ELMHURST) ,NY, 11369']",address
+Latitude,"['40.61257', '40.831985', '40.699516']",latitude
+Longitude,"['-74.033093', '-73.928483', '-73.925095']",longitude
+Location,"['POINT (-74.033092683548 40.612570336738)', 'POINT (-73.928483113625 40.831985237025)', 'POINT (-73.925094525996 40.69951635875)']",point
+Work Location Borough,"['MANHATTAN', 'BRONX', 'BROOKLYN']",borough
+BOROUGH,"['BROOKLYN', 'BRONX', 'MANHATTAN']",borough
+ZIP CODE,"['11230', '11208', '11233']",zip5
+LATITUDE,"['40.62179', '40.667202', '40.683304']",latitude
+LONGITUDE,"['-73.970024', '-73.8665', '-73.917274']",longitude
+OFF STREET NAME,"['61        Ed Koch queensborough bridge', '1211      LORING AVENUE', '344       BAYCHESTER AVENUE']",address
+BOROUGH,"['BROOKLYN', 'QUEENS', 'STATEN ISLAND']",borough
+Bin #,"['3185434', '4623172', '5174573']",bin
+Street Name,"['BAY 34 ST', 'BEACH 215 STREET', 'RICHMOND TERRACE']",address
+Zip Code,"['11214', '11697', '10301']",zip5
+Special District 1,"['SRD', 'BR', 'TA']",borough_code
+Owner's House Street Name,"['WEST 6 ST', 'ROCKAWAY POINT BOULEVARD', 'MAIN ST, SUITE 502']",address
+Owner’s House City,"['BROOKLYN', 'ROCKAWAY POINT', 'NEW YORK']",address
+Owner’s House Zip Code,"['11214', '11697', '11201']",zip5
+LATITUDE,"['40.599043', '40.55486', '40.645602']",latitude
+LONGITUDE,"['-73.992006', '-73.923824', '-74.092344']",longitude
+COUNCIL_DISTRICT,"['47', '32', '49']",borough_code
