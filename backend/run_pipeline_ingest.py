@@ -6,9 +6,13 @@ import asyncio
 import copy
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 import sys
 from typing import Any
+
+import httpx
+from dateutil.parser import parse as parse_datetime
 
 from crawlers.socrata.crawler import discover_socrata_datasets
 from crawlers.socrata.transformer import build_validation_record
@@ -57,6 +61,102 @@ def isolate_search_payload(comprehensive_record: dict[str, Any]) -> dict[str, An
 			]
 
 	return payload
+
+
+def normalize_timestamp_value(value: Any) -> str | None:
+	"""Normalize Socrata/OpenSearch timestamp values into a comparable UTC ISO string."""
+	if value in (None, ""):
+		return None
+
+	try:
+		if isinstance(value, (int, float)):
+			seconds = float(value)
+			if seconds > 10_000_000_000:
+				seconds /= 1000.0
+			dt = datetime.fromtimestamp(seconds, tz=timezone.utc)
+		else:
+			dt = parse_datetime(str(value).strip())
+			if dt.tzinfo is None:
+				dt = dt.replace(tzinfo=timezone.utc)
+			dt = dt.astimezone(timezone.utc)
+		return dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+	except Exception:
+		return None
+
+
+def extract_socrata_update_timestamp(metadata_payload: dict[str, Any]) -> str | None:
+	"""Extract the most recent Socrata update timestamp from a raw metadata payload."""
+	if not isinstance(metadata_payload, dict):
+		return None
+
+	metadata_block = metadata_payload.get("metadata") if isinstance(metadata_payload.get("metadata"), dict) else {}
+	resource_block = metadata_payload.get("resource") if isinstance(metadata_payload.get("resource"), dict) else {}
+
+	candidate_values = (
+		metadata_payload.get("updatedAt"),
+		metadata_payload.get("dataUpdatedAt"),
+		metadata_payload.get("rows_updated_at"),
+		metadata_payload.get("rowsUpdatedAt"),
+		metadata_payload.get("viewLastModified"),
+		metadata_payload.get("lastModified"),
+		metadata_block.get("updatedAt"),
+		metadata_block.get("dataUpdatedAt"),
+		resource_block.get("updatedAt"),
+	)
+
+	for candidate in candidate_values:
+		normalized = normalize_timestamp_value(candidate)
+		if normalized:
+			return normalized
+
+	return None
+
+
+def extract_indexed_update_timestamp(existing_source: dict[str, Any] | None) -> str | None:
+	"""Find the timestamp stored on an already indexed document."""
+	if not isinstance(existing_source, dict):
+		return None
+
+	for key in (
+		"socrata_updated_at",
+		"source_updated_at",
+		"updatedAt",
+		"dataUpdatedAt",
+		"rows_updated_at",
+		"rowsUpdatedAt",
+		"last_update_date",
+	):
+		normalized = normalize_timestamp_value(existing_source.get(key))
+		if normalized:
+			return normalized
+
+	return None
+
+
+def apply_socrata_timestamp(document: dict[str, Any], socrata_updated_at: str | None) -> dict[str, Any]:
+	"""Persist the Socrata update timestamp in the document for future dedupe checks."""
+	if not socrata_updated_at:
+		return document
+
+	document["socrata_updated_at"] = socrata_updated_at
+	document["source_updated_at"] = socrata_updated_at
+	document["last_update_date"] = socrata_updated_at.split("T", 1)[0]
+	return document
+
+
+async def fetch_socrata_update_timestamp(
+	base_url: str,
+	dataset_id: str,
+	http_timeout_seconds: float,
+) -> str | None:
+	"""Fetch Socrata metadata and extract its latest update timestamp."""
+	metadata_url = f"{base_url.rstrip('/')}/api/views/{dataset_id}.json"
+	timeout = httpx.Timeout(http_timeout_seconds, connect=15.0)
+	async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+		response = await client.get(metadata_url)
+		response.raise_for_status()
+		payload = response.json()
+	return extract_socrata_update_timestamp(payload)
 
 
 def get_embedding_model():
@@ -144,6 +244,40 @@ async def main() -> None:
 
 	for index, dataset_id in enumerate(dataset_ids, start=1):
 		LOGGER.info("Processing dataset %d of %d (ID: %s)...", index, len(dataset_ids), dataset_id)
+		socrata_updated_at = None
+		try:
+			socrata_updated_at = await fetch_socrata_update_timestamp(
+				base_url=base_url,
+				dataset_id=dataset_id,
+				http_timeout_seconds=http_timeout_seconds,
+			)
+
+			existing_doc = os_client.get(index=AUCTUS_INDEX_NAME, id=dataset_id, ignore=[404])
+			existing_source = existing_doc.get("_source") if isinstance(existing_doc, dict) else None
+			indexed_updated_at = extract_indexed_update_timestamp(existing_source)
+
+			if existing_doc and indexed_updated_at and socrata_updated_at and indexed_updated_at == socrata_updated_at:
+				LOGGER.info("⏭️ Dataset %s is up-to-date in OpenSearch. Skipping processing.", dataset_id)
+				continue
+
+			if not existing_doc:
+				LOGGER.info("Dataset %s is new to OpenSearch. Proceeding with full ingestion.", dataset_id)
+
+			if existing_doc and indexed_updated_at and socrata_updated_at:
+				LOGGER.info(
+					"Dataset %s is stale in OpenSearch (indexed=%s, socrata=%s). Reprocessing.",
+					dataset_id,
+					indexed_updated_at,
+					socrata_updated_at,
+				)
+			elif existing_doc and indexed_updated_at and not socrata_updated_at:
+				LOGGER.info(
+					"Dataset %s has an indexed timestamp but Socrata did not return one. Proceeding with ingestion.",
+					dataset_id,
+				)
+		except Exception as exc:
+			LOGGER.warning("Deduplication check failed for %s: %s. Proceeding with ingestion.", dataset_id, exc)
+
 		try:
 			full_metadata_record = await build_validation_record(
 				dataset_id,
@@ -155,12 +289,14 @@ async def main() -> None:
 				spatial_label=spatial_label,
 			)
 			routing_key = full_metadata_record.get("id") or dataset_id
+			apply_socrata_timestamp(full_metadata_record, socrata_updated_at)
 
 			LOGGER.info("Uploading full profile to MinIO for dataset %s", routing_key)
 			upload_heavy_profile(storage_client, routing_key, full_metadata_record)
 
 			search_payload = isolate_search_payload(full_metadata_record)
 			search_payload = attach_embedding(search_payload)
+			apply_socrata_timestamp(search_payload, socrata_updated_at)
 			LOGGER.info("Indexing trimmed search document into OpenSearch for dataset %s", routing_key)
 			os_client.index(
 				index=AUCTUS_INDEX_NAME,

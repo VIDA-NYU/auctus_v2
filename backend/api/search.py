@@ -146,6 +146,7 @@ async def search(req: SearchQueryRequest):
     query_bool = {"filter": filter_clauses}
     if should_clauses:
         query_bool["should"] = should_clauses
+        query_bool["minimum_should_match"] = 1  # Require at least one text or vector match when keywords are present
 
     payload = {
         "query": {"bool": query_bool},

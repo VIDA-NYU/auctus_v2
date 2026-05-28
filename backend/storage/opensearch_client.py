@@ -51,6 +51,18 @@ DATASETS_MAPPING = {
             },
             "source": {"type": "keyword"},
             "download_url": {"type": "keyword", "index": False},
+            "socrata_updated_at": {
+                "type": "date",
+                "format": "strict_date_optional_time||yyyy-MM-dd",
+            },
+            "source_updated_at": {
+                "type": "date",
+                "format": "strict_date_optional_time||yyyy-MM-dd",
+            },
+            "last_update_date": {
+                "type": "date",
+                "format": "yyyy-MM-dd",
+            },
             "types": {"type": "keyword"},
             "temporal_coverage": {
                 "type": "object",
