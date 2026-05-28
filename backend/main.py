@@ -5,8 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 
-from opensearch_config import AUCTUS_INDEX_NAME, get_client, init_db
-from search import router as search_router
+from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client, init_db
+from api.search import router as search_router
 
 # Configure logging
 logging.basicConfig(

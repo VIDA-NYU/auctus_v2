@@ -1,58 +1,52 @@
-# Auctus v2 — Local Development
+# Auctus v2 — Local Development (Overview)
 
-Project Overview
-----------------
+Auctus v2 is a full-stack dataset discovery and search tool using OpenSearch for relevance, geospatial and temporal queries, a FastAPI backend, and a React + Vite frontend.
 
-Auctus v2 is a full-stack dataset discovery and search tool powered by OpenSearch 2.13. The system replaces static JSON filtering with a real search engine that supports full-text relevance, geospatial (GeoJSON / `geo_shape`) and temporal queries. The backend (FastAPI) integrates with OpenSearch to provide production-like search behavior while the frontend (React + Vite) provides a modern UI for exploration.
+This top-level README is intentionally high-level. Detailed backend setup and developer commands are maintained in the backend README: [backend/README.md](backend/README.md).
 
-The 'Hybrid' Development Workflow (recommended)
----------------------------------------------
+Quick local workflow (summary)
+-----------------------------
 
-For an efficient developer experience we recommend a hybrid workflow: run the OpenSearch infrastructure in Docker, run the backend locally for fast iteration and debugging, and run the frontend with Vite. Follow these steps in order.
-
-Step 1 — The Infrastructure (body)
-
-Start OpenSearch and OpenSearch Dashboards with Docker Compose:
+- Start the core infra with Docker Compose (OpenSearch + Dashboards):
 
 ```bash
-cd auctus_v2
 docker compose up -d
 ```
 
-This brings up:
-- OpenSearch Engine on http://localhost:9200
-- OpenSearch Dashboards (the control room) on http://localhost:5601
-
-Step 2 — Port Management
-
-The compose file includes a placeholder backend container that may bind port 8000. To run the backend locally free the port by stopping the placeholder container:
+- Stop the placeholder backend container if it conflicts with port 8000:
 
 ```bash
 docker stop auctus-backend
 ```
 
-Step 3 — The Logic (nervous system)
-
-Run the FastAPI backend locally for better debugging and instant reloads. From the `backend/` directory:
+- Run the backend locally for development (from the `backend/` directory):
 
 ```bash
 cd backend
-# optional: create and activate a virtualenv
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+# (optional) create and activate a virtualenv
+python3 -m venv .venv
+source .venv/bin/activate
 
-# run the backend (lifespan hooks will initialize OpenSearch if available)
-python main.py
+# install Python dependencies
+pip3 install -r requirements.txt
+
+# Initialize services and schema (requires OpenSearch reachable at http://localhost:9200)
+# Start OpenSearch/Dashboards with Docker Compose if not already running:
+#   docker compose up -d
+# Create index mappings for `auctus_catalog_master`:
+python3 -m storage.initialize_os
+
+# Optional: quick-start seed of synthetic data (seeds backend/data/synthetic_datasets.json)
+# Use this for demo/testing. For real ingestion from source datasets run the pipeline instead.
+python3 seed_synthetic.py
+
+# To run the backend locally after initialization:
+python3 main.py
 ```
 
-Note: `python main.py` runs the FastAPI app with the built-in startup lifecycle that configures OpenSearch automatically. You may instead run `uvicorn main:app --reload` if you prefer `uvicorn` directly.
+The backend performs schema initialization on startup when OpenSearch is reachable. For more control you can run the schema initializer or the optional seeder manually (see the backend README).
 
-If this is the first time setting up the backend, run `python initialize_opensearch.py` once to create the OpenSearch index. More details are in the backend README.
-
-Step 4 — The UI
-
-Run the React frontend with Vite:
+- Run the frontend (from `frontend/`):
 
 ```bash
 cd frontend
@@ -60,99 +54,21 @@ npm install
 npm run dev
 ```
 
-Open the app at http://localhost:5173 and perform searches — the frontend calls the backend at http://localhost:8000 by default.
+Useful service URLs
+-------------------
 
-Automated Initialization (Infrastructure as Code)
-------------------------------------------------
+- Frontend (Vite): http://localhost:5173
+- Backend API (FastAPI): http://localhost:8000
+- OpenSearch Engine: http://localhost:9200
+- OpenSearch Dashboards: http://localhost:5601
 
-To minimize setup friction, the backend performs automated initialization when it starts:
-
-- Configures OpenSearch mappings on `auctus_catalog_master` (text analyzers, `geo_shape` for spatial coverage, and date types for temporal coverage).
-- Seeds the index with synthetic datasets from `backend/data/synthetic_datasets.json` if the index is empty.
-- Transforms ingestion bounding boxes into GeoJSON `envelope` shapes so spatial queries work out-of-the-box.
-- The development `docker-compose.yml` disables OpenSearch security to provide a zero-config developer experience (do not use this in production).
-
-These behaviors are implemented in `backend/opensearch_config.py` and invoked by a FastAPI lifespan context manager in `backend/main.py`.
-
-Essential URLs
---------------
-
-| Component | URL |
-|---|---|
-| Frontend (Vite) | http://localhost:5173 |
-| Backend API (FastAPI) | http://localhost:8000 |
-| OpenSearch Engine | http://localhost:9200 |
-| OpenSearch Dashboards (Control Room) | http://localhost:5601 |
-
-Quick Commands
---------------
+If you need additional troubleshooting, MinIO setup details, or schema internals, see the backend README at [backend/README.md](backend/README.md). For real-data ingestion run the pipeline from the `backend/` directory:
 
 ```bash
-# start OpenSearch & Dashboards
-docker compose up -d
-
-# stop placeholder backend to free port 8000
-docker stop auctus-backend
-
-# run backend locally (from backend/)
-python main.py
-
-# run frontend (from frontend/)
-npm run dev
-
-# view backend health
-curl http://localhost:8000/
-
-# simple POST search test
-curl -sS http://localhost:8000/search -X POST -H 'Content-Type: application/json' -d '{"query":"test","filters":null}' | jq
+# run ingestion pipeline against discovered sources (optional LIMIT arg):
+python3 run_pipeline_ingest.py [LIMIT]
 ```
 
-Troubleshooting
----------------
+If you'd like, I can also add a short `docker-compose.dev.yml` that includes a ready-to-run OpenSearch + MinIO configuration for local testing.
 
-- ModuleNotFoundError: `opensearch-py`
-
-  If you see `ModuleNotFoundError: No module named 'opensearch'` or similar when running the backend, install the Python OpenSearch client into your virtualenv:
-
-  ```bash
-  cd backend
-  source .venv/bin/activate   # if using virtualenv
-  pip install -r requirements.txt
-  # or at minimum
-  pip install opensearch-py
-  ```
-
-- Verifying data in Dashboards (Discover)
-
-  1. Open OpenSearch Dashboards at http://localhost:5601
-  2. Go to the "Discover" app (the left nav) and create/select an index pattern for `auctus_catalog_master`.
-  3. Refresh the index pattern fields and search for sample documents. If the index is empty, restart the backend (it will seed synthetic data on first run) or check the backend logs for errors during initialization.
-
-- If `POST /search` returns 404 in the browser console
-
-  Ensure the backend is running at `http://localhost:8000` and that your browser is allowed to reach that host/port. Use `curl` from the host to confirm.
-
-- If OpenSearch is unreachable
-
-  Confirm Docker containers are running:
-
-  ```bash
-  docker compose ps
-  docker compose logs opensearch
-  curl http://localhost:9200/
-  ```
-
-Security and Production Notes
------------------------------
-
-This repository is configured for local developer convenience. The Docker Compose setup disables OpenSearch security plugins and is not safe for production use. For production deployments you should enable security, set proper resource limits, and secure network access.
-
-Where to look in the code
--------------------------
-
-- `backend/opensearch_config.py` — index mapping, ingestion, and transform logic
-- `backend/main.py` — FastAPI app and lifespan initialization that triggers OpenSearch setup
-- `frontend/` — React + Vite UI and the `Results` page that consumes the backend search API
-
-If you'd like, I can also add a short section showing how to enable production-ready OpenSearch settings and index templates.
 

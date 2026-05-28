@@ -1,4 +1,20 @@
+# Auctus v2 Backend Dependencies
+# Production dependencies for FastAPI backend with OpenSearch integration,
+# data profiling, and dataset ingestion from external sources.
+
+# Core Web Framework
 fastapi>=0.136.0
 uvicorn[standard]>=0.46.0
 pydantic>=2.13.0
+
+# Search Engine & Embeddings
 opensearch-py>=2.3.0
+sentence-transformers>=3.0.0
+
+# Data Ingestion & Processing
+httpx>=0.28.1
+python-dateutil>=2.9.0.post0
+atlas-profiler>=0.4.0
+
+# Storage & Object Management
+minio>=7.2.0

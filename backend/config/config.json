@@ -1,0 +1,15 @@
+{
+  "active_portal": "data.cityofnewyork.us",
+  "portals": {
+    "data.cityofnewyork.us": {
+      "base_url": "https://data.cityofnewyork.us",
+      "fallback_bbox": [-74.259, 40.477, -73.7, 40.917],
+      "label": "New York City"
+    }
+  },
+  "pipeline_settings": {
+    "max_sample_rows": 500,
+    "max_sample_bytes": 2100000,
+    "http_timeout_seconds": 30.0
+  }
+}
