@@ -37,10 +37,11 @@ backend/
 ├── storage/
 │   ├── minio_client.py              # MinIO client + profile upload helpers
 │   ├── opensearch_client.py         # OpenSearch client, mapping, and helpers
-│   └── initialize_os.py             # Schema-only OpenSearch index initializer
+│   └── arq_worker.py                # ARQ worker tasks for heavy ingestion jobs
+│   └── initialize_os.py              # Schema-only OpenSearch index initializer
 ├── main.py                          # FastAPI app entrypoint; lifespan hooks for OpenSearch init
 ├── seed_synthetic.py                # Optional quick-start synthetic seeding utility
-├── run_pipeline_ingest.py           # Batch orchestration for discover → profile → store → index
+├── run_pipeline_ingest.py           # Dispatcher: discover → dedupe → enqueue ARQ jobs
 ├── data/
 │   └── synthetic_datasets.json      # Local synthetic dataset seed file
 └── README.md                        # This file
@@ -55,7 +56,8 @@ backend/
 | **crawlers/socrata/crawler.py** | Discovers Socrata dataset IDs from the active portal using the centralized config |
 | **crawlers/socrata/transformer.py** | Streams CSV samples, profiles datasets with atlas-profiler, and normalizes catalog metadata |
 | **seed_synthetic.py** | Optional quick-start seeding script; generates embeddings and bulk-indexes synthetic datasets |
-| **run_pipeline_ingest.py** | Sequential batch orchestration: discover → profile → upload full record to MinIO → index trimmed record in OpenSearch |
+| **run_pipeline_ingest.py** | Dispatcher loop: discover datasets, compare Socrata/OpenSearch timestamps, and enqueue heavy work to ARQ |
+| **storage/arq_worker.py** | ARQ worker implementation; downloads samples, profiles, uploads full records, generates embeddings, and indexes trimmed docs |
 | **storage/minio_client.py** | MinIO connection + bucket/profile upload helpers |
 | **storage/opensearch_client.py** | Low-level OpenSearch helpers; client connection; index mapping definition; data transform utilities |
 | **storage/initialize_os.py** | Standalone schema initializer; deletes/recreates `auctus_catalog_master` and applies mappings only |
@@ -76,6 +78,8 @@ pip3 install -r requirements.txt
 - `uvicorn` — ASGI server
 - `opensearch-py` — OpenSearch client
 - `sentence-transformers` — Embedding model
+- `arq` — Async task queue worker/dispatcher
+- `redis` — Queue backend used by ARQ
 - `pydantic` — Request/response validation
 
 ### 2. Download the Embedding Model
@@ -121,6 +125,16 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```bash
 python -c "from api.search import router; print(router)"
 ```
+
+### 5. Start the ARQ Worker
+
+The ingestion pipeline is split into a fast dispatcher and a background worker. Start the worker alongside the backend when you want dataset ingestion to run asynchronously.
+
+```bash
+arq storage.arq_worker.WorkerSettings
+```
+
+If you are using Docker Compose, the `arq-worker` service runs this command automatically.
 
 ---
 
@@ -169,7 +183,7 @@ This step is optional and intended for quick local trials.
 
 **Performance note:** On Apple Silicon (MPS acceleration), embedding generation for 10 datasets typically completes in ~1–2 seconds.
 
-### Step 4: Run the Batch Pipeline
+### Step 4: Run the Dispatcher Pipeline
 
 ```bash
 python3 run_pipeline_ingest.py
@@ -178,9 +192,17 @@ python3 run_pipeline_ingest.py
 This will:
 1. Read portal and pipeline settings from `config/config.json`
 2. Discover the latest tabular Socrata datasets for the active portal
-3. Profile each dataset sequentially
-4. Upload the full profile to MinIO
+3. Compare Socrata timestamps against the existing OpenSearch document
+4. Enqueue new or stale datasets to ARQ instead of processing them inline
+
+The heavy work now runs in the ARQ worker:
+1. Download and sample CSV data
+2. Profile the dataset with `atlas-profiler`
+3. Upload the full profile to MinIO
+4. Generate the embedding vector
 5. Index the trimmed search document into OpenSearch
+
+**Tip:** If you want a synchronous end-to-end smoke test, use `python3 seed_synthetic.py`. For normal ingestion from live Socrata data, use `python3 run_pipeline_ingest.py` and keep the worker running.
 
 ### Step 5: Resetting the Environment (Optional)
 
