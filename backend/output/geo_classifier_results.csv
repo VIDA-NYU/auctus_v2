@@ -102,3 +102,89 @@ Owner’s House Zip Code,"['11214', '11697', '11201']",zip5
 LATITUDE,"['40.599043', '40.55486', '40.645602']",latitude
 LONGITUDE,"['-73.992006', '-73.923824', '-74.092344']",longitude
 COUNCIL_DISTRICT,"['47', '32', '49']",borough_code
+Base Address,"['729 LIBERTY AVENUE BROOKLYN NY 11208', '1515 THIRD STREET SAN FRANCISCO CA 94158', '674 CLIFTON AVENUE CLIFTON NJ 07011']",address
+Work Location Borough,"['MANHATTAN', 'BRONX', 'BROOKLYN']",borough
+BOROUGH,"['BROOKLYN', 'BRONX', 'MANHATTAN']",borough
+ZIP CODE,"['11230', '11208', '11233']",zip5
+LATITUDE,"['40.62179', '40.667202', '40.683304']",latitude
+LONGITUDE,"['-73.970024', '-73.8665', '-73.917274']",longitude
+OFF STREET NAME,"['61        Ed Koch queensborough bridge', '1211      LORING AVENUE', '344       BAYCHESTER AVENUE']",address
+BOROUGH,"['BROOKLYN', 'QUEENS', 'MANHATTAN']",borough
+Bin #,"['3185434', '4623172', '4096492']",bin
+Street Name,"['BAY 34 ST', 'BEACH 215 STREET', '7 AVENUE']",address
+Zip Code,"['11214', '11697', '11356']",zip5
+Special District 1,"['BR', 'HY', 'SRD']",borough_code
+Owner's House Street Name,"['WEST 6 ST', 'ROCKAWAY POINT BOULEVARD', 'MAIN ST, SUITE 502']",address
+Owner’s House City,"['BROOKLYN', 'ROCKAWAY POINT', 'NEW YORK']",address
+Owner’s House Zip Code,"['11214', '11697', '11201']",zip5
+LATITUDE,"['40.599043', '40.55486', '40.790594']",latitude
+LONGITUDE,"['-73.992006', '-73.923824', '-73.838244']",longitude
+COUNCIL_DISTRICT,"['47', '32', '19']",borough_code
+Borough,"['QUEENS', 'BRONX', 'BROOKLYN']",borough
+Street Name,"['135 ROAD', 'QUEENS BLVD', 'LINCOLN AVE']",address
+Bin #,"['4284335', '4050525', '2130735']",bin
+City Owned,['Y'],city
+Street Frontage,"['0', '142', '80']",address
+Special District 1,"['MX-1', 'BR', 'MID']",borough_code
+Special District 2,"['MS4', 'MIH', 'IBZ']",borough_code
+LATITUDE,"['40.669797', '40.727573', '40.807149']",latitude
+LONGITUDE,"['-73.729699', '-73.855368', '-73.929969']",longitude
+COUNCIL DISTRICT,"['31', '29', '8']",borough_code
+Incident Zip,"['11378', '11420', '10304']",zip5
+Incident Address,"['62-41 60 ROAD', '109-55 109 STREET', '755 NARROWS ROAD NORTH']",address
+Street Name,"['60 ROAD', '109 STREET', 'NARROWS ROAD NORTH']",address
+Cross Street 1,"['FRESH POND ROAD', '109 AVE', 'RICHMOND RD']",address
+Cross Street 2,"['MOUNT OLIVET CRESCENT', 'ROCKAWAY BLVD', 'CLOVE RD']",address
+Intersection Street 1,"['FRESH POND ROAD', 'CARPENTER AVENUE', '28 STREET']",address
+Intersection Street 2,"['MOUNT OLIVET CRESCENT', 'LOWERRE PLACE', '29 STREET']",address
+Address Type,"['ADDRESS', 'INTERSECTION', 'BLOCKFACE']",address
+Landmark,"['60 ROAD', 'EAST  230 STREET', '33 AVENUE']",address
+Community Board,"['05 QUEENS', '10 QUEENS', '01 STATEN ISLAND']",borough
+Council District,"['30', '28', '49']",borough_code
+Borough,"['QUEENS', 'STATEN ISLAND', 'BROOKLYN']",borough
+Park Borough,"['QUEENS', 'STATEN ISLAND', 'BROOKLYN']",borough
+Taxi Company Borough,['QUEENS'],borough
+Taxi Pick Up Location,"['JOHN F KENNEDY AIRPORT, QUEENS (JAMAICA) ,NY, 11430', '800 EAST  180 STREET, BRONX, NY, 10460', 'JFK Airport']",address
+Bridge Highway Direction,"['West/Staten Island Bound', 'Q platform']",address
+Latitude,"['40.716368', '40.679442', '40.610665']",latitude
+Longitude,"['-73.901141', '-73.830686', '-74.093567']",longitude
+Location,"['POINT (-73.901140890702 40.716367604188)', 'POINT (-73.830685904486 40.679442468725)', 'POINT (-74.093566655705 40.610665067613)']",point
+Base Address,"['729 LIBERTY AVENUE BROOKLYN NY 11208', '1515 THIRD STREET SAN FRANCISCO CA 94158', '674 CLIFTON AVENUE CLIFTON NJ 07011']",address
+Work Location Borough,"['MANHATTAN', 'BRONX', 'BROOKLYN']",borough
+BOROUGH,"['BROOKLYN', 'BRONX', 'MANHATTAN']",borough
+ZIP CODE,"['11230', '11208', '11233']",zip5
+LATITUDE,"['40.62179', '40.667202', '40.683304']",latitude
+LONGITUDE,"['-73.970024', '-73.8665', '-73.917274']",longitude
+OFF STREET NAME,"['61        Ed Koch queensborough bridge', '1211      LORING AVENUE', '344       BAYCHESTER AVENUE']",address
+BOROUGH,"['BROOKLYN', 'QUEENS', 'MANHATTAN']",borough
+Bin #,"['3185434', '4623172', '4096492']",bin
+Street Name,"['BAY 34 ST', 'BEACH 215 STREET', '7 AVENUE']",address
+Zip Code,"['11214', '11697', '11356']",zip5
+Special District 1,"['BR', 'HY', 'SRD']",borough_code
+Owner's House Street Name,"['WEST 6 ST', 'ROCKAWAY POINT BOULEVARD', 'MAIN ST, SUITE 502']",address
+Owner’s House City,"['BROOKLYN', 'ROCKAWAY POINT', 'NEW YORK']",address
+Owner’s House Zip Code,"['11214', '11697', '11201']",zip5
+LATITUDE,"['40.599043', '40.55486', '40.790594']",latitude
+LONGITUDE,"['-73.992006', '-73.923824', '-73.838244']",longitude
+COUNCIL_DISTRICT,"['47', '32', '19']",borough_code
+Borough,"['QUEENS', 'BRONX', 'BROOKLYN']",borough
+Street Name,"['135 ROAD', 'QUEENS BLVD', 'LINCOLN AVE']",address
+Bin #,"['4284335', '4050525', '2130735']",bin
+City Owned,['Y'],city
+Street Frontage,"['0', '142', '80']",address
+Special District 1,"['MX-1', 'BR', 'MID']",borough_code
+Special District 2,"['MS4', 'MIH', 'IBZ']",borough_code
+LATITUDE,"['40.669797', '40.727573', '40.807149']",latitude
+LONGITUDE,"['-73.729699', '-73.855368', '-73.929969']",longitude
+COUNCIL DISTRICT,"['31', '29', '8']",borough_code
+Base Address,"['729 LIBERTY AVENUE BROOKLYN NY 11208', '1515 THIRD STREET SAN FRANCISCO CA 94158', '674 CLIFTON AVENUE CLIFTON NJ 07011']",address
+Borough,"['QUEENS', 'BRONX', 'BROOKLYN']",borough
+Street Name,"['135 ROAD', 'QUEENS BLVD', 'LINCOLN AVE']",address
+Bin #,"['4284335', '4050525', '2130735']",bin
+City Owned,['Y'],city
+Street Frontage,"['0', '142', '80']",address
+Special District 1,"['MX-1', 'BR', 'MID']",borough_code
+Special District 2,"['MS4', 'MIH', 'IBZ']",borough_code
+LATITUDE,"['40.669797', '40.727573', '40.807149']",latitude
+LONGITUDE,"['-73.729699', '-73.855368', '-73.929969']",longitude
+COUNCIL DISTRICT,"['31', '29', '8']",borough_code

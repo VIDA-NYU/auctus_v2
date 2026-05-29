@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from pathlib import Path
 
 try:
@@ -12,8 +13,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-OPENSEARCH_HOST = "localhost"
-OPENSEARCH_PORT = 9200
+OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "localhost")
+OPENSEARCH_PORT = int(os.getenv("OPENSEARCH_PORT", "9200"))
 AUCTUS_INDEX_NAME = "auctus_catalog_master"
 # Define the mapping for auctus_catalog_master index
 DATASETS_MAPPING = {

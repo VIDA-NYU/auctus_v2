@@ -6,8 +6,9 @@ import io
 import json
 
 from minio import Minio
+import os
 
-MINIO_ENDPOINT = "localhost:9000"
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
 MINIO_ACCESS_KEY = "minioadmin"
 MINIO_SECRET_KEY = "minioadmin"
 PROFILE_BUCKET_NAME = "auctus-dataset-profiles"
