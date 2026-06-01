@@ -67,6 +67,7 @@ services:
       - PYTHONUNBUFFERED=1
       - OPENSEARCH_HOST=opensearch
       - OPENSEARCH_PORT=9200
+      - MINIO_ENDPOINT=auctus-minio:9000
     ports:
       - 8000:8000
     depends_on:

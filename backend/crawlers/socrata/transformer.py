@@ -434,7 +434,7 @@ async def build_validation_record(
             geo_classifier=True,
             geo_classifier_threshold=0.5,
             coverage=True,
-            plots=True,
+            plots=False,
             include_sample=True,
         )
         if not isinstance(profiler_output, dict):

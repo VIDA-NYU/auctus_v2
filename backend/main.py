@@ -7,6 +7,7 @@ from typing import Optional, List
 
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client, init_db
 from api.search import router as search_router
+from api.datasets import router as datasets_router
 
 # Configure logging
 logging.basicConfig(
@@ -37,6 +38,7 @@ app = FastAPI(title="Auctus v2 API", lifespan=lifespan)
 
 # Include API routers
 app.include_router(search_router)
+app.include_router(datasets_router)
 
 # --- CORS Configuration ---
 # This allows your React app to communicate with the backend
