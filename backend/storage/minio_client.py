@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import io
 import json
-
-from minio import Minio
 import os
+
+try:
+    from minio import Minio
+    from minio.error import S3Error
+except Exception:  # pragma: no cover - allow backend startup without minio installed
+    Minio = None
+    S3Error = Exception
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
 MINIO_ACCESS_KEY = "minioadmin"
@@ -16,6 +21,8 @@ PROFILE_BUCKET_NAME = "auctus-dataset-profiles"
 
 def get_storage_client() -> Minio:
     """Create and return a MinIO client for local development."""
+    if Minio is None:
+        raise RuntimeError("minio package is not available in this environment")
     return Minio(
         MINIO_ENDPOINT,
         access_key=MINIO_ACCESS_KEY,
@@ -50,3 +57,12 @@ def upload_heavy_profile(client: Minio, dataset_id: str, comprehensive_profile: 
         content_type="application/json",
     )
     return object_name
+
+
+def get_heavy_profile_object(client: Minio, dataset_id: str):
+    """Return the raw MinIO object stream for a stored dataset profile JSON file."""
+    object_name = f"{dataset_id}_profile.json"
+    try:
+        return client.get_object(PROFILE_BUCKET_NAME, object_name), object_name
+    except S3Error:
+        raise
