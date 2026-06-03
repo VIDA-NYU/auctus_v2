@@ -9,7 +9,12 @@ pydantic>=2.13.0
 
 # Search Engine & Embeddings
 opensearch-py>=2.3.0
-sentence-transformers>=3.0.0
+# Pinned to the transformers 4.x line so huggingface-hub stays <1.0, which keeps
+# it compatible with AutoDDG's fastembed dependency (fastembed 0.5.1 requires
+# huggingface-hub<1.0). The latest transformers 5.x requires huggingface-hub>=1.5
+# and would conflict. Embedding model (all-MiniLM-L6-v2) behaves identically.
+sentence-transformers==3.0.1
+transformers==4.44.2
 
 # Data Ingestion & Processing
 httpx>=0.28.1
@@ -19,3 +24,8 @@ arq>=0.26.0
 
 # Storage & Object Management
 minio>=7.2.0
+
+# AutoDDG integration (LLM dataset descriptions via the NYU Portkey gateway).
+# The autoddg package itself is installed separately from a mounted source
+# directory (see docker-compose.yml arq-worker), as it is not on PyPI.
+portkey-ai>=1.0.0
