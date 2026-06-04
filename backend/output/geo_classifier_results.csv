@@ -471,3 +471,26 @@ Special District 2,"['MS4', 'MIH', 'IBZ']",borough_code
 LATITUDE,"['40.669797', '40.727573', '40.807149']",latitude
 LONGITUDE,"['-73.729699', '-73.855368', '-73.929969']",longitude
 COUNCIL DISTRICT,"['31', '29', '8']",borough_code
+Base Address,"['5817   37 AVENUE WOODSIDE NY 11377', '1515 THIRD STREET SAN FRANCISCO CA 94158', '135-25A   40 ROAD FLUSHING NY 11354']",address
+Borough,"['QUEENS', 'BRONX', 'BROOKLYN']",borough
+Street Name,"['135 ROAD', 'QUEENS BLVD', 'LINCOLN AVE']",address
+Bin #,"['4284335', '4050525', '2130735']",bin
+City Owned,['Y'],city
+Street Frontage,"['0', '142', '80']",address
+Special District 1,"['MX-1', 'BR', 'MID']",borough_code
+Special District 2,"['MS4', 'MIH', 'IBZ']",borough_code
+LATITUDE,"['40.669797', '40.727573', '40.807149']",latitude
+LONGITUDE,"['-73.729699', '-73.855368', '-73.929969']",longitude
+COUNCIL DISTRICT,"['31', '29', '8']",borough_code
+ADDRESS,"['240 WOLF ROAD,  ALBANY', '560 Harry L. DRIVE,  JOHNSON CITY', '1101 BUNN HILL ROAD,  VESTAL']",address
+FACILITY ADDRESS,"['240 WOLF ROAD', '560 Harry L. DRIVE', '1101 BUNN HILL ROAD']",address
+CITY,"['ALBANY', 'JOHNSON CITY', 'VESTAL']",city
+ZIP CODE,"['12205', '13790', '13850']",zip5
+MUNICIPALITY,"['COLONIE', 'UNION', 'VESTAL']",city
+SERVICE ADDRESS,"['1075 BROADWAY', '111 N 3RD AVE VERNONDALE RES', '162 19 76TH AVE']",address
+CITY,"['PLEASANTVILLE', 'MOUNT VERNON', 'FLUSHING']",city
+STATE,['NY'],state_code
+ZIP CODE,"['10570-2346', '10550-1364', '11366-1133']",zip9
+COUNTY,"['WESTCHESTER', 'QUEENS', 'KINGS']",borough
+LATITUDE,"['41.1294', '40.91451', '40.72665']",latitude
+LONGITUDE,"['-73.77794', '-73.83634', '-73.79787']",longitude
