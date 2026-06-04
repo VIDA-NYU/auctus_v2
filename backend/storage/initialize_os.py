@@ -13,6 +13,10 @@ at http://localhost:5601 for immediate UI access.
 import os
 import time
 import sys
+from pathlib import Path
+
+# Adjust path so we can import storage.opensearch_client from this script
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
     from opensearchpy import OpenSearch
@@ -27,6 +31,30 @@ except Exception as exc:  # pragma: no cover - runtime dependency
     print("Required package 'httpx' is not installed.")
     print("Install with: pip install httpx")
     raise
+
+try:
+    from storage.opensearch_client import AUCTUS_PORTALS_INDEX_NAME, PORTALS_MAPPING
+except Exception as exc:
+    print(f"Warning: Could not import portals index info: {exc}")
+    AUCTUS_PORTALS_INDEX_NAME = "auctus_portals_metadata"
+    PORTALS_MAPPING = {
+        "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0,
+        },
+        "mappings": {
+            "properties": {
+                "domain": {"type": "keyword"},
+                "provider": {"type": "keyword"},
+                "display_label": {"type": "keyword"},
+                "dataset_count": {"type": "integer"},
+                "last_indexed_at": {
+                    "type": "date",
+                    "format": "strict_date_optional_time||yyyy-MM-dd'T'HH:mm:ssZ",
+                },
+            }
+        },
+    }
 
 
 AUCTUS_INDEX_NAME = "auctus_catalog_master"
@@ -72,6 +100,8 @@ MAPPING = {
     "mappings": {
         "properties": {
             "id": {"type": "keyword"},
+            "domain": {"type": "keyword"},
+            "provider": {"type": "keyword"},
             "embedding_metadata": {
                 "type": "object",
                 "properties": {
@@ -159,21 +189,29 @@ def recreate_index(client):
     print(f"Creating index '{AUCTUS_INDEX_NAME}' with mappings...")
     client.indices.create(index=AUCTUS_INDEX_NAME, body=MAPPING)
 
+    if client.indices.exists(index=AUCTUS_PORTALS_INDEX_NAME):
+        print(f"Index '{AUCTUS_PORTALS_INDEX_NAME}' exists — deleting...")
+        client.indices.delete(index=AUCTUS_PORTALS_INDEX_NAME)
+        time.sleep(0.5)
 
-def create_dashboard_index_pattern():
+    print(f"Creating index '{AUCTUS_PORTALS_INDEX_NAME}' with mappings...")
+    client.indices.create(index=AUCTUS_PORTALS_INDEX_NAME, body=PORTALS_MAPPING)
+
+
+def create_dashboard_index_pattern(index_name: str = AUCTUS_INDEX_NAME):
     """Automatically create the index pattern in OpenSearch Dashboards.
     
-    This allows developers to immediately browse the `auctus_catalog_master`
-    index without manual configuration via the Dashboards UI.
+    This allows developers to immediately browse the index
+    without manual configuration via the Dashboards UI.
     
     Fails gracefully if Dashboards is not available or still bootstrapping.
     """
     dashboards_url = "http://localhost:5601"
-    pattern_url = f"{dashboards_url}/api/saved_objects/index-pattern/{AUCTUS_INDEX_NAME}"
+    pattern_url = f"{dashboards_url}/api/saved_objects/index-pattern/{index_name}"
     
     payload = {
         "attributes": {
-            "title": AUCTUS_INDEX_NAME
+            "title": index_name
         }
     }
     
@@ -185,12 +223,12 @@ def create_dashboard_index_pattern():
     try:
         response = httpx.post(pattern_url, json=payload, headers=headers, timeout=5.0)
         if response.status_code in [200, 201]:
-            print(f"✨ OpenSearch Dashboards index pattern '{AUCTUS_INDEX_NAME}' automatically created.")
+            print(f"✨ OpenSearch Dashboards index pattern '{index_name}' automatically created.")
         elif response.status_code == 409:
             # Pattern may already exist; this is not an error
-            print(f"ℹ️  OpenSearch Dashboards index pattern '{AUCTUS_INDEX_NAME}' already exists.")
+            print(f"ℹ️  OpenSearch Dashboards index pattern '{index_name}' already exists.")
         else:
-            print(f"⚠️  Failed to create Dashboards index pattern (HTTP {response.status_code}). Continuing without it.")
+            print(f"⚠️  Failed to create Dashboards index pattern for '{index_name}' (HTTP {response.status_code}). Continuing without it.")
     except Exception as exc:
         # Dashboards may not be running; fail gracefully
         print(f"⚠️  OpenSearch Dashboards is not available ({exc}). Skipping index pattern creation.")
@@ -212,10 +250,11 @@ def main():
         sys.exit(1)
 
     recreate_index(client)
-    print("✅ OpenSearch index 'auctus_catalog_master' initialized cleanly with schema mappings.")
+    print("✅ OpenSearch indexes initialized cleanly with schema mappings.")
     
-    # Attempt to create dashboard index pattern automatically
-    create_dashboard_index_pattern()
+    # Attempt to create dashboard index patterns automatically
+    create_dashboard_index_pattern(AUCTUS_INDEX_NAME)
+    create_dashboard_index_pattern(AUCTUS_PORTALS_INDEX_NAME)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "localhost")
 OPENSEARCH_PORT = int(os.getenv("OPENSEARCH_PORT", "9200"))
 AUCTUS_INDEX_NAME = "auctus_catalog_master"
+AUCTUS_PORTALS_INDEX_NAME = "auctus_portals_metadata"
 # Define the mapping for auctus_catalog_master index
 DATASETS_MAPPING = {
     "settings": {
@@ -34,6 +35,8 @@ DATASETS_MAPPING = {
     "mappings": {
         "properties": {
             "id": {"type": "keyword"},
+            "domain": {"type": "keyword"},
+            "provider": {"type": "keyword"},
             "embedding_metadata": {
                 "type": "object",
                 "properties": {
@@ -107,6 +110,25 @@ DATASETS_MAPPING = {
                 },
             },
             "relevance_score": {"type": "float"},
+        }
+    },
+}
+
+PORTALS_MAPPING = {
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+    },
+    "mappings": {
+        "properties": {
+            "domain": {"type": "keyword"},
+            "provider": {"type": "keyword"},
+            "display_label": {"type": "keyword"},
+            "dataset_count": {"type": "integer"},
+            "last_indexed_at": {
+                "type": "date",
+                "format": "strict_date_optional_time||yyyy-MM-dd'T'HH:mm:ssZ",
+            },
         }
     },
 }
@@ -246,6 +268,22 @@ def init_db():
                 logger.info(f"Successfully created index {AUCTUS_INDEX_NAME}")
             else:
                 logger.error(f"Failed to create index {AUCTUS_INDEX_NAME}")
+                return
+        else:
+            try:
+                client.indices.put_mapping(
+                    index=AUCTUS_INDEX_NAME,
+                    body={"properties": {"domain": {"type": "keyword"}, "provider": {"type": "keyword"}}},
+                )
+            except Exception as exc:
+                logger.debug("Could not update dataset index mapping with portal fields: %s", exc)
+
+        if not index_exists(client, AUCTUS_PORTALS_INDEX_NAME):
+            logger.info(f"Index {AUCTUS_PORTALS_INDEX_NAME} does not exist. Creating...")
+            if create_index(client, AUCTUS_PORTALS_INDEX_NAME, PORTALS_MAPPING):
+                logger.info(f"Successfully created index {AUCTUS_PORTALS_INDEX_NAME}")
+            else:
+                logger.error(f"Failed to create index {AUCTUS_PORTALS_INDEX_NAME}")
                 return
 
         # Check if index is empty

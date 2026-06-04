@@ -1,0 +1,246 @@
+[
+  {
+    "url": "www.datos.gov.co",
+    "dataset_count": 654
+  },
+  {
+    "url": "data.cityofnewyork.us",
+    "dataset_count": 483
+  },
+  {
+    "url": "data.ny.gov",
+    "dataset_count": 472
+  },
+  {
+    "url": "data.cdc.gov",
+    "dataset_count": 392
+  },
+  {
+    "url": "data.cityofchicago.org",
+    "dataset_count": 272
+  },
+  {
+    "url": "health.data.ny.gov",
+    "dataset_count": 249
+  },
+  {
+    "url": "datahub.transportation.gov",
+    "dataset_count": 133
+  },
+  {
+    "url": "cos-data.seattle.gov",
+    "dataset_count": 107
+  },
+  {
+    "url": "data.kingcounty.gov",
+    "dataset_count": 95
+  },
+  {
+    "url": "data.lacity.org",
+    "dataset_count": 92
+  },
+  {
+    "url": "datahub.austintexas.gov",
+    "dataset_count": 90
+  },
+  {
+    "url": "data.ct.gov",
+    "dataset_count": 90
+  },
+  {
+    "url": "data.texas.gov",
+    "dataset_count": 86
+  },
+  {
+    "url": "data.edmonton.ca",
+    "dataset_count": 84
+  },
+  {
+    "url": "datacatalog.cookcountyil.gov",
+    "dataset_count": 71
+  },
+  {
+    "url": "data.mo.gov",
+    "dataset_count": 69
+  },
+  {
+    "url": "data.calgary.ca",
+    "dataset_count": 69
+  },
+  {
+    "url": "data.wa.gov",
+    "dataset_count": 62
+  },
+  {
+    "url": "data.oregon.gov",
+    "dataset_count": 62
+  },
+  {
+    "url": "data.novascotia.ca",
+    "dataset_count": 58
+  },
+  {
+    "url": "data.montgomerycountymd.gov",
+    "dataset_count": 55
+  },
+  {
+    "url": "mydata.iowa.gov",
+    "dataset_count": 50
+  },
+  {
+    "url": "opendata.fcc.gov",
+    "dataset_count": 49
+  },
+  {
+    "url": "data.colorado.gov",
+    "dataset_count": 48
+  },
+  {
+    "url": "data.nola.gov",
+    "dataset_count": 47
+  },
+  {
+    "url": "data.energystar.gov",
+    "dataset_count": 46
+  },
+  {
+    "url": "opendata.howardcountymd.gov",
+    "dataset_count": 44
+  },
+  {
+    "url": "data.delaware.gov",
+    "dataset_count": 42
+  },
+  {
+    "url": "performance.commerce.gov",
+    "dataset_count": 40
+  },
+  {
+    "url": "www.dallasopendata.com",
+    "dataset_count": 35
+  },
+  {
+    "url": "datahub.hhs.gov",
+    "dataset_count": 34
+  },
+  {
+    "url": "opendata.maryland.gov",
+    "dataset_count": 32
+  },
+  {
+    "url": "bronx.lehman.cuny.edu",
+    "dataset_count": 30
+  },
+  {
+    "url": "data.kcmo.org",
+    "dataset_count": 29
+  },
+  {
+    "url": "data.pa.gov",
+    "dataset_count": 28
+  },
+  {
+    "url": "data.winnipeg.ca",
+    "dataset_count": 28
+  },
+  {
+    "url": "gnb.socrata.com",
+    "dataset_count": 28
+  },
+  {
+    "url": "datahub.usac.org",
+    "dataset_count": 27
+  },
+  {
+    "url": "data.brla.gov",
+    "dataset_count": 27
+  },
+  {
+    "url": "www.data.act.gov.au",
+    "dataset_count": 25
+  },
+  {
+    "url": "data.bts.gov",
+    "dataset_count": 24
+  },
+  {
+    "url": "controllerdata.lacity.org",
+    "dataset_count": 24
+  },
+  {
+    "url": "data.cambridgema.gov",
+    "dataset_count": 24
+  },
+  {
+    "url": "datadiscovery.nlm.nih.gov",
+    "dataset_count": 23
+  },
+  {
+    "url": "data.nj.gov",
+    "dataset_count": 22
+  },
+  {
+    "url": "data.norfolk.gov",
+    "dataset_count": 22
+  },
+  {
+    "url": "data.vermont.gov",
+    "dataset_count": 18
+  },
+  {
+    "url": "data.michigan.gov",
+    "dataset_count": 16
+  },
+  {
+    "url": "data.nasa.gov",
+    "dataset_count": 16
+  },
+  {
+    "url": "data.providenceri.gov",
+    "dataset_count": 15
+  },
+  {
+    "url": "data.cincinnati-oh.gov",
+    "dataset_count": 15
+  },
+  {
+    "url": "illinois-edp.data.socrata.com",
+    "dataset_count": 14
+  },
+  {
+    "url": "bythenumbers.sco.ca.gov",
+    "dataset_count": 14
+  },
+  {
+    "url": "data.sonomacounty.ca.gov",
+    "dataset_count": 13
+  },
+  {
+    "url": "internal.open.piercecountywa.gov",
+    "dataset_count": 13
+  },
+  {
+    "url": "data.marincounty.gov",
+    "dataset_count": 12
+  },
+  {
+    "url": "data.honolulu.gov",
+    "dataset_count": 11
+  },
+  {
+    "url": "citydata.mesaaz.gov",
+    "dataset_count": 11
+  },
+  {
+    "url": "data.princegeorgescountymd.gov",
+    "dataset_count": 10
+  },
+  {
+    "url": "educationtocareer.data.mass.gov",
+    "dataset_count": 10
+  },
+  {
+    "url": "data.auburnwa.gov",
+    "dataset_count": 10
+  }
+]
