@@ -101,11 +101,60 @@ def get_autoddg():
     return _autoddg
 
 
+def build_profile_text(record: dict[str, Any]) -> str:
+    """Render a trimmed, content-focused profile as a JSON string for AutoDDG.
+
+    AutoDDG injects this string into its prompt (use_profile=True). We keep only
+    fields that describe *what the dataset contains* — size, column schema, and
+    geographic coverage — and drop operational/rendering fields (telemetry,
+    profiling times, raw geohash grids, redundant keyword splits). This is the
+    profile-aware usage emphasized in the AutoDDG paper. Returns "" if there is
+    nothing useful to report. The selection is deterministic (no LLM).
+    """
+    pm = record.get("profiler_metadata")
+    if not isinstance(pm, dict):
+        return ""
+
+    profile: dict[str, Any] = {}
+    for key in ("nb_rows", "nb_columns", "types"):
+        if pm.get(key) is not None:
+            profile[key] = pm[key]
+
+    # Per-column schema: meaning-bearing fields, plus numeric stats when present.
+    trimmed_columns: list[dict[str, Any]] = []
+    for col in pm.get("columns") or []:
+        if not isinstance(col, dict):
+            continue
+        entry = {
+            key: col[key]
+            for key in ("name", "structural_type", "semantic_types",
+                        "num_distinct_values", "mean", "std", "min", "max")
+            if col.get(key) not in (None, [], "")
+        }
+        if entry:
+            trimmed_columns.append(entry)
+    if trimmed_columns:
+        profile["columns"] = trimmed_columns
+    elif pm.get("attribute_keywords"):
+        # Fallback when profiling produced no columns (edge cases): names only.
+        profile["column_names"] = pm["attribute_keywords"]
+
+    # Geographic coverage: clean label + bbox only (drop the raw geohash grids).
+    spatial = record.get("spatial_coverage")
+    if isinstance(spatial, dict) and (spatial.get("label") or spatial.get("bbox")):
+        profile["spatial_coverage"] = {
+            k: spatial[k] for k in ("label", "bbox") if spatial.get(k)
+        }
+
+    return json.dumps(profile, ensure_ascii=False) if profile else ""
+
+
 def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
     """Generate an AutoDDG description from the CSV sample and store it on the record.
 
     Runs before the MinIO upload so the text is persisted in the full profile and
-    flows downstream into the trimmed search document as well. Failures are
+    flows downstream into the trimmed search document as well. The atlas-profiler
+    metadata is passed as a structural profile to improve quality. Failures are
     non-fatal: ingestion proceeds without the description.
     """
     autoddg = get_autoddg()
@@ -117,10 +166,21 @@ def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
         LOGGER.warning("No CSV sample for dataset %s; skipping AutoDDG", record.get("id"))
         return record
 
+    profile_text = build_profile_text(record)
+
     try:
-        _prompt, description = autoddg.describe_dataset(dataset_sample=sample)
+        _prompt, description = autoddg.describe_dataset(
+            dataset_sample=sample,
+            dataset_profile=profile_text or None,
+            use_profile=bool(profile_text),
+        )
         record["autoddg_description"] = description
-        LOGGER.info("AutoDDG description generated for %s (%d chars)", record.get("id"), len(description))
+        LOGGER.info(
+            "AutoDDG description generated for %s (%d chars, use_profile=%s)",
+            record.get("id"),
+            len(description),
+            bool(profile_text),
+        )
     except Exception as exc:
         LOGGER.warning("AutoDDG description failed for %s: %s", record.get("id"), exc)
 
