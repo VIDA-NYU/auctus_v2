@@ -14,7 +14,7 @@ from arq.connections import RedisSettings
 from crawlers.socrata.transformer import build_validation_record
 from storage.minio_client import get_storage_client, upload_heavy_profile
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
-from run_pipeline_ingest import apply_socrata_timestamp, isolate_search_payload, load_runtime_config
+from run_pipeline_ingest import apply_socrata_timestamp, isolate_search_payload, load_runtime_config, sync_portal_metadata
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -127,9 +127,17 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
         LOGGER.info("Uploading full profile to MinIO for dataset %s", routing_key)
         upload_heavy_profile(storage_client, routing_key, full_metadata_record)
 
+        # 1. Resolve provider and domain details from dataset_meta
+        provider_type = str(dataset_meta.get("provider") or "socrata")
+        domain_url = str(dataset_meta.get("domain") or base_url.replace("https://", "").replace("http://", ""))
+
         search_payload = isolate_search_payload(full_metadata_record)
         search_payload = attach_embedding(search_payload, model=embedding_model)
         apply_socrata_timestamp(search_payload, socrata_updated_at)
+
+        # 2. Assign fields manually so they match the updated auctus_catalog_master mapping! 👈
+        search_payload["domain"] = domain_url
+        search_payload["provider"] = provider_type
 
         LOGGER.info("Indexing trimmed search document into OpenSearch for dataset %s", routing_key)
         os_client.index(
@@ -138,6 +146,13 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
             body=search_payload,
             refresh=True,
         )
+
+        # provider_type = str(dataset_meta.get("provider") or "socrata")
+        # domain_url = str(dataset_meta.get("domain") or base_url.replace("https://", "").replace("http://", ""))
+        try:
+            await sync_portal_metadata(domain_url=domain_url, provider_type=provider_type)
+        except Exception as exc:
+            LOGGER.warning("Portal metadata sync failed for domain %s: %s", domain_url, exc)
     except Exception as exc:
         LOGGER.exception("Dataset ingest failed for %s: %s", dataset_id, exc)
         raise

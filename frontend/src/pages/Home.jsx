@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Rectangle, useMapEvents, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -12,18 +12,7 @@ const FILTER_CATEGORIES = [
   { id: 'location', label: 'Spatial' },
 ]
 
-const SOURCE_OPTIONS = [
-  'Socrata',
-  'CKAN',
-  'Local',
-  'NYC Open Data',
-  'World Bank',
-  'Zenodo',
-  'CAL FIRE',
-  'Inside Airbnb',
-  'European Central Bank',
-  'Our World in Data',
-]
+const DEFAULT_PORTAL_OPTIONS = ['data.cityofnewyork.us', 'data.cityofchicago.org']
 
 const TYPE_OPTIONS = ['spatial', 'numerical', 'temporal', 'categorical']
 
@@ -38,7 +27,40 @@ function Home() {
     temporal_end: '',
     bbox: null,
   })
+  const [portalOptions, setPortalOptions] = useState([])
   const [openDropdown, setOpenDropdown] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadPortals = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/v1/portals')
+        if (!response.ok) {
+          throw new Error(`Portal request failed with status ${response.status}`)
+        }
+
+        const payload = await response.json()
+        const domains = Array.isArray(payload?.portals)
+          ? payload.portals.map((portal) => portal?.domain).filter((domain) => typeof domain === 'string' && domain.trim())
+          : []
+
+        if (!cancelled) {
+          setPortalOptions(domains.length > 0 ? domains : DEFAULT_PORTAL_OPTIONS)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPortalOptions(DEFAULT_PORTAL_OPTIONS)
+        }
+      }
+    }
+
+    loadPortals()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // MapClickTarget: Properly tracks two clicks for bounding box drawing using useMapEvents
   function MapClickTarget({ onBBoxChange }) {
@@ -153,11 +175,12 @@ function Home() {
                 activeCount={getActiveCount(id)}
                 isOpen={openDropdown === id}
                 onToggle={() => setOpenDropdown(openDropdown === id ? null : id)}
+                options={id === 'source' ? portalOptions : undefined}
               >
                 {/* Source Filter */}
                 {id === 'source' && (
                   <div className="grid grid-cols-2 gap-3 min-w-72">
-                    {SOURCE_OPTIONS.map((opt) => (
+                    {portalOptions.map((opt) => (
                       <label key={opt} className="inline-flex items-center gap-2 text-sm cursor-pointer hover:text-amber-600">
                         <input
                           type="checkbox"

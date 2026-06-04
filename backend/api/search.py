@@ -86,9 +86,9 @@ async def search(req: SearchQueryRequest):
     if isinstance(req.source, list):
         source_values = [item for item in req.source if item]
         if source_values:
-            filter_clauses.append({"terms": {"source": source_values}})
+            filter_clauses.append({"terms": {"domain": source_values}})
     elif req.source:
-        filter_clauses.append({"term": {"source": {"value": req.source}}})
+        filter_clauses.append({"term": {"domain": {"value": req.source}}})
 
     if isinstance(req.types, list):
         type_values = [item for item in req.types if item]
@@ -151,7 +151,7 @@ async def search(req: SearchQueryRequest):
     payload = {
         "query": {"bool": query_bool},
         "aggs": {
-            "sources_count": {"terms": {"field": "source"}},
+            "sources_count": {"terms": {"field": "domain"}},
             "types_count": {"terms": {"field": "types"}},
         },
     }
