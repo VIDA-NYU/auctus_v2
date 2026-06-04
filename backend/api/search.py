@@ -1,3 +1,13 @@
+"""backend.api.search
+
+Provides a FastAPI router with an endpoint to search datasets using OpenSearch.
+Supports optional vector search via sentence-transformers when available.
+
+This module exposes `router` with a POST `/api/v1/search` endpoint that
+accepts a `SearchQueryRequest` payload and returns search results, totals,
+and aggregations.
+"""
+
 from typing import List, Optional
 import json
 import os
@@ -71,6 +81,33 @@ def build_query_vector(keywords: str) -> List[float]:
 
 @router.post("/api/v1/search")
 async def search(req: SearchQueryRequest):
+    """
+    Search datasets using hybrid keyword and semantic vector search.
+
+    Combines BM25 full-text matching against `title` and `description` with
+    k-NN vector search using sentence embeddings. Supports optional filtering
+    by source domain, dataset type, temporal range, and spatial bounding box.
+
+    Args:
+        req (SearchQueryRequest): Query parameters including:
+            - `keywords`: optional free-text to match and vectorize
+            - `source`: optional list or single source/domain
+            - `types`: optional list or single type
+            - `temporal_start` / `temporal_end`: ISO date strings to filter temporal coverage
+            - `bbox`: bounding box [min_lon, min_lat, max_lon, max_lat]
+            - `limit`: number of results to return
+            - `offset`: pagination offset
+
+    Returns:
+        A dict with:
+            - `total`: total number of matching datasets.
+            - `results`: list of dataset source documents (plot fields stripped).
+            - `aggregations`: facet counts for `sources_count` and `types_count`
+
+    Raises:
+        HTTPException: If required backends or dependencies are missing or an
+            error occurs while querying the search backend.
+    """
     try:
         client = get_client()
     except RuntimeError as exc:

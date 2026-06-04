@@ -1,0 +1,69 @@
+site_name: Auctus v2
+site_description: Urban Data Catalog - FastAPI & React
+
+site_url: https://nyu-urban.github.io/auctus_v2/  # Update this to match your NYU repo path
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - code.copy
+
+# theme:
+#   name: material
+#   palette:
+#     - media: "(prefers-color-scheme: light)"
+#       scheme: default
+#       primary: blue
+#       toggle:
+#         icon: material/brightness-7
+#         name: Dark mode
+#     - media: "(prefers-color-scheme: dark)"
+#       scheme: slate
+#       primary: blue
+#       toggle:
+#         icon: material/brightness-4
+#         name: Light mode
+#   features:
+#     - navigation.instant
+#     - navigation.tabs
+
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Installation & Setup: installation.md
+  - API Reference:
+      - Search: api/search.md
+      - Portals: api/portals.md
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            members_order: source
+            show_root_heading: true
+          import:
+            - https://docs.python-requests.org/objects.inv
+          docstring_style: google

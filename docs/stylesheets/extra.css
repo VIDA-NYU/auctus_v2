@@ -1,0 +1,6 @@
+:root > * {
+  /* Official NYU Purple Theme Colors */
+  --md-primary-fg-color:        #775ead;
+  --md-primary-fg-color--light: #8372ab;
+  --md-primary-fg-color--dark:  #49396d;
+}
