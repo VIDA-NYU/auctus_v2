@@ -25,25 +25,6 @@ theme:
     - navigation.tabs
     - code.copy
 
-# theme:
-#   name: material
-#   palette:
-#     - media: "(prefers-color-scheme: light)"
-#       scheme: default
-#       primary: blue
-#       toggle:
-#         icon: material/brightness-7
-#         name: Dark mode
-#     - media: "(prefers-color-scheme: dark)"
-#       scheme: slate
-#       primary: blue
-#       toggle:
-#         icon: material/brightness-4
-#         name: Light mode
-#   features:
-#     - navigation.instant
-#     - navigation.tabs
-
 nav:
   - Home: index.md
   - Architecture: architecture.md
@@ -54,6 +35,11 @@ nav:
 
 extra_css:
   - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
 
 plugins:
   - search
