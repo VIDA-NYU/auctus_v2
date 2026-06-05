@@ -1,7 +1,10 @@
 site_name: Auctus v2
 site_description: Urban Data Catalog - FastAPI & React
 
-site_url: https://nyu-urban.github.io/auctus_v2/  # Update this to match your NYU repo path
+site_url: https://vida-nyu.github.io/auctus_v2/
+
+repo_name: VIDA-NYU/auctus_v2
+repo_url: https://github.com/VIDA-NYU/auctus_v2
 
 theme:
   name: material
