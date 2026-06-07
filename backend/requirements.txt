@@ -15,6 +15,11 @@ opensearch-py>=2.3.0
 # and would conflict. Embedding model (all-MiniLM-L6-v2) behaves identically.
 sentence-transformers==3.0.1
 transformers==4.44.2
+# On macOS-x86_64 (Intel) PyTorch caps at torch 2.2.2 (built for NumPy 1.x), and the
+# pinned transformers/sentence-transformers above are from the NumPy-1.x era. There an
+# unpinned NumPy 2.x crashes torch at import. Other platforms (Linux / Apple Silicon /
+# Windows) get a NumPy-2-compatible torch, so they stay unconstrained.
+numpy<2; sys_platform == "darwin" and platform_machine == "x86_64"
 
 # Data Ingestion & Processing
 httpx>=0.28.1
