@@ -1,0 +1,30 @@
+name: Deploy NYU Documentation Portal (CD)
+
+on:
+  push:
+    branches:
+      - main  # Triggers deployment automatically when code hits main
+
+permissions:
+  contents: write  # Crucial: Allows the runner to create/update the gh-pages branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Documentation Engine
+        run: |
+          python -m pip install --upgrade pip
+          pip install mkdocs mkdocs-material "mkdocstrings[python]"
+
+      - name: Compile and Publish to GitHub Pages
+        run: |
+          mkdocs gh-deploy --force

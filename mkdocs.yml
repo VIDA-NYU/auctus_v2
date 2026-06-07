@@ -1,7 +1,10 @@
 site_name: Auctus v2
 site_description: Urban Data Catalog - FastAPI & React
 
-site_url: https://nyu-urban.github.io/auctus_v2/  # Update this to match your NYU repo path
+site_url: https://vida-nyu.github.io/auctus_v2/
+
+repo_name: VIDA-NYU/auctus_v2
+repo_url: https://github.com/VIDA-NYU/auctus_v2
 
 theme:
   name: material
@@ -25,25 +28,6 @@ theme:
     - navigation.tabs
     - code.copy
 
-# theme:
-#   name: material
-#   palette:
-#     - media: "(prefers-color-scheme: light)"
-#       scheme: default
-#       primary: blue
-#       toggle:
-#         icon: material/brightness-7
-#         name: Dark mode
-#     - media: "(prefers-color-scheme: dark)"
-#       scheme: slate
-#       primary: blue
-#       toggle:
-#         icon: material/brightness-4
-#         name: Light mode
-#   features:
-#     - navigation.instant
-#     - navigation.tabs
-
 nav:
   - Home: index.md
   - Architecture: architecture.md
@@ -55,6 +39,11 @@ nav:
 extra_css:
   - stylesheets/extra.css
 
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+
 plugins:
   - search
   - mkdocstrings:
@@ -64,6 +53,6 @@ plugins:
           options:
             members_order: source
             show_root_heading: true
-          import:
+          inventories:
             - https://docs.python-requests.org/objects.inv
           docstring_style: google

@@ -137,7 +137,7 @@ Once all services are running, the following endpoints are available:
 | MinIO API | [http://localhost:9000](http://localhost:9000) | S3-compatible object storage endpoint |
 ---
 
-## 🚀 Quick Start Summary
+## 🚀 Quick Start Summarys
 
 ```bash
 # Terminal 1 (repo root)
@@ -158,3 +158,47 @@ cd frontend
 npm install
 npm run dev
 ```
+
+??? warning "🔄 Resetting the Environment (Optional)"
+
+    When testing end-to-end ingestion pipelines, search indexing behavior, or storage workflows, you may want to start from a completely clean state.
+
+    **⚠️ Warning**
+
+    This operation permanently removes all persisted local development data, including:
+
+    - OpenSearch indexes
+    - MinIO objects
+    - Redis state
+
+    Use this reset only when you intentionally want a fresh Auctus v2 installation for local development or integration testing.
+
+    ### Complete Data Wipe
+
+    ```bash
+    # Stop all containers and remove all associated volumes
+    docker compose down -v
+
+    # Recreate and start infrastructure from scratch
+    docker compose up -d
+
+    # Stop the placeholder backend container if running
+    docker stop auctus-backend
+    ```
+
+    After the infrastructure has been recreated, rerun the backend initialization steps:
+
+    ```bash
+    cd backend
+
+    source .venv/bin/activate
+
+    # Recreate OpenSearch indexes and mappings
+    python3 -m storage.initialize_os
+
+    # Optional: Seed synthetic test data
+    python3 seed_synthetic.py
+
+    # Start the backend
+    python3 main.py
+    ```
