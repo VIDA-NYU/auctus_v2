@@ -7,15 +7,7 @@ This top-level README is intentionally high-level. Detailed backend setup and de
 Prerequisites (AutoDDG)
 -----------------------
 
-AutoDDG runs inside the `arq-worker` container, which mounts the AutoDDG source from `../AutoDDG`. Two one-time steps:
-
-- Clone AutoDDG as a **sibling directory** of `auctus_v2` (so the path `../AutoDDG` resolves), on the `portkey-integration` branch:
-
-```bash
-# from the directory that contains auctus_v2/
-git clone https://github.com/VIDA-NYU/AutoDDG.git
-cd AutoDDG && git checkout portkey-integration && cd -
-```
+AutoDDG is installed from PyPI (https://pypi.org/project/autoddg/) automatically inside the `arq-worker` container, so no separate clone is needed. One setup step remains:
 
 - Provide a Portkey API key. Copy the template and fill in your key (`backend/.env` is git-ignored and must never be committed):
 

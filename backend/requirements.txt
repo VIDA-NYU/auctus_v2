@@ -31,8 +31,10 @@ arq>=0.26.0
 minio>=7.2.0
 
 # AutoDDG integration (LLM dataset descriptions via the NYU Portkey gateway).
-# The autoddg package itself is installed separately from a mounted source
-# directory (see docker-compose.yml arq-worker), as it is not on PyPI.
+# autoddg is installed from PyPI in the arq-worker container only (see
+# docker-compose.yml), not here: it requires numpy>=2.2.2, which conflicts with the
+# Intel-macOS numpy<2 pin above. The worker runs in a Linux container, where that
+# pin doesn't apply, so there is no conflict there. Only the worker imports autoddg.
 # Capped below 2.0: the worker relies on the v1 Portkey(base_url=..., api_key=...)
 # constructor (see storage/arq_worker.py get_autoddg), which a major bump could break.
 portkey-ai>=1.0.0,<2.0
