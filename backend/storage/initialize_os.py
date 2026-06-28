@@ -118,6 +118,16 @@ MAPPING = {
                 "type": "text",
                 "analyzer": "text_analyzer",
             },
+            # AutoDDG-generated descriptions (UFD = readable, SFD = search-optimised).
+            # Indexed so /search can query them as alternatives to the original.
+            "autoddg_description": {
+                "type": "text",
+                "analyzer": "text_analyzer",
+            },
+            "autoddg_search_description": {
+                "type": "text",
+                "analyzer": "text_analyzer",
+            },
             "source": {"type": "keyword"},
             "download_url": {"type": "keyword", "index": False},
             "socrata_updated_at": {

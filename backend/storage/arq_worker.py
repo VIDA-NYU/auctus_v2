@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import io
 import json
 import logging
 import os
@@ -10,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 from arq.connections import RedisSettings
 
 from crawlers.socrata.transformer import build_validation_record
@@ -101,6 +103,18 @@ def get_autoddg():
     return _autoddg
 
 
+# --- Adaptive profile-trimming thresholds (see "docs/Profiler_metadata — Field Reference.md") ---
+# Wide tables blow up the AutoDDG prompt and dilute it with per-column noise, so the
+# wider the table the less we keep per column. These are deterministic, no LLM.
+WIDE_TABLE_COLUMN_THRESHOLD = 40   # at/above this, drop numeric stats per column
+MAX_COLUMNS_IN_PROFILE = 80        # cap how many columns we emit at all
+
+# Meaning-bearing fields kept for every column regardless of table width.
+_COLUMN_CORE_FIELDS = ("name", "structural_type", "semantic_types")
+# Numeric stats kept only for narrow tables (where prompt budget allows detail).
+_COLUMN_STAT_FIELDS = ("num_distinct_values", "mean", "std", "min", "max")
+
+
 def build_profile_text(record: dict[str, Any]) -> str:
     """Render a trimmed, content-focused profile as a JSON string for AutoDDG.
 
@@ -110,6 +124,12 @@ def build_profile_text(record: dict[str, Any]) -> str:
     profiling times, raw geohash grids, redundant keyword splits). This is the
     profile-aware usage emphasized in the AutoDDG paper. Returns "" if there is
     nothing useful to report. The selection is deterministic (no LLM).
+
+    The per-column detail is *adaptive* to table width: narrow tables keep full
+    numeric stats, wide tables keep only the core meaning-bearing fields and cap
+    the number of columns, so the prompt stays focused on wide datasets. The
+    keep/drop rules and thresholds are documented in
+    "docs/Profiler_metadata — Field Reference.md".
     """
     pm = record.get("profiler_metadata")
     if not isinstance(pm, dict):
@@ -120,21 +140,28 @@ def build_profile_text(record: dict[str, Any]) -> str:
         if pm.get(key) is not None:
             profile[key] = pm[key]
 
-    # Per-column schema: meaning-bearing fields, plus numeric stats when present.
+    columns = [col for col in (pm.get("columns") or []) if isinstance(col, dict)]
+    # Decide per-column detail by table width: wide tables -> core fields only.
+    n_columns = pm.get("nb_columns") or len(columns)
+    is_wide = isinstance(n_columns, int) and n_columns >= WIDE_TABLE_COLUMN_THRESHOLD
+    kept_fields = _COLUMN_CORE_FIELDS if is_wide else _COLUMN_CORE_FIELDS + _COLUMN_STAT_FIELDS
+
     trimmed_columns: list[dict[str, Any]] = []
-    for col in pm.get("columns") or []:
-        if not isinstance(col, dict):
-            continue
+    for col in columns[:MAX_COLUMNS_IN_PROFILE]:
         entry = {
-            key: col[key]
-            for key in ("name", "structural_type", "semantic_types",
-                        "num_distinct_values", "mean", "std", "min", "max")
-            if col.get(key) not in (None, [], "")
+            key: col[key] for key in kept_fields if col.get(key) not in (None, [], "")
         }
         if entry:
             trimmed_columns.append(entry)
+
     if trimmed_columns:
         profile["columns"] = trimmed_columns
+        if len(columns) > MAX_COLUMNS_IN_PROFILE:
+            # Tell the LLM the schema was truncated so it doesn't over-claim coverage.
+            profile["columns_truncated"] = {
+                "shown": len(trimmed_columns),
+                "total": len(columns),
+            }
     elif pm.get("attribute_keywords"):
         # Fallback when profiling produced no columns (edge cases): names only.
         profile["column_names"] = pm["attribute_keywords"]
@@ -150,12 +177,22 @@ def build_profile_text(record: dict[str, Any]) -> str:
 
 
 def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
-    """Generate an AutoDDG description from the CSV sample and store it on the record.
+    """Generate AutoDDG descriptions from the CSV sample and store them on the record.
 
     Runs before the MinIO upload so the text is persisted in the full profile and
-    flows downstream into the trimmed search document as well. The atlas-profiler
-    metadata is passed as a structural profile to improve quality. Failures are
-    non-fatal: ingestion proceeds without the description.
+    flows downstream into the trimmed search document as well. To maximise quality
+    (AutoDDG paper §2.1-2.2) we ground the description in four context sources:
+    the structural profile (atlas-profiler metadata), a semantic profile (per-column
+    meaning), and a topic; we then produce two descriptions — a User-Focused
+    Description (UFD, readable) and a Search-Focused Description (SFD, keyword-rich
+    for retrieval). Stored as:
+      - ``autoddg_description``        -> UFD
+      - ``autoddg_search_description`` -> SFD
+      - ``autoddg_topic`` / ``autoddg_semantic_profile`` -> intermediate context
+
+    Every sub-step is best-effort and independently guarded: any failure degrades
+    gracefully (e.g. no semantic profile -> UFD from the structural profile only),
+    and ingestion always proceeds.
     """
     autoddg = get_autoddg()
     if autoddg is None:
@@ -166,23 +203,73 @@ def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
         LOGGER.warning("No CSV sample for dataset %s; skipping AutoDDG", record.get("id"))
         return record
 
+    dataset_id = record.get("id")
     profile_text = build_profile_text(record)
 
+    # Semantic profile: per-column meaning inferred by the LLM. Needs a DataFrame,
+    # so parse the CSV sample. group-prompting = one API call for all columns.
+    semantic_profile: str | None = None
+    try:
+        dataframe = pd.read_csv(io.StringIO(sample))
+        semantic_profile = autoddg.analyze_semantics(
+            dataframe, use_group_prompting=True, group_size=0
+        )
+        record["autoddg_semantic_profile"] = semantic_profile
+    except Exception as exc:
+        LOGGER.warning("AutoDDG semantic profile failed for %s: %s", dataset_id, exc)
+
+    # Topic: a 2-3 word subject; also the anchor the SFD expands around.
+    data_topic: str | None = None
+    try:
+        data_topic = autoddg.generate_topic(
+            record.get("title", "") or "",
+            record.get("description") or None,
+            sample,
+        )
+        record["autoddg_topic"] = data_topic
+    except Exception as exc:
+        LOGGER.warning("AutoDDG topic failed for %s: %s", dataset_id, exc)
+
+    # UFD: readable description grounded in all the context gathered above.
+    description: str | None = None
     try:
         _prompt, description = autoddg.describe_dataset(
             dataset_sample=sample,
             dataset_profile=profile_text or None,
             use_profile=bool(profile_text),
+            semantic_profile=semantic_profile,
+            use_semantic_profile=bool(semantic_profile),
+            data_topic=data_topic,
+            use_topic=bool(data_topic),
         )
         record["autoddg_description"] = description
         LOGGER.info(
-            "AutoDDG description generated for %s (%d chars, use_profile=%s)",
-            record.get("id"),
+            "AutoDDG UFD generated for %s (%d chars, profile=%s, semantic=%s, topic=%s)",
+            dataset_id,
             len(description),
             bool(profile_text),
+            bool(semantic_profile),
+            bool(data_topic),
         )
     except Exception as exc:
-        LOGGER.warning("AutoDDG description failed for %s: %s", record.get("id"), exc)
+        LOGGER.warning("AutoDDG description failed for %s: %s", dataset_id, exc)
+
+    # SFD: expand the UFD into a search-optimised variant. Requires the UFD + topic.
+    if description and data_topic:
+        try:
+            _p, search_description = autoddg.expand_description_for_search(
+                description, data_topic
+            )
+            record["autoddg_search_description"] = search_description
+            LOGGER.info(
+                "AutoDDG SFD generated for %s (%d chars)",
+                dataset_id,
+                len(search_description),
+            )
+        except Exception as exc:
+            LOGGER.warning("AutoDDG SFD failed for %s: %s", dataset_id, exc)
+    elif description:
+        LOGGER.info("AutoDDG SFD skipped for %s (no topic available)", dataset_id)
 
     return record
 

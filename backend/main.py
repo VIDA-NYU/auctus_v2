@@ -3,9 +3,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Literal
 
-from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client, init_db
+from storage.opensearch_client import (
+    AUCTUS_INDEX_NAME,
+    DEFAULT_DESCRIPTION_SOURCE,
+    description_fields_for,
+    get_client,
+    init_db,
+)
 from api.search import router as search_router
 from api.datasets import router as datasets_router
 from app.api.endpoints.portals import router as portals_router
@@ -62,6 +68,9 @@ class SearchFilters(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     filters: Optional[SearchFilters] = None
+    # Which description the full-text query targets: the original portal description,
+    # the AutoDDG UFD, or the AutoDDG SFD. Defaults to original (no behaviour change).
+    description_source: Literal["original", "ufd", "sfd"] = DEFAULT_DESCRIPTION_SOURCE
 
 # --- Routes ---
 @app.get("/")
@@ -78,7 +87,7 @@ async def search(request: SearchRequest):
             {
                 "multi_match": {
                     "query": request.query,
-                    "fields": ["title^2", "description"],
+                    "fields": description_fields_for(request.description_source),
                     "type": "best_fields",
                     "operator": "and",
                 }

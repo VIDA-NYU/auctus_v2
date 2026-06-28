@@ -17,6 +17,25 @@ OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "localhost")
 OPENSEARCH_PORT = int(os.getenv("OPENSEARCH_PORT", "9200"))
 AUCTUS_INDEX_NAME = "auctus_catalog_master"
 AUCTUS_PORTALS_INDEX_NAME = "auctus_portals_metadata"
+
+# Which description field the full-text (BM25) query targets. Selectable at query
+# time so we can compare retrieval with the original portal description vs the
+# AutoDDG User-Focused (UFD) vs Search-Focused (SFD) descriptions without
+# re-ingesting (see "docs/Profiler_metadata — Field Reference.md" and the retrieval eval).
+DEFAULT_DESCRIPTION_SOURCE = "original"
+DESCRIPTION_SOURCE_FIELDS = {
+    "original": ["title^2", "description"],
+    "ufd": ["title^2", "autoddg_description"],
+    "sfd": ["title^2", "autoddg_search_description"],
+}
+
+
+def description_fields_for(source: str | None) -> list[str]:
+    """Return the BM25 field list for a description source, falling back to default."""
+    return DESCRIPTION_SOURCE_FIELDS.get(
+        source or DEFAULT_DESCRIPTION_SOURCE,
+        DESCRIPTION_SOURCE_FIELDS[DEFAULT_DESCRIPTION_SOURCE],
+    )
 # Define the mapping for auctus_catalog_master index
 DATASETS_MAPPING = {
     "settings": {
@@ -50,6 +69,16 @@ DATASETS_MAPPING = {
                 "fields": {"keyword": {"type": "keyword"}},
             },
             "description": {
+                "type": "text",
+                "analyzer": "text_analyzer",
+            },
+            # AutoDDG-generated descriptions (UFD = readable, SFD = search-optimised).
+            # Indexed so /search can query them as alternatives to the original.
+            "autoddg_description": {
+                "type": "text",
+                "analyzer": "text_analyzer",
+            },
+            "autoddg_search_description": {
                 "type": "text",
                 "analyzer": "text_analyzer",
             },
