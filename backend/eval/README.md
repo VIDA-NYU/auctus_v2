@@ -4,18 +4,20 @@
 retrieval, by querying the live Auctus `/search` endpoint against each
 description field and scoring the rankings with **NDCG@k**.
 
-It compares three description sources (the `description_source` parameter wired
-into `/search` in Phase 3):
+It compares four description sources (the `description_source` parameter wired
+into `/search`):
 
 | source | field queried | role |
 |---|---|---|
 | `original` | original portal `description` | the **before** baseline |
+| `llm_direct` | `llm_direct_description` | plain LLM from the sample only, no AutoDDG grounding (the paper's `LLM-GPT` baseline) |
 | `ufd` | `autoddg_description` | AutoDDG User-Focused Description |
 | `sfd` | `autoddg_search_description` | AutoDDG Search-Focused Description |
 
-This is the extrinsic retrieval evaluation from the AutoDDG paper (§3.1, §4.2).
+This is the extrinsic retrieval evaluation from the AutoDDG paper (§3.1, §4.2),
+with the three arms from the eval plan (Original / LLM-direct / AutoDDG).
 OpenSearch's default relevance is BM25, matching the paper's BM25 setup. Expected
-direction: `sfd >= ufd >= original`.
+direction: `sfd >= ufd >= llm_direct ~ original`.
 
 ## Prerequisites
 

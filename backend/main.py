@@ -69,8 +69,9 @@ class SearchRequest(BaseModel):
     query: str
     filters: Optional[SearchFilters] = None
     # Which description the full-text query targets: the original portal description,
-    # the AutoDDG UFD, or the AutoDDG SFD. Defaults to original (no behaviour change).
-    description_source: Literal["original", "ufd", "sfd"] = DEFAULT_DESCRIPTION_SOURCE
+    # the LLM-direct baseline, the AutoDDG UFD, or the AutoDDG SFD. Defaults to original
+    # (no behaviour change).
+    description_source: Literal["original", "llm_direct", "ufd", "sfd"] = DEFAULT_DESCRIPTION_SOURCE
 
 # --- Routes ---
 @app.get("/")

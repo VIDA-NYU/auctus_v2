@@ -118,13 +118,18 @@ MAPPING = {
                 "type": "text",
                 "analyzer": "text_analyzer",
             },
-            # AutoDDG-generated descriptions (UFD = readable, SFD = search-optimised).
-            # Indexed so /search can query them as alternatives to the original.
+            # AutoDDG-generated descriptions (UFD = readable, SFD = search-optimised) plus
+            # the LLM-direct baseline. Indexed so /search can query them as alternatives
+            # to the original (evaluation arms).
             "autoddg_description": {
                 "type": "text",
                 "analyzer": "text_analyzer",
             },
             "autoddg_search_description": {
+                "type": "text",
+                "analyzer": "text_analyzer",
+            },
+            "llm_direct_description": {
                 "type": "text",
                 "analyzer": "text_analyzer",
             },

@@ -3,9 +3,10 @@
 Compares dataset retrieval quality of the live Auctus ``/search`` endpoint when
 the full-text query targets different description fields:
 
-    original -> the dataset's original portal description (the "before" baseline)
-    ufd      -> AutoDDG User-Focused Description
-    sfd      -> AutoDDG Search-Focused Description
+    original   -> the dataset's original portal description (the "before" baseline)
+    llm_direct -> plain-LLM baseline written from the sample only (no AutoDDG grounding)
+    ufd        -> AutoDDG User-Focused Description
+    sfd        -> AutoDDG Search-Focused Description
 
 For each (query, source) it issues the query to the running backend, takes the
 ranked dataset ids, looks up their graded relevance from a qrels file, and
@@ -79,7 +80,7 @@ except Exception:  # autoddg not installed here; use an identical local copy
 
 
 DEFAULT_ENDPOINT = "http://localhost:8000/search"
-DEFAULT_SOURCES = ["original", "ufd", "sfd"]
+DEFAULT_SOURCES = ["original", "llm_direct", "ufd", "sfd"]
 DEFAULT_KS = [5, 10, 15, 20]
 
 
@@ -156,7 +157,7 @@ def print_table(averaged: dict[str, dict[int, float]], ks: list[int]) -> None:
     for source, scores in averaged.items():
         row = source.ljust(10) + "".join(f"{scores[k]:.4f}".rjust(10) for k in ks)
         print(row)
-    print("\n(Expected direction from the AutoDDG paper: sfd >= ufd >= original.)")
+    print("\n(Expected direction from the AutoDDG paper: sfd >= ufd >= llm_direct ~ original.)")
 
 
 def main(argv: list[str] | None = None) -> int:
