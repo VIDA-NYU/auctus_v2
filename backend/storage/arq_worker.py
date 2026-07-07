@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import io
 import json
@@ -40,6 +41,12 @@ _autoddg = None
 # Portkey gateway defaults (overridable via environment).
 PORTKEY_BASE_URL = os.getenv("PORTKEY_BASE_URL", "https://ai-gateway.apps.cloud.rt.nyu.edu/v1/")
 AUTODDG_MODEL = os.getenv("AUTODDG_MODEL", "@vertexai/gemini-2.5-flash")
+
+# Evaluation-only description arms (currently the LLM-direct baseline) exist purely
+# for the retrieval/quality evaluation. They default ON on this branch, whose point
+# is generating the eval arms; set AUTODDG_EVAL_ARMS=0 in production to skip the
+# extra LLM call per dataset.
+AUTODDG_EVAL_ARMS = os.getenv("AUTODDG_EVAL_ARMS", "1").lower() not in ("0", "false", "no")
 
 # LLM-direct (a.k.a. plain-LLM; the paper's LLM-GPT baseline): a description the LLM
 # writes from the CSV sample ONLY, with no AutoDDG grounding (no structural/semantic
@@ -241,9 +248,13 @@ def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
 
     # Semantic profile: per-column meaning inferred by the LLM. Needs a DataFrame,
     # so parse the CSV sample. group-prompting = one API call for all columns.
+    # Cap the column count like build_profile_text does, so very wide tables don't
+    # blow the prompt budget the structural trim just saved.
     semantic_profile: str | None = None
     try:
         dataframe = pd.read_csv(io.StringIO(sample))
+        if dataframe.shape[1] > MAX_COLUMNS_IN_PROFILE:
+            dataframe = dataframe.iloc[:, :MAX_COLUMNS_IN_PROFILE]
         semantic_profile = autoddg.analyze_semantics(
             dataframe, use_group_prompting=True, group_size=0
         )
@@ -252,11 +263,15 @@ def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
         LOGGER.warning("AutoDDG semantic profile failed for %s: %s", dataset_id, exc)
 
     # Topic: a 2-3 word subject; also the anchor the SFD expands around.
+    # Deliberately built from title + sample only, NOT the original portal
+    # description: the topic feeds UFD and SFD, and consuming the original
+    # description would leak the "original" evaluation arm into both (and treat
+    # datasets without one asymmetrically).
     data_topic: str | None = None
     try:
         data_topic = autoddg.generate_topic(
             record.get("title", "") or "",
-            record.get("description") or None,
+            None,
             sample,
         )
         record["autoddg_topic"] = data_topic
@@ -305,18 +320,20 @@ def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
         LOGGER.info("AutoDDG SFD skipped for %s (no topic available)", dataset_id)
 
     # LLM-direct baseline: a description from the sample only, no AutoDDG grounding.
-    # Stored as an evaluation arm (Original vs LLM-direct vs AutoDDG). Best-effort.
-    try:
-        llm_direct = generate_llm_direct_description(autoddg, sample)
-        if llm_direct:
-            record["llm_direct_description"] = llm_direct
-            LOGGER.info(
-                "LLM-direct description generated for %s (%d chars)",
-                dataset_id,
-                len(llm_direct),
-            )
-    except Exception as exc:
-        LOGGER.warning("LLM-direct description failed for %s: %s", dataset_id, exc)
+    # Stored as an evaluation arm (Original vs LLM-direct vs AutoDDG). Best-effort,
+    # and skipped entirely when eval arms are disabled (AUTODDG_EVAL_ARMS=0).
+    if AUTODDG_EVAL_ARMS:
+        try:
+            llm_direct = generate_llm_direct_description(autoddg, sample)
+            if llm_direct:
+                record["llm_direct_description"] = llm_direct
+                LOGGER.info(
+                    "LLM-direct description generated for %s (%d chars)",
+                    dataset_id,
+                    len(llm_direct),
+                )
+        except Exception as exc:
+            LOGGER.warning("LLM-direct description failed for %s: %s", dataset_id, exc)
 
     return record
 
@@ -383,7 +400,11 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
 
         # AutoDDG: generate the LLM description BEFORE persisting/indexing so it
         # is stored in MinIO and propagates into the trimmed search document.
-        full_metadata_record = attach_autoddg_description(full_metadata_record)
+        # Run in a thread: this makes several sequential blocking LLM calls, which
+        # would otherwise stall every other task on the worker's event loop.
+        full_metadata_record = await asyncio.to_thread(
+            attach_autoddg_description, full_metadata_record
+        )
 
         LOGGER.info("Uploading full profile to MinIO for dataset %s", routing_key)
         upload_heavy_profile(storage_client, routing_key, full_metadata_record)
