@@ -126,9 +126,17 @@ DATASETS_MAPPING = {
                     "end": {"type": "date"},
                 },
             },
+            # Must match what the ingestion pipeline actually emits
+            # (crawlers/socrata/transformer.py: {"label": ..., "bbox": {"type": "envelope", ...}})
+            # and initialize_os.MAPPING. Mapping spatial_coverage as a bare geo_shape
+            # made every document with spatial coverage fail to index
+            # (mapper_parsing_exception) on indices created from this mapping.
             "spatial_coverage": {
-                "type": "geo_shape",
-                "strategy": "recursive",
+                "type": "object",
+                "properties": {
+                    "label": {"type": "text"},
+                    "bbox": {"type": "geo_shape", "strategy": "recursive"},
+                },
             },
             "profiler_metadata": {
                 "type": "object",
