@@ -1,15 +1,30 @@
 # Auctus v2 — Local Development (Overview)
 
-Auctus v2 is a full-stack dataset discovery and search tool using OpenSearch for relevance, geospatial and temporal queries, a FastAPI backend, and a React + Vite frontend.
+Auctus v2 is a full-stack dataset discovery and search tool using OpenSearch for relevance, geospatial and temporal queries, a FastAPI backend, and a React + Vite frontend. During ingestion it also calls **AutoDDG** to automatically generate a plain-language description for every dataset (via the NYU Portkey gateway) and stores it alongside the profile.
 
 This top-level README is intentionally high-level. Detailed backend setup and developer commands are maintained in the backend README: [backend/README.md](backend/README.md).
+
+Prerequisites (AutoDDG)
+-----------------------
+
+AutoDDG is installed from PyPI (https://pypi.org/project/autoddg/) automatically inside the `arq-worker` container, so no separate clone is needed. One setup step remains:
+
+- Provide a Portkey API key. Copy the template and fill in your key (`backend/.env` is git-ignored and must never be committed):
+
+```bash
+cp backend/.env_sample backend/.env
+# then edit backend/.env and set PORTKEY_API_KEY=<your NYU Portkey key>
+```
+
+Without these, ingestion still runs — the description step is simply skipped.
 
 Quick local workflow (summary)
 -----------------------------
 
-- Start the core infra with Docker Compose (OpenSearch + Dashboards):
+- Start the core infra with Docker Compose (OpenSearch + Dashboards + MinIO + Redis + the AutoDDG worker) in `/auctus_v2`:
 
 ```bash
+open -a Docker
 docker compose up -d
 ```
 
@@ -27,13 +42,17 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 
-# install Python dependencies
+# install Python dependencies (one-time per venv; rerunning just skips what's already installed)
 pip3 install -r requirements.txt
 
 # Initialize services and schema (requires OpenSearch reachable at http://localhost:9200)
 # Start OpenSearch/Dashboards with Docker Compose if not already running:
 #   docker compose up -d
-# Create index mappings for `auctus_catalog_master`:
+# Create the `auctus_catalog_master` index (the OpenSearch "table" that holds every
+# dataset's search record) with the correct mappings. Run this once before ingesting —
+# i.e. on first setup or after `docker compose down -v`.
+# WARNING: this DROPS and recreates the index, so re-running it wipes all ingested data.
+# (pip install above is safe to rerun; this one is not.)
 python3 -m storage.initialize_os
 
 # Optional: quick-start seed of synthetic data (seeds backend/data/synthetic_datasets.json)
@@ -65,10 +84,14 @@ Useful service URLs
 If you need additional troubleshooting, MinIO setup details, or schema internals, see the backend README at [backend/README.md](backend/README.md). For real-data ingestion run the pipeline from the `backend/` directory:
 
 ```bash
-# run ingestion pipeline against discovered sources (optional LIMIT arg):
-python3 run_pipeline_ingest.py [LIMIT]
+# Run the ingestion pipeline. The optional argument is LIMIT = max datasets per domain;
+# use `1` for a quick single-dataset smoke test (each dataset triggers one LLM call):
+python3 run_pipeline_ingest.py 1
 ```
 
-If you'd like, I can also add a short `docker-compose.dev.yml` that includes a ready-to-run OpenSearch + MinIO configuration for local testing.
+During ingestion the `arq-worker` profiles each dataset, calls AutoDDG to generate a description, and stores it in both MinIO (full profile) and OpenSearch (`autoddg_description` field). To confirm it worked, check a stored document:
 
-
+```bash
+curl -s "localhost:9200/auctus_catalog_master/_doc/<dataset_id>" | python3 -c \
+  'import sys,json;print(json.load(sys.stdin)["_source"].get("autoddg_description"))'
+```

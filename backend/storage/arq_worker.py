@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -21,8 +22,22 @@ try:
 except Exception:
     SentenceTransformer = None
 
+# AutoDDG generates an LLM dataset description through the NYU Portkey gateway.
+# Imports are optional so the worker still runs if the packages are absent.
+try:
+    from autoddg import AutoDDG
+    from portkey_ai import Portkey
+except Exception:
+    AutoDDG = None
+    Portkey = None
+
 LOGGER = logging.getLogger(__name__)
 _embedding_model = None
+_autoddg = None
+
+# Portkey gateway defaults (overridable via environment).
+PORTKEY_BASE_URL = os.getenv("PORTKEY_BASE_URL", "https://ai-gateway.apps.cloud.rt.nyu.edu/v1/")
+AUTODDG_MODEL = os.getenv("AUTODDG_MODEL", "@vertexai/gemini-2.5-flash")
 
 
 def get_embedding_model():
@@ -65,11 +80,119 @@ def attach_embedding(document: dict[str, Any], model: Any | None = None) -> dict
     return document
 
 
+def get_autoddg():
+    """Lazily build an AutoDDG instance backed by the Portkey gateway.
+
+    Returns None (and logs a warning) if the packages are missing or no
+    PORTKEY_API_KEY is configured, so ingestion can continue without it.
+    """
+    global _autoddg
+    if _autoddg is None:
+        if AutoDDG is None or Portkey is None:
+            LOGGER.warning("autoddg/portkey not installed; AutoDDG description will be skipped")
+            return None
+        api_key = os.getenv("PORTKEY_API_KEY")
+        if not api_key:
+            LOGGER.warning("PORTKEY_API_KEY not set; AutoDDG description will be skipped")
+            return None
+        client = Portkey(base_url=PORTKEY_BASE_URL, api_key=api_key)
+        _autoddg = AutoDDG(client=client, model_name=AUTODDG_MODEL, description_words=100)
+        LOGGER.info("AutoDDG initialized (model=%s)", AUTODDG_MODEL)
+    return _autoddg
+
+
+def build_profile_text(record: dict[str, Any]) -> str:
+    """Render a trimmed, content-focused profile as a JSON string for AutoDDG.
+
+    AutoDDG injects this string into its prompt (use_profile=True). We keep only
+    fields that describe *what the dataset contains* — size, column schema, and
+    geographic coverage — and drop operational/rendering fields (telemetry,
+    profiling times, raw geohash grids, redundant keyword splits). This is the
+    profile-aware usage emphasized in the AutoDDG paper. Returns "" if there is
+    nothing useful to report. The selection is deterministic (no LLM).
+    """
+    pm = record.get("profiler_metadata")
+    if not isinstance(pm, dict):
+        return ""
+
+    profile: dict[str, Any] = {}
+    for key in ("nb_rows", "nb_columns", "types"):
+        if pm.get(key) is not None:
+            profile[key] = pm[key]
+
+    # Per-column schema: meaning-bearing fields, plus numeric stats when present.
+    trimmed_columns: list[dict[str, Any]] = []
+    for col in pm.get("columns") or []:
+        if not isinstance(col, dict):
+            continue
+        entry = {
+            key: col[key]
+            for key in ("name", "structural_type", "semantic_types",
+                        "num_distinct_values", "mean", "std", "min", "max")
+            if col.get(key) not in (None, [], "")
+        }
+        if entry:
+            trimmed_columns.append(entry)
+    if trimmed_columns:
+        profile["columns"] = trimmed_columns
+    elif pm.get("attribute_keywords"):
+        # Fallback when profiling produced no columns (edge cases): names only.
+        profile["column_names"] = pm["attribute_keywords"]
+
+    # Geographic coverage: clean label + bbox only (drop the raw geohash grids).
+    spatial = record.get("spatial_coverage")
+    if isinstance(spatial, dict) and (spatial.get("label") or spatial.get("bbox")):
+        profile["spatial_coverage"] = {
+            k: spatial[k] for k in ("label", "bbox") if spatial.get(k)
+        }
+
+    return json.dumps(profile, ensure_ascii=False) if profile else ""
+
+
+def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
+    """Generate an AutoDDG description from the CSV sample and store it on the record.
+
+    Runs before the MinIO upload so the text is persisted in the full profile and
+    flows downstream into the trimmed search document as well. The atlas-profiler
+    metadata is passed as a structural profile to improve quality. Failures are
+    non-fatal: ingestion proceeds without the description.
+    """
+    autoddg = get_autoddg()
+    if autoddg is None:
+        return record
+
+    sample = record.get("sample")
+    if not sample:
+        LOGGER.warning("No CSV sample for dataset %s; skipping AutoDDG", record.get("id"))
+        return record
+
+    profile_text = build_profile_text(record)
+
+    try:
+        _prompt, description = autoddg.describe_dataset(
+            dataset_sample=sample,
+            dataset_profile=profile_text or None,
+            use_profile=bool(profile_text),
+        )
+        record["autoddg_description"] = description
+        LOGGER.info(
+            "AutoDDG description generated for %s (%d chars, use_profile=%s)",
+            record.get("id"),
+            len(description),
+            bool(profile_text),
+        )
+    except Exception as exc:
+        LOGGER.warning("AutoDDG description failed for %s: %s", record.get("id"), exc)
+
+    return record
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     """Initialize long-lived worker resources."""
     ctx["os_client"] = get_client()
     ctx["storage_client"] = get_storage_client()
     ctx["embedding_model"] = get_embedding_model()
+    ctx["autoddg"] = get_autoddg()
 
 
 async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]) -> str:
@@ -123,6 +246,10 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
             }
         routing_key = full_metadata_record.get("id") or dataset_id
         apply_socrata_timestamp(full_metadata_record, socrata_updated_at)
+
+        # AutoDDG: generate the LLM description BEFORE persisting/indexing so it
+        # is stored in MinIO and propagates into the trimmed search document.
+        full_metadata_record = attach_autoddg_description(full_metadata_record)
 
         LOGGER.info("Uploading full profile to MinIO for dataset %s", routing_key)
         upload_heavy_profile(storage_client, routing_key, full_metadata_record)

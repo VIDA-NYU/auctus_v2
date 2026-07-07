@@ -457,12 +457,27 @@ async def build_validation_record(
         fallback_bbox,
     )
 
+    # Build a compact CSV sample (header + up to 20 rows) for downstream
+    # consumers such as AutoDDG. It is stored in the MinIO full record and
+    # stripped from the search index by isolate_search_payload().
+    sample_csv = ""
+    if headers:
+        import io
+
+        buffer = io.StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=headers, extrasaction="ignore")
+        writer.writeheader()
+        for row in rows[:20]:
+            writer.writerow(row)
+        sample_csv = buffer.getvalue()
+
     record = {
         "id": socrata["id"],
         "title": socrata["title"],
         "description": socrata["description"],
         "source": socrata["source"],
         "download_url": socrata["download_url"],
+        "sample": sample_csv,
         
         # Mirror types array layout flat on the root level as established in synthetic sample
         "types": profiler_metadata.get("types", []),
