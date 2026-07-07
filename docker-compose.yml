@@ -84,7 +84,7 @@ services:
     working_dir: /app
     command: >
       sh -c "pip install --no-cache-dir -r requirements.txt &&
-             (pip install --no-cache-dir autoddg==0.1.0 || echo 'WARN: autoddg install failed; descriptions will be skipped') &&
+             (pip install --no-cache-dir autoddg==0.1.1 || echo 'WARN: autoddg install failed; descriptions will be skipped') &&
              arq storage.arq_worker.WorkerSettings"
     env_file:
       - ./backend/.env
