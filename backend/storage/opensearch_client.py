@@ -23,20 +23,47 @@ AUCTUS_PORTALS_INDEX_NAME = "auctus_portals_metadata"
 # AutoDDG User-Focused (UFD) vs Search-Focused (SFD) descriptions without
 # re-ingesting (see "docs/Profiler_metadata — Field Reference.md" and the retrieval eval).
 DEFAULT_DESCRIPTION_SOURCE = "original"
+DEFAULT_TITLE_BOOST = 2.0
 DESCRIPTION_SOURCE_FIELDS = {
-    "original": ["title^2", "description"],
-    "llm_direct": ["title^2", "llm_direct_description"],
-    "ufd": ["title^2", "autoddg_description"],
-    "sfd": ["title^2", "autoddg_search_description"],
+    "original": "description",
+    "llm_direct": "llm_direct_description",
+    "ufd": "autoddg_description",
+    "sfd": "autoddg_search_description",
+}
+
+# The evaluation-arm description fields, defined once so the index mapping, the
+# post-hoc put_mapping in init_db, and initialize_os all agree. If these fields
+# are ever created by dynamic mapping instead, they get the standard analyzer
+# WITHOUT English stopwords while `description` uses text_analyzer WITH them,
+# which skews any cross-arm BM25 comparison.
+EVAL_DESCRIPTION_FIELD_MAPPINGS = {
+    "autoddg_description": {"type": "text", "analyzer": "text_analyzer"},
+    "autoddg_search_description": {"type": "text", "analyzer": "text_analyzer"},
+    "llm_direct_description": {"type": "text", "analyzer": "text_analyzer"},
 }
 
 
-def description_fields_for(source: str | None) -> list[str]:
-    """Return the BM25 field list for a description source, falling back to default."""
-    return DESCRIPTION_SOURCE_FIELDS.get(
-        source or DEFAULT_DESCRIPTION_SOURCE,
-        DESCRIPTION_SOURCE_FIELDS[DEFAULT_DESCRIPTION_SOURCE],
-    )
+def description_fields_for(
+    source: str | None, title_boost: float = DEFAULT_TITLE_BOOST
+) -> list[str]:
+    """Return the BM25 field list for a description source.
+
+    ``title_boost`` weights the title field; 0 (or negative) drops the title
+    entirely, which the retrieval eval uses to remove the title-echo confound.
+    Unknown sources raise ValueError so a typo cannot silently evaluate the
+    default arm — callers exposed over HTTP should turn that into a 400.
+    """
+    key = source or DEFAULT_DESCRIPTION_SOURCE
+    if key not in DESCRIPTION_SOURCE_FIELDS:
+        raise ValueError(
+            f"Unknown description_source {source!r}; "
+            f"expected one of {sorted(DESCRIPTION_SOURCE_FIELDS)}"
+        )
+    fields = []
+    if title_boost > 0:
+        fields.append(f"title^{title_boost:g}")
+    fields.append(DESCRIPTION_SOURCE_FIELDS[key])
+    return fields
 # Define the mapping for auctus_catalog_master index
 DATASETS_MAPPING = {
     "settings": {
@@ -76,18 +103,7 @@ DATASETS_MAPPING = {
             # AutoDDG-generated descriptions (UFD = readable, SFD = search-optimised) plus
             # the LLM-direct baseline. Indexed so /search can query them as alternatives
             # to the original (evaluation arms).
-            "autoddg_description": {
-                "type": "text",
-                "analyzer": "text_analyzer",
-            },
-            "autoddg_search_description": {
-                "type": "text",
-                "analyzer": "text_analyzer",
-            },
-            "llm_direct_description": {
-                "type": "text",
-                "analyzer": "text_analyzer",
-            },
+            **EVAL_DESCRIPTION_FIELD_MAPPINGS,
             "source": {"type": "keyword"},
             "download_url": {"type": "keyword", "index": False},
             "socrata_updated_at": {
@@ -312,6 +328,25 @@ def init_db():
                 )
             except Exception as exc:
                 logger.debug("Could not update dataset index mapping with portal fields: %s", exc)
+            # Pre-existing indices were created before the evaluation-arm description
+            # fields existed. Without this, the first ingested document would create
+            # them via dynamic mapping with the wrong analyzer (no English stopwords),
+            # silently skewing cross-arm BM25 comparisons. put_mapping is a no-op when
+            # the fields already exist with this definition, and fails loudly on a
+            # conflicting dynamic mapping — in that case the index must be recreated.
+            try:
+                client.indices.put_mapping(
+                    index=AUCTUS_INDEX_NAME,
+                    body={"properties": EVAL_DESCRIPTION_FIELD_MAPPINGS},
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Could not add AutoDDG description fields to the %s mapping: %s. "
+                    "If they were already created by dynamic mapping, recreate the index "
+                    "before running the retrieval eval (analyzer mismatch skews BM25).",
+                    AUCTUS_INDEX_NAME,
+                    exc,
+                )
 
         if not index_exists(client, AUCTUS_PORTALS_INDEX_NAME):
             logger.info(f"Index {AUCTUS_PORTALS_INDEX_NAME} does not exist. Creating...")

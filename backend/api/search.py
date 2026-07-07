@@ -171,11 +171,16 @@ async def search(req: SearchQueryRequest):
         )
 
     if req.keywords:
+        try:
+            description_fields = description_fields_for(req.description_source)
+        except ValueError as exc:
+            # A typo'd source must not silently fall back to the default arm.
+            raise HTTPException(status_code=400, detail=str(exc))
         should_clauses.append(
             {
                 "multi_match": {
                     "query": req.keywords,
-                    "fields": description_fields_for(req.description_source),
+                    "fields": description_fields,
                 }
             }
         )

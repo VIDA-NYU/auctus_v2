@@ -2,12 +2,13 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Literal
 
 from storage.opensearch_client import (
     AUCTUS_INDEX_NAME,
     DEFAULT_DESCRIPTION_SOURCE,
+    DEFAULT_TITLE_BOOST,
     description_fields_for,
     get_client,
     init_db,
@@ -72,6 +73,16 @@ class SearchRequest(BaseModel):
     # the LLM-direct baseline, the AutoDDG UFD, or the AutoDDG SFD. Defaults to original
     # (no behaviour change).
     description_source: Literal["original", "llm_direct", "ufd", "sfd"] = DEFAULT_DESCRIPTION_SOURCE
+    # Number of hits to return. Without this OpenSearch silently caps at 10, which
+    # truncates any NDCG@k ranking beyond rank 10 in the retrieval eval.
+    size: int = Field(default=10, ge=1, le=200)
+    # "and" (production default) requires every query term to match within one field;
+    # "or" is plain BM25 as in the AutoDDG paper — the retrieval eval uses "or" so
+    # verbose natural-language queries don't collapse to zero recall.
+    match_operator: Literal["and", "or"] = "and"
+    # Weight of the title field in the match; 0 drops the title entirely so the eval
+    # can remove the title-echo confound (title alone satisfying the whole query).
+    title_boost: float = Field(default=DEFAULT_TITLE_BOOST, ge=0)
 
 # --- Routes ---
 @app.get("/")
@@ -88,9 +99,11 @@ async def search(request: SearchRequest):
             {
                 "multi_match": {
                     "query": request.query,
-                    "fields": description_fields_for(request.description_source),
+                    "fields": description_fields_for(
+                        request.description_source, title_boost=request.title_boost
+                    ),
                     "type": "best_fields",
-                    "operator": "and",
+                    "operator": request.match_operator,
                 }
             }
         ]
@@ -100,6 +113,7 @@ async def search(request: SearchRequest):
             filter_clauses.append({"terms": {"types": request.filters.data_type}})
 
         search_body = {
+            "size": request.size,
             "query": {
                 "bool": {
                     "must": must_clauses,

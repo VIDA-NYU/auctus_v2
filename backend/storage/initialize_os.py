@@ -32,6 +32,8 @@ except Exception as exc:  # pragma: no cover - runtime dependency
     print("Install with: pip install httpx")
     raise
 
+from storage.opensearch_client import EVAL_DESCRIPTION_FIELD_MAPPINGS
+
 try:
     from storage.opensearch_client import AUCTUS_PORTALS_INDEX_NAME, PORTALS_MAPPING
 except Exception as exc:
@@ -119,20 +121,10 @@ MAPPING = {
                 "analyzer": "text_analyzer",
             },
             # AutoDDG-generated descriptions (UFD = readable, SFD = search-optimised) plus
-            # the LLM-direct baseline. Indexed so /search can query them as alternatives
-            # to the original (evaluation arms).
-            "autoddg_description": {
-                "type": "text",
-                "analyzer": "text_analyzer",
-            },
-            "autoddg_search_description": {
-                "type": "text",
-                "analyzer": "text_analyzer",
-            },
-            "llm_direct_description": {
-                "type": "text",
-                "analyzer": "text_analyzer",
-            },
+            # the LLM-direct baseline. Defined once in opensearch_client so this
+            # recreate script cannot drift from the mapping init_db applies. (The two
+            # base mappings have older, pre-existing drift in unrelated fields.)
+            **EVAL_DESCRIPTION_FIELD_MAPPINGS,
             "source": {"type": "keyword"},
             "download_url": {"type": "keyword", "index": False},
             "socrata_updated_at": {
