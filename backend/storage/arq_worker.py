@@ -255,6 +255,11 @@ def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
         dataframe = pd.read_csv(io.StringIO(sample))
         if dataframe.shape[1] > MAX_COLUMNS_IN_PROFILE:
             dataframe = dataframe.iloc[:, :MAX_COLUMNS_IN_PROFILE]
+        # pandas >= 2 astype(str) keeps missing values as float NaN, which crashes
+        # AutoDDG's SemanticProfiler (beartype expects list[str] sample values).
+        # Any dataset with a missing value in the 5 sampled rows would silently
+        # lose its whole semantic profile, so blank the NaNs out first.
+        dataframe = dataframe.fillna("")
         semantic_profile = autoddg.analyze_semantics(
             dataframe, use_group_prompting=True, group_size=0
         )
