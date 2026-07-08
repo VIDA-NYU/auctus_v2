@@ -17,7 +17,56 @@ OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "localhost")
 OPENSEARCH_PORT = int(os.getenv("OPENSEARCH_PORT", "9200"))
 AUCTUS_INDEX_NAME = "auctus_catalog_master"
 AUCTUS_PORTALS_INDEX_NAME = "auctus_portals_metadata"
-# Define the mapping for auctus_catalog_master index
+
+# Which description field the full-text (BM25) query targets. Selectable at query
+# time so search can rank on the original portal description or on the AutoDDG
+# User-Focused (UFD) / Search-Focused (SFD) descriptions
+# (see "docs/Profiler_metadata — Field Reference.md").
+DEFAULT_DESCRIPTION_SOURCE = os.getenv("DEFAULT_DESCRIPTION_SOURCE", "original")
+DEFAULT_TITLE_BOOST = 2.0
+DESCRIPTION_SOURCE_FIELDS = {
+    "original": "description",
+    "ufd": "autoddg_description",
+    "sfd": "autoddg_search_description",
+}
+
+# The generated description fields, defined once so the index mapping, the
+# post-hoc put_mapping in init_db, and initialize_os all agree. If these fields
+# are ever created by dynamic mapping instead, they get the standard analyzer
+# WITHOUT English stopwords while `description` uses text_analyzer WITH them,
+# which skews BM25 scoring across description sources.
+GENERATED_DESCRIPTION_FIELD_MAPPINGS = {
+    "autoddg_description": {"type": "text", "analyzer": "text_analyzer"},
+    "autoddg_search_description": {"type": "text", "analyzer": "text_analyzer"},
+}
+
+
+def description_fields_for(
+    source: str | None, title_boost: float = DEFAULT_TITLE_BOOST
+) -> list[str]:
+    """Return the BM25 field list for a description source.
+
+    ``title_boost`` weights the title field; 0 (or negative) drops the title
+    entirely, which the retrieval eval uses to remove the title-echo confound.
+    Unknown sources raise ValueError so a typo cannot silently evaluate the
+    default arm — callers exposed over HTTP should turn that into a 400.
+    """
+    key = source or DEFAULT_DESCRIPTION_SOURCE
+    if key not in DESCRIPTION_SOURCE_FIELDS:
+        raise ValueError(
+            f"Unknown description_source {source!r}; "
+            f"expected one of {sorted(DESCRIPTION_SOURCE_FIELDS)}"
+        )
+    fields = []
+    if title_boost > 0:
+        fields.append(f"title^{title_boost:g}")
+    fields.append(DESCRIPTION_SOURCE_FIELDS[key])
+    return fields
+# The single source of truth for the auctus_catalog_master index mapping.
+# Every index-creation path (init_db here, storage/initialize_os.py) MUST use
+# this dict rather than keeping its own copy: the codebase used to carry two
+# hand-synced copies whose drift produced real bugs (e.g. a bare geo_shape
+# spatial_coverage that rejected every document the pipeline actually emits).
 DATASETS_MAPPING = {
     "settings": {
         "number_of_shards": 1,
@@ -53,6 +102,9 @@ DATASETS_MAPPING = {
                 "type": "text",
                 "analyzer": "text_analyzer",
             },
+            # AutoDDG-generated descriptions (UFD = readable, SFD = search-optimised).
+            # Indexed so /search can rank on them as alternatives to the original.
+            **GENERATED_DESCRIPTION_FIELD_MAPPINGS,
             "source": {"type": "keyword"},
             "download_url": {"type": "keyword", "index": False},
             "socrata_updated_at": {
@@ -71,13 +123,20 @@ DATASETS_MAPPING = {
             "temporal_coverage": {
                 "type": "object",
                 "properties": {
-                    "start": {"type": "date"},
-                    "end": {"type": "date"},
+                    "start": {"type": "date", "format": "yyyy-MM-dd"},
+                    "end": {"type": "date", "format": "yyyy-MM-dd"},
                 },
             },
+            # Must match what the ingestion pipeline actually emits
+            # (crawlers/socrata/transformer.py: {"label": ..., "bbox": {"type": "envelope", ...}}).
+            # Mapping spatial_coverage as a bare geo_shape made every document with
+            # spatial coverage fail to index (mapper_parsing_exception).
             "spatial_coverage": {
-                "type": "geo_shape",
-                "strategy": "recursive",
+                "type": "object",
+                "properties": {
+                    "label": {"type": "text"},
+                    "bbox": {"type": "geo_shape", "strategy": "recursive"},
+                },
             },
             "profiler_metadata": {
                 "type": "object",
@@ -93,9 +152,13 @@ DATASETS_MAPPING = {
                     "columns": {
                         "type": "nested",
                         "properties": {
-                            "name": {"type": "keyword"},
+                            # text for full-text matching, .raw for exact aggregations
+                            "name": {"type": "text", "fields": {"raw": {"type": "keyword"}}},
                             "structural_type": {"type": "keyword"},
                             "semantic_types": {"type": "keyword"},
+                            "mean": {"type": "float"},
+                            "stddev": {"type": "float"},
+                            "plot": {"type": "object", "enabled": False},
                         },
                     },
                 },
@@ -277,6 +340,25 @@ def init_db():
                 )
             except Exception as exc:
                 logger.debug("Could not update dataset index mapping with portal fields: %s", exc)
+            # Pre-existing indices were created before the evaluation-arm description
+            # fields existed. Without this, the first ingested document would create
+            # them via dynamic mapping with the wrong analyzer (no English stopwords),
+            # silently skewing cross-arm BM25 comparisons. put_mapping is a no-op when
+            # the fields already exist with this definition, and fails loudly on a
+            # conflicting dynamic mapping — in that case the index must be recreated.
+            try:
+                client.indices.put_mapping(
+                    index=AUCTUS_INDEX_NAME,
+                    body={"properties": GENERATED_DESCRIPTION_FIELD_MAPPINGS},
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Could not add AutoDDG description fields to the %s mapping: %s. "
+                    "If they were already created by dynamic mapping, recreate the index "
+                    "before running the retrieval eval (analyzer mismatch skews BM25).",
+                    AUCTUS_INDEX_NAME,
+                    exc,
+                )
 
         if not index_exists(client, AUCTUS_PORTALS_INDEX_NAME):
             logger.info(f"Index {AUCTUS_PORTALS_INDEX_NAME} does not exist. Creating...")

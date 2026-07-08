@@ -120,6 +120,10 @@ def isolate_search_payload(comprehensive_record: dict[str, Any]) -> dict[str, An
 	payload = copy.deepcopy(comprehensive_record)
 	payload.pop("sample", None)
 	payload.pop("_sample_telemetry", None)
+	# AutoDDG intermediates: kept in the MinIO full profile, but they are not search
+	# fields — indexing them would create unmapped dynamic fields and bloat the doc.
+	payload.pop("autoddg_topic", None)
+	payload.pop("autoddg_semantic_profile", None)
 
 	profiler_metadata = payload.get("profiler_metadata")
 	if isinstance(profiler_metadata, dict):
