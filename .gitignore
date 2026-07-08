@@ -12,3 +12,6 @@ dist/
 
 # Docker/OS
 .DS_Store
+
+# Retrieval-eval run artifacts
+backend/eval/results/

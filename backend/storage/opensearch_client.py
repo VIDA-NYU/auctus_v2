@@ -20,24 +20,27 @@ AUCTUS_PORTALS_INDEX_NAME = "auctus_portals_metadata"
 
 # Which description field the full-text (BM25) query targets. Selectable at query
 # time so search can rank on the original portal description or on the AutoDDG
-# User-Focused (UFD) / Search-Focused (SFD) descriptions
-# (see "docs/Profiler_metadata — Field Reference.md").
+# User-Focused (UFD) / Search-Focused (SFD) descriptions — and so the retrieval
+# eval can compare them (see "docs/Profiler_metadata — Field Reference.md").
 DEFAULT_DESCRIPTION_SOURCE = os.getenv("DEFAULT_DESCRIPTION_SOURCE", "original")
 DEFAULT_TITLE_BOOST = 2.0
 DESCRIPTION_SOURCE_FIELDS = {
     "original": "description",
+    "llm_direct": "llm_direct_description",
     "ufd": "autoddg_description",
     "sfd": "autoddg_search_description",
 }
 
-# The generated description fields, defined once so the index mapping, the
+# The evaluation-arm description fields, defined once so the index mapping, the
 # post-hoc put_mapping in init_db, and initialize_os all agree. If these fields
 # are ever created by dynamic mapping instead, they get the standard analyzer
 # WITHOUT English stopwords while `description` uses text_analyzer WITH them,
-# which skews BM25 scoring across description sources.
+# which skews BM25 scoring across description sources (and any cross-arm
+# comparison in the retrieval eval).
 GENERATED_DESCRIPTION_FIELD_MAPPINGS = {
     "autoddg_description": {"type": "text", "analyzer": "text_analyzer"},
     "autoddg_search_description": {"type": "text", "analyzer": "text_analyzer"},
+    "llm_direct_description": {"type": "text", "analyzer": "text_analyzer"},
 }
 
 
