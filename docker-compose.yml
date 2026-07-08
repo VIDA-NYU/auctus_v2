@@ -68,6 +68,11 @@ services:
       - OPENSEARCH_HOST=opensearch
       - OPENSEARCH_PORT=9200
       - MINIO_ENDPOINT=auctus-minio:9000
+      # Rank search results on the AutoDDG search-focused description by default.
+      # Compose deployments ingest with the new worker, so the field is always
+      # populated; the in-code fallback stays "original" to protect existing
+      # indices that have not been re-ingested.
+      - DEFAULT_DESCRIPTION_SOURCE=sfd
     ports:
       - 8000:8000
     depends_on:

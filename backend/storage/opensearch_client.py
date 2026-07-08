@@ -22,7 +22,7 @@ AUCTUS_PORTALS_INDEX_NAME = "auctus_portals_metadata"
 # time so search can rank on the original portal description or on the AutoDDG
 # User-Focused (UFD) / Search-Focused (SFD) descriptions
 # (see "docs/Profiler_metadata — Field Reference.md").
-DEFAULT_DESCRIPTION_SOURCE = "original"
+DEFAULT_DESCRIPTION_SOURCE = os.getenv("DEFAULT_DESCRIPTION_SOURCE", "original")
 DEFAULT_TITLE_BOOST = 2.0
 DESCRIPTION_SOURCE_FIELDS = {
     "original": "description",
@@ -35,7 +35,7 @@ DESCRIPTION_SOURCE_FIELDS = {
 # are ever created by dynamic mapping instead, they get the standard analyzer
 # WITHOUT English stopwords while `description` uses text_analyzer WITH them,
 # which skews BM25 scoring across description sources.
-EVAL_DESCRIPTION_FIELD_MAPPINGS = {
+GENERATED_DESCRIPTION_FIELD_MAPPINGS = {
     "autoddg_description": {"type": "text", "analyzer": "text_analyzer"},
     "autoddg_search_description": {"type": "text", "analyzer": "text_analyzer"},
 }
@@ -98,10 +98,9 @@ DATASETS_MAPPING = {
                 "type": "text",
                 "analyzer": "text_analyzer",
             },
-            # AutoDDG-generated descriptions (UFD = readable, SFD = search-optimised) plus
-            # the LLM-direct baseline. Indexed so /search can query them as alternatives
-            # to the original (evaluation arms).
-            **EVAL_DESCRIPTION_FIELD_MAPPINGS,
+            # AutoDDG-generated descriptions (UFD = readable, SFD = search-optimised).
+            # Indexed so /search can rank on them as alternatives to the original.
+            **GENERATED_DESCRIPTION_FIELD_MAPPINGS,
             "source": {"type": "keyword"},
             "download_url": {"type": "keyword", "index": False},
             "socrata_updated_at": {
@@ -343,7 +342,7 @@ def init_db():
             try:
                 client.indices.put_mapping(
                     index=AUCTUS_INDEX_NAME,
-                    body={"properties": EVAL_DESCRIPTION_FIELD_MAPPINGS},
+                    body={"properties": GENERATED_DESCRIPTION_FIELD_MAPPINGS},
                 )
             except Exception as exc:
                 logger.warning(

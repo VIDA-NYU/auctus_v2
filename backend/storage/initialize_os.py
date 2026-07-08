@@ -32,7 +32,7 @@ except Exception as exc:  # pragma: no cover - runtime dependency
     print("Install with: pip install httpx")
     raise
 
-from storage.opensearch_client import EVAL_DESCRIPTION_FIELD_MAPPINGS
+from storage.opensearch_client import GENERATED_DESCRIPTION_FIELD_MAPPINGS
 
 try:
     from storage.opensearch_client import AUCTUS_PORTALS_INDEX_NAME, PORTALS_MAPPING
@@ -124,7 +124,7 @@ MAPPING = {
             # the LLM-direct baseline. Defined once in opensearch_client so this
             # recreate script cannot drift from the mapping init_db applies. (The two
             # base mappings have older, pre-existing drift in unrelated fields.)
-            **EVAL_DESCRIPTION_FIELD_MAPPINGS,
+            **GENERATED_DESCRIPTION_FIELD_MAPPINGS,
             "source": {"type": "keyword"},
             "download_url": {"type": "keyword", "index": False},
             "socrata_updated_at": {
