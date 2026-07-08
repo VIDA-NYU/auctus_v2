@@ -1,5 +1,11 @@
 # Retrieval evaluation (NDCG / MRR / Hit @k)
 
+> **Branch scope.** This directory only exists on `autoddg-eval`, a test-only
+> branch built on top of `integrate-autoddg` (the production line that merges
+> into `main`). `autoddg-eval` is never merged; it's kept up to date by
+> periodically merging `integrate-autoddg` into it. The production branch has
+> no `llm_direct` arm and no `backend/eval/` — those are eval-only.
+
 `retrieval_eval.py` measures how much AutoDDG descriptions improve dataset
 retrieval, by querying the live Auctus `/search` endpoint against each
 description field and scoring the rankings.
@@ -96,5 +102,6 @@ docker compose exec arq-worker python -m eval.backfill_descriptions --all --dry-
   field); don't point `--endpoint` at `/api/v1/search`, which expects a
   different schema (`keywords`) and mixes in kNN over a vector embedded from
   the *original* description — that would confound the comparison.
-- Evaluation-only generation (the LLM-direct arm) can be disabled in production
-  ingestion with `AUTODDG_EVAL_ARMS=0` on the worker.
+- The LLM-direct arm only exists on this branch, gated by `AUTODDG_EVAL_ARMS`
+  (default on; set to `0` to skip it while still testing on this branch).
+  `integrate-autoddg` doesn't carry this arm or the gate at all.
