@@ -62,7 +62,11 @@ def description_fields_for(
         fields.append(f"title^{title_boost:g}")
     fields.append(DESCRIPTION_SOURCE_FIELDS[key])
     return fields
-# Define the mapping for auctus_catalog_master index
+# The single source of truth for the auctus_catalog_master index mapping.
+# Every index-creation path (init_db here, storage/initialize_os.py) MUST use
+# this dict rather than keeping its own copy: the codebase used to carry two
+# hand-synced copies whose drift produced real bugs (e.g. a bare geo_shape
+# spatial_coverage that rejected every document the pipeline actually emits).
 DATASETS_MAPPING = {
     "settings": {
         "number_of_shards": 1,
@@ -119,15 +123,14 @@ DATASETS_MAPPING = {
             "temporal_coverage": {
                 "type": "object",
                 "properties": {
-                    "start": {"type": "date"},
-                    "end": {"type": "date"},
+                    "start": {"type": "date", "format": "yyyy-MM-dd"},
+                    "end": {"type": "date", "format": "yyyy-MM-dd"},
                 },
             },
             # Must match what the ingestion pipeline actually emits
-            # (crawlers/socrata/transformer.py: {"label": ..., "bbox": {"type": "envelope", ...}})
-            # and initialize_os.MAPPING. Mapping spatial_coverage as a bare geo_shape
-            # made every document with spatial coverage fail to index
-            # (mapper_parsing_exception) on indices created from this mapping.
+            # (crawlers/socrata/transformer.py: {"label": ..., "bbox": {"type": "envelope", ...}}).
+            # Mapping spatial_coverage as a bare geo_shape made every document with
+            # spatial coverage fail to index (mapper_parsing_exception).
             "spatial_coverage": {
                 "type": "object",
                 "properties": {
@@ -149,9 +152,13 @@ DATASETS_MAPPING = {
                     "columns": {
                         "type": "nested",
                         "properties": {
-                            "name": {"type": "keyword"},
+                            # text for full-text matching, .raw for exact aggregations
+                            "name": {"type": "text", "fields": {"raw": {"type": "keyword"}}},
                             "structural_type": {"type": "keyword"},
                             "semantic_types": {"type": "keyword"},
+                            "mean": {"type": "float"},
+                            "stddev": {"type": "float"},
+                            "plot": {"type": "object", "enabled": False},
                         },
                     },
                 },

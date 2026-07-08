@@ -32,7 +32,9 @@ except Exception as exc:  # pragma: no cover - runtime dependency
     print("Install with: pip install httpx")
     raise
 
-from storage.opensearch_client import GENERATED_DESCRIPTION_FIELD_MAPPINGS
+# The datasets mapping is single-sourced in opensearch_client so this recreate
+# script can never drift from the mapping init_db applies.
+from storage.opensearch_client import DATASETS_MAPPING as MAPPING
 
 try:
     from storage.opensearch_client import AUCTUS_PORTALS_INDEX_NAME, PORTALS_MAPPING
@@ -84,107 +86,6 @@ def get_client():
     client = OpenSearch(**kwargs)
     return client
 
-
-MAPPING = {
-    "settings": {
-        "number_of_shards": 1,
-        "number_of_replicas": 0,
-        "index.knn": True,
-        "analysis": {
-            "analyzer": {
-                "text_analyzer": {
-                    "type": "standard",
-                    "stopwords": "_english_",
-                }
-            }
-        },
-    },
-    "mappings": {
-        "properties": {
-            "id": {"type": "keyword"},
-            "domain": {"type": "keyword"},
-            "provider": {"type": "keyword"},
-            "embedding_metadata": {
-                "type": "object",
-                "properties": {
-                    "model_name": {"type": "keyword"},
-                    "version": {"type": "integer"},
-                },
-            },
-            "title": {
-                "type": "text",
-                "analyzer": "text_analyzer",
-                "fields": {"keyword": {"type": "keyword"}},
-            },
-            "description": {
-                "type": "text",
-                "analyzer": "text_analyzer",
-            },
-            # AutoDDG-generated descriptions (UFD = readable, SFD = search-optimised) plus
-            # the LLM-direct baseline. Defined once in opensearch_client so this
-            # recreate script cannot drift from the mapping init_db applies. (The two
-            # base mappings have older, pre-existing drift in unrelated fields.)
-            **GENERATED_DESCRIPTION_FIELD_MAPPINGS,
-            "source": {"type": "keyword"},
-            "download_url": {"type": "keyword", "index": False},
-            "socrata_updated_at": {
-                "type": "date",
-                "format": "strict_date_optional_time||yyyy-MM-dd",
-            },
-            "source_updated_at": {
-                "type": "date",
-                "format": "strict_date_optional_time||yyyy-MM-dd",
-            },
-            "last_update_date": {
-                "type": "date",
-                "format": "yyyy-MM-dd",
-            },
-            "types": {"type": "keyword"},
-            "temporal_coverage": {
-                "type": "object",
-                "properties": {
-                    "start": {"type": "date", "format": "yyyy-MM-dd"},
-                    "end": {"type": "date", "format": "yyyy-MM-dd"},
-                },
-            },
-            "spatial_coverage": {
-                "type": "object",
-                "properties": {
-                    "label": {"type": "text"},
-                    "bbox": {"type": "geo_shape", "strategy": "recursive"},
-                },
-            },
-            "dataset_vector": {
-                "type": "knn_vector",
-                "dimension": 384,
-                "method": {
-                    "name": "hnsw",
-                    "engine": "nmslib",
-                },
-            },
-            "profiler_metadata": {
-                "type": "object",
-                "properties": {
-                    "nb_rows": {"type": "long"},
-                    "nb_profiled_rows": {"type": "long"},
-                    "nb_columns": {"type": "long"},
-                    "attribute_keywords": {"type": "text"},
-                    "columns": {
-                        "type": "nested",
-                        "properties": {
-                            "name": {"type": "text", "fields": {"raw": {"type": "keyword"}}},
-                            "structural_type": {"type": "keyword"},
-                            "semantic_types": {"type": "keyword"},
-                            "mean": {"type": "float"},
-                            "stddev": {"type": "float"},
-                            "plot": {"type": "object", "enabled": False},
-                        },
-                    },
-                },
-            },
-        }
-    },
-}
 
 def recreate_index(client):
     if client.indices.exists(index=AUCTUS_INDEX_NAME):
