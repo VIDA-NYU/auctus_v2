@@ -70,18 +70,14 @@ class SearchRequest(BaseModel):
     query: str
     filters: Optional[SearchFilters] = None
     # Which description the full-text query targets: the original portal description,
-    # the LLM-direct baseline, the AutoDDG UFD, or the AutoDDG SFD. Defaults to original
-    # (no behaviour change).
-    description_source: Literal["original", "llm_direct", "ufd", "sfd"] = DEFAULT_DESCRIPTION_SOURCE
-    # Number of hits to return. Without this OpenSearch silently caps at 10, which
-    # truncates any NDCG@k ranking beyond rank 10 in the retrieval eval.
+    # the AutoDDG UFD, or the AutoDDG SFD.
+    description_source: Literal["original", "ufd", "sfd"] = DEFAULT_DESCRIPTION_SOURCE
+    # Number of hits to return. Without this OpenSearch silently caps at 10.
     size: int = Field(default=10, ge=1, le=200)
-    # "and" (production default) requires every query term to match within one field;
-    # "or" is plain BM25 as in the AutoDDG paper — the retrieval eval uses "or" so
-    # verbose natural-language queries don't collapse to zero recall.
+    # "and" (default) requires every query term to match within one field;
+    # "or" is plain BM25, more forgiving for verbose natural-language queries.
     match_operator: Literal["and", "or"] = "and"
-    # Weight of the title field in the match; 0 drops the title entirely so the eval
-    # can remove the title-echo confound (title alone satisfying the whole query).
+    # Weight of the title field in the match; 0 drops the title entirely.
     title_boost: float = Field(default=DEFAULT_TITLE_BOOST, ge=0)
 
 # --- Routes ---

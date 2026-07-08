@@ -42,25 +42,6 @@ _autoddg = None
 PORTKEY_BASE_URL = os.getenv("PORTKEY_BASE_URL", "https://ai-gateway.apps.cloud.rt.nyu.edu/v1/")
 AUTODDG_MODEL = os.getenv("AUTODDG_MODEL", "@vertexai/gemini-2.5-flash")
 
-# Evaluation-only description arms (currently the LLM-direct baseline) exist purely
-# for the retrieval/quality evaluation. They default ON on this branch, whose point
-# is generating the eval arms; set AUTODDG_EVAL_ARMS=0 in production to skip the
-# extra LLM call per dataset.
-AUTODDG_EVAL_ARMS = os.getenv("AUTODDG_EVAL_ARMS", "1").lower() not in ("0", "false", "no")
-
-# LLM-direct (a.k.a. plain-LLM; the paper's LLM-GPT baseline): a description the LLM
-# writes from the CSV sample ONLY, with no AutoDDG grounding (no structural/semantic
-# profile, no topic). It is a baseline arm for the retrieval/quality evaluation
-# (Original vs LLM-direct vs AutoDDG). The prompt is the AutoDDG UFD prompt (paper
-# Fig. 6) with the grounding sentences removed, so it is a fair "AutoDDG minus
-# grounding" ablation on the same model and length budget.
-LLM_DIRECT_WORDS = 100
-LLM_DIRECT_PROMPT = (
-    "Answer the question using the following information. First, consider the dataset "
-    "sample: {sample}. Based on the information above, provide a dataset description in "
-    "about {words} words. Use only natural, readable sentences without special formatting."
-)
-
 
 def get_embedding_model():
     """Load the sentence transformer model lazily on first use."""
@@ -196,25 +177,6 @@ def build_profile_text(record: dict[str, Any]) -> str:
     return json.dumps(profile, ensure_ascii=False) if profile else ""
 
 
-def generate_llm_direct_description(autoddg: Any, sample: str) -> str | None:
-    """Plain-LLM baseline description from the CSV sample only (no AutoDDG grounding).
-
-    Calls the same Portkey-backed model AutoDDG uses, so the only difference from the
-    AutoDDG arm is the absence of structural/semantic/topic context. Returns None if no
-    usable client is available. Raised exceptions are handled by the caller.
-    """
-    client = getattr(autoddg, "client", None)
-    if client is None:
-        return None
-    prompt = LLM_DIRECT_PROMPT.format(sample=sample, words=LLM_DIRECT_WORDS)
-    response = client.chat.completions.create(
-        model=AUTODDG_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.0,
-    )
-    return response.choices[0].message.content
-
-
 def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
     """Generate AutoDDG descriptions from the CSV sample and store them on the record.
 
@@ -227,7 +189,6 @@ def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
     for retrieval). Stored as:
       - ``autoddg_description``        -> UFD
       - ``autoddg_search_description`` -> SFD
-      - ``llm_direct_description``     -> plain-LLM baseline (no AutoDDG grounding)
       - ``autoddg_topic`` / ``autoddg_semantic_profile`` -> intermediate context
 
     Every sub-step is best-effort and independently guarded: any failure degrades
@@ -323,22 +284,6 @@ def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
             LOGGER.warning("AutoDDG SFD failed for %s: %s", dataset_id, exc)
     elif description:
         LOGGER.info("AutoDDG SFD skipped for %s (no topic available)", dataset_id)
-
-    # LLM-direct baseline: a description from the sample only, no AutoDDG grounding.
-    # Stored as an evaluation arm (Original vs LLM-direct vs AutoDDG). Best-effort,
-    # and skipped entirely when eval arms are disabled (AUTODDG_EVAL_ARMS=0).
-    if AUTODDG_EVAL_ARMS:
-        try:
-            llm_direct = generate_llm_direct_description(autoddg, sample)
-            if llm_direct:
-                record["llm_direct_description"] = llm_direct
-                LOGGER.info(
-                    "LLM-direct description generated for %s (%d chars)",
-                    dataset_id,
-                    len(llm_direct),
-                )
-        except Exception as exc:
-            LOGGER.warning("LLM-direct description failed for %s: %s", dataset_id, exc)
 
     return record
 
