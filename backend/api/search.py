@@ -15,6 +15,11 @@ from functools import lru_cache
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from storage.opensearch_client import (
+    DEFAULT_DESCRIPTION_SOURCE,
+    description_fields_for,
+)
+
 try:
     from opensearchpy import OpenSearch, exceptions as os_exceptions
     from opensearchpy import helpers
@@ -47,6 +52,11 @@ class SearchQueryRequest(BaseModel):
     bbox: Optional[List[float]] = None  # [min_lon, min_lat, max_lon, max_lat]
     limit: int = 10
     offset: int = 0
+    # Which description the BM25 part targets: original / ufd / sfd. The kNN part
+    # always reflects the original description (the dataset_vector is embedded from
+    # title + original description at ingest time), so for a clean description-only
+    # retrieval comparison use the pure-BM25 /search endpoint.
+    description_source: Optional[str] = DEFAULT_DESCRIPTION_SOURCE
 
 
 def get_client():
@@ -161,11 +171,16 @@ async def search(req: SearchQueryRequest):
         )
 
     if req.keywords:
+        try:
+            description_fields = description_fields_for(req.description_source)
+        except ValueError as exc:
+            # A typo'd source must not silently fall back to the default arm.
+            raise HTTPException(status_code=400, detail=str(exc))
         should_clauses.append(
             {
                 "multi_match": {
                     "query": req.keywords,
-                    "fields": ["title^2", "description"],
+                    "fields": description_fields,
                 }
             }
         )
