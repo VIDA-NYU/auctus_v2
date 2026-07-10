@@ -53,6 +53,4 @@ plugins:
           options:
             members_order: source
             show_root_heading: true
-          inventories:
-            - https://docs.python-requests.org/objects.inv
-          docstring_style: google
+            docstring_style: google
