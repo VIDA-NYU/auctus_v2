@@ -68,6 +68,11 @@ services:
       - OPENSEARCH_HOST=opensearch
       - OPENSEARCH_PORT=9200
       - MINIO_ENDPOINT=auctus-minio:9000
+      # Rank search results on the AutoDDG search-focused description by default.
+      # Compose deployments ingest with the new worker, so the field is always
+      # populated; the in-code fallback stays "original" to protect existing
+      # indices that have not been re-ingested.
+      - DEFAULT_DESCRIPTION_SOURCE=sfd
     ports:
       - 8000:8000
     depends_on:
@@ -82,7 +87,12 @@ services:
     volumes:
       - ./backend:/app
     working_dir: /app
-    command: sh -c "pip install --no-cache-dir -r requirements.txt && arq storage.arq_worker.WorkerSettings"
+    command: >
+      sh -c "pip install --no-cache-dir -r requirements.txt &&
+             (pip install --no-cache-dir autoddg==0.1.2 || echo 'WARN: autoddg install failed; descriptions will be skipped') &&
+             arq storage.arq_worker.WorkerSettings"
+    env_file:
+      - ./backend/.env
     environment:
       - PYTHONUNBUFFERED=1
       - OPENSEARCH_HOST=opensearch
