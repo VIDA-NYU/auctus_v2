@@ -1,6 +1,8 @@
 # System Architecture & Data Lifecycle
 
-Auctus v2 is an enterprise-grade Urban Data Catalog designed for high-throughput dataset discovery, metadata profiling, and semantic search orchestration. The platform decouples heavy data harvesting, embedding generation, and analytical profiling tasks into an asynchronous background pipeline, ensuring that the user-facing web services remain lightweight and responsive.
+Auctus v2 is an enterprise-grade Urban Data Catalog designed for high-throughput dataset discovery, metadata profiling, and semantic search orchestration. The platform decouples heavy data harvesting, embedding generation, LLM-based description generation, and analytical profiling tasks into an asynchronous background pipeline, ensuring that the user-facing web services remain lightweight and responsive.
+
+During ingestion, every dataset is passed through **AutoDDG** — an automated dataset-description generator that calls an LLM through the NYU Portkey gateway to produce human-readable and search-optimized descriptions. These descriptions are stored alongside the profile and feed directly into search ranking. The step is best-effort: if AutoDDG or its API key is unavailable, ingestion proceeds and the description is simply skipped.
 
 ---
 
@@ -38,11 +40,11 @@ The Auctus v2 infrastructure relies on four synchronized core services to manage
                │                             │
                │ Metadata Index              │
                │                             │
-               │                  ┌──────────┴───────────┐
-               │                  │   Execution Layer    │
-               └─────────────────▶│     ARQ Workers      │
-                                  └──────────▲───────────┘
-                                             │
+               │                  ┌──────────┴───────────┐  LLM   ┌───────────────────────────┐
+               │                  │   Execution Layer    │  calls │   AutoDDG Description      │
+               └─────────────────▶│     ARQ Workers      │◀──────▶│   NYU Portkey Gateway     │
+                                  └──────────▲───────────┘        │   (Gemini via Portkey)    │
+                                             │                    └───────────────────────────┘
                                              │ Task Enqueue
                                   ┌──────────┴───────────┐
                                   │   Ingestion Driver   │
@@ -64,6 +66,14 @@ An S3-compatible, localized data lake. Instead of bloating database clusters wit
 ### 4. Redis & ARQ Task Queue
 An asynchronous processing environment that isolates resource-intensive operational workloads. This worker pool keeps the API completely isolated from long-running network requests, heavy CPU-bound vectorization calculations, and massive batch ingestion sequences.
 
+### 5. AutoDDG & the NYU Portkey Gateway
+An external, LLM-backed description service invoked *by the ARQ worker* during ingestion (it is not a standalone local container). The worker uses the [`autoddg`](https://pypi.org/project/autoddg/) package together with `portkey_ai` to reach the **NYU Portkey AI Gateway** (`https://ai-gateway.apps.cloud.rt.nyu.edu/v1/`, default model `@vertexai/gemini-2.5-flash`). For each dataset it grounds generation in the structural profile, a per-column *semantic profile*, and an inferred *topic*, then emits two complementary descriptions:
+
+*   **User-Focused Description (UFD)** — a concise, readable summary stored as `autoddg_description`.
+*   **Search-Focused Description (SFD)** — a keyword-enriched variant (expanded from the UFD + topic) stored as `autoddg_search_description`, used to improve retrieval.
+
+Intermediate context (`autoddg_topic`, `autoddg_semantic_profile`) is persisted alongside. The integration is fully guarded: a missing `PORTKEY_API_KEY`, an uninstalled package, or any per-step failure degrades gracefully and never blocks ingestion. Configuration lives in `backend/.env` (`PORTKEY_API_KEY`, optional `PORTKEY_BASE_URL` / `AUTODDG_MODEL`).
+
 ---
 
 ## 🔄 The End-to-End Data Lifecycle
@@ -79,18 +89,19 @@ An independent ARQ background thread claims an enqueued dataset task block and e
 1.  **Ingestion**: Streams raw data from the external source, bypassing internal storage limits.
 2.  **Structuring**: Normalizes disparate column geometries, identifies spatial coordinates, and parses temporal timestamps.
 3.  **Semantic Inference**: Feeds text fields (titles, tags, and markdown descriptions) into the `all-MiniLM-L6-v2` transformer model to produce normalized floating-point text embeddings.
-4.  **Matrix Profiling**: Generates structural data frame profiles containing comprehensive data column metrics.
+4.  **Profiling**: Generates structural data frame profiles containing comprehensive data column metrics. Currently, it is using Atlas-Profiler.
+5.  **AutoDDG Description Generation**: Grounded in the freshly built profile plus an LLM-inferred semantic profile and topic, the worker calls the NYU Portkey gateway (in a background thread, since it makes several sequential blocking LLM calls) to synthesize the User-Focused and Search-Focused descriptions. This runs *before* persistence so the generated text is captured in both the MinIO profile and the trimmed search document. It is best-effort — any failure is logged and skipped without aborting the dataset.
 
 ### Phase 3: Bifurcated Persistence
 To preserve memory and disk IO performance, data payloads are split across infrastructure layers simultaneously:
 
-*   The raw profiling distribution tables are serialized to compressed JSON binaries and deposited directly into the designated **MinIO** bucket.
-*   The primary searchable properties—explicitly tracking operational indices like `domain` and `provider`—alongside the semantic dense vectors are committed to **OpenSearch** inside the `auctus_catalog_master` index.
+*   The raw profiling distribution tables — now including the AutoDDG-generated descriptions and their intermediate context — are serialized to compressed JSON binaries and deposited directly into the designated **MinIO** bucket.
+*   The primary searchable properties—explicitly tracking operational indices like `domain` and `provider`, plus the `autoddg_description` and `autoddg_search_description` fields—alongside the semantic dense vectors are committed to **OpenSearch** inside the `auctus_catalog_master` index.
 *   The worker executes a summary loop, updating tracking statistics and counter metrics inside `auctus_portals_metadata`.
 
 ### Phase 4: Consumption & Search Routing
 When an end-user interacts with the React web application interface:
 
 1.  The client UI triggers a fast dynamic fetch against `/api/v1/portals`, polling active domains directly from OpenSearch to build the filter sidebar options on the fly.
-2.  Text or semantic search requests strike `/api/v1/search`. The backend applies vector scoring overlays to match intent precisely against the `auctus_catalog_master` index.
+2.  Text or semantic search requests strike `/api/v1/search`. The backend applies vector scoring overlays to match intent precisely against the `auctus_catalog_master` index. The BM25 full-text arm targets a configurable description field via `DEFAULT_DESCRIPTION_SOURCE` (`original` / `ufd` / `sfd`); Compose deployments default to the AutoDDG **Search-Focused Description** (`sfd`), while the in-code fallback remains `original` to protect indices that predate AutoDDG re-ingestion.
 3.  When a user requests a granular deep-dive on a specific dataset, the UI hits the backend's detailed profile route, which uses a JIT streaming pattern to pull the raw profiling payload from **MinIO** and stream it directly back to the browser.
