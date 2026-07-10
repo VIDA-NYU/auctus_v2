@@ -13,6 +13,16 @@ Before starting, ensure your local development machine has the following depende
 * **Docker & Docker Compose** (For orchestrating OpenSearch, MinIO, and Redis)
 * **Git**
 
+### AutoDDG (Dataset Description Generation)
+
+The `arq-worker` container installs **AutoDDG** from PyPI automatically, so no separate clone is needed. It only requires an NYU Portkey API key to call the LLM gateway during ingestion:
+
+```bash
+cp backend/.env_sample backend/.env
+# then edit backend/.env and set PORTKEY_API_KEY=<your NYU Portkey key>
+```
+
+`backend/.env` is git-ignored and must never be committed. Without the key, ingestion still runs — the description step is simply skipped.
 
 ---
 
