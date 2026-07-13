@@ -1,0 +1,10 @@
+# Documentation toolchain — pinned so local builds and CI (GitHub Actions)
+# resolve identical versions. Unpinned installs caused local/CI drift where
+# mkdocstrings-python's config schema no longer matched mkdocs.yml
+# (e.g. TypeError on the `docstring_style` option).
+#
+# Regenerate after intentional upgrades and re-run `mkdocs build`.
+mkdocs==1.6.1
+mkdocs-material==9.7.6
+mkdocstrings==1.0.5
+mkdocstrings-python==2.0.5
