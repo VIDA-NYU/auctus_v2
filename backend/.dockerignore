@@ -1,0 +1,28 @@
+# Local virtualenv — never ship host-built envs into the image
+.venv
+venv
+
+# Secrets — must never be baked into an image
+.env
+.env.*
+!.env_sample
+
+# Python caches / build artifacts
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+*.egg-info
+
+# Generated pipeline output (not needed by the API at runtime)
+output
+
+# VCS / editor / OS cruft
+.git
+.gitignore
+Dockerfile
+.dockerignore
+*.log
+.DS_Store
+.vscode
