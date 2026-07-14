@@ -9,7 +9,10 @@ import httpx
 GLOBAL_DOMAINS_ENDPOINT = "https://api.us.socrata.com/api/catalog/v1/domains"
 FALLBACK_CATALOG_ENDPOINT = "https://api.us.socrata.com/api/catalog/v1?only=dataset&limit=5000"
 MIN_DATASET_COUNT = 10
-OUTPUT_FILE = Path(__file__).resolve().parent / "socrata.json"
+# Written into the backend package (backend/config/) so it is inside the backend
+# Docker build context and gets baked into the image; run_pipeline_ingest.py's
+# resolver reads it from the same location.
+OUTPUT_FILE = Path(__file__).resolve().parent / "backend" / "config" / "socrata.json"
 
 
 async def fetch_domains() -> list[dict[str, Any]]:
