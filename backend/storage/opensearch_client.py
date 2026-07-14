@@ -1,9 +1,7 @@
 """OpenSearch initialization and management for Auctus v2 backend."""
 
-import json
 import logging
 import os
-from pathlib import Path
 
 try:
     from opensearchpy import OpenSearch, NotFoundError
@@ -275,47 +273,13 @@ def transform_spatial_coverage(spatial_coverage):
     }
 
 
-def load_and_ingest_data(client, index_name, data_file):
-    """Load datasets from a JSON file and ingest them into OpenSearch."""
-    try:
-        with open(data_file, "r") as f:
-            datasets = json.load(f)
-
-        if not isinstance(datasets, list):
-            logger.error(f"Expected list of datasets, got {type(datasets)}")
-            return 0
-
-        ingested = 0
-        for dataset in datasets:
-            try:
-                # Transform spatial_coverage to geo_shape format
-                if "spatial_coverage" in dataset and dataset["spatial_coverage"]:
-                    dataset["spatial_coverage"] = transform_spatial_coverage(
-                        dataset["spatial_coverage"]
-                    )
-
-                client.index(index=index_name, id=dataset.get("id"), body=dataset)
-                ingested += 1
-            except Exception as e:
-                logger.warning(f"Error ingesting dataset {dataset.get('id')}: {e}")
-
-        logger.info(f"Ingested {ingested}/{len(datasets)} datasets into {index_name}")
-        return ingested
-    except FileNotFoundError:
-        logger.error(f"Data file not found: {data_file}")
-        return 0
-    except Exception as e:
-        logger.error(f"Error loading and ingesting data: {e}")
-        return 0
-
-
 def init_db():
     """
     Initialize the OpenSearch database.
 
     - Connects to OpenSearch
     - Creates auctus_catalog_master index if it doesn't exist
-    - Loads synthetic data if the index is empty
+    - Does NOT seed data; use run_pipeline_ingest.py (real) or seed_synthetic.py (demo)
     """
     try:
         client = get_client()
@@ -368,14 +332,12 @@ def init_db():
                 logger.error(f"Failed to create index {AUCTUS_PORTALS_INDEX_NAME}")
                 return
 
-        # Check if index is empty
+        # init_db only ensures the indexes and mappings exist — it does NOT seed
+        # data. Real data is populated by the ingestion pipeline
+        # (run_pipeline_ingest.py); synthetic demo data is loaded explicitly via
+        # seed_synthetic.py. Just report the current document count here.
         count = index_count(client, AUCTUS_INDEX_NAME)
-        if count == 0:
-            logger.info(f"Index {AUCTUS_INDEX_NAME} is empty. Loading data...")
-            data_file = Path(__file__).parent / "data" / "synthetic_datasets.json"
-            load_and_ingest_data(client, AUCTUS_INDEX_NAME, str(data_file))
-        else:
-            logger.info(f"Index {AUCTUS_INDEX_NAME} already has {count} documents")
+        logger.info(f"Index {AUCTUS_INDEX_NAME} has {count} documents")
 
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
