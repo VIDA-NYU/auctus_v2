@@ -5,6 +5,8 @@ import 'leaflet/dist/leaflet.css'
 import SearchBar from '../components/ui/SearchBar'
 import FilterDropdown from '../components/ui/FilterDropdown'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 const FILTER_CATEGORIES = [
   { id: 'source', label: 'Source' },
   { id: 'dataType', label: 'Data Types' },
@@ -35,7 +37,7 @@ function Home() {
 
     const loadPortals = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/v1/portals')
+        const response = await fetch(`${API_BASE_URL}/api/v1/portals`)
         if (!response.ok) {
           throw new Error(`Portal request failed with status ${response.status}`)
         }

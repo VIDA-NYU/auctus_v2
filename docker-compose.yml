@@ -121,6 +121,10 @@ services:
   frontend:
     build:
       context: ./frontend
+      args:
+        # Baked into the bundle at build time so the fully-containerized stack
+        # calls the backend published on the host at :8000.
+        VITE_API_URL: http://localhost:8000
     image: auctus-frontend:local
     container_name: auctus-frontend
     # Published on 5173 so the browser origin matches the backend CORS allow-list

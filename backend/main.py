@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,10 +51,20 @@ app.include_router(datasets_router)
 app.include_router(portals_router)
 
 # --- CORS Configuration ---
+# Origins allowed to call the API from a browser. Configurable for production via
+# the ALLOWED_ORIGINS env var (comma-separated list of domains); falls back to the
+# local Vite dev servers when unset, keeping local development zero-config.
+_DEFAULT_ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174"
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", _DEFAULT_ALLOWED_ORIGINS).split(",")
+    if origin.strip()
+]
+
 # This allows your React app to communicate with the backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174"], 
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
