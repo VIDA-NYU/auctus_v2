@@ -1,14 +1,22 @@
-# Full production-local stack — "Full Production Local Test".
+# Local backend development — "Local Backend Development".
 #
-#   docker compose up -d
+#   docker compose -f docker-compose-local-backend.yml up -d
 #
-# Brings up EVERYTHING containerized: the infrastructure tier (OpenSearch,
-# Dashboards, MinIO, Redis), the ARQ ingestion worker, the FastAPI backend built
-# from backend/Dockerfile, and the nginx-served frontend built from
-# frontend/Dockerfile. Use this to validate the real production images locally.
+# Brings up the infrastructure tier (OpenSearch, Dashboards, MinIO, Redis), the
+# ARQ ingestion worker, and the containerized frontend — but deliberately does
+# NOT start the FastAPI backend. This lets you run the API on your host inside a
+# virtualenv (with hot-reload) WITHOUT having to `docker stop auctus-backend`.
 #
-# For active backend development on your host (no manual `docker stop` needed),
-# use docker-compose-local-backend.yml instead.
+# Typical workflow:
+#   docker compose -f docker-compose-local-backend.yml up -d      # infra + worker + frontend
+#   cd backend && source .venv/bin/activate && python3 main.py    # backend on host :8000
+#
+# The frontend (http://localhost:5173) and browser call the host backend at
+# http://localhost:8000; that origin is in the backend CORS allow-list.
+#
+# Note: this file intentionally duplicates the infra/worker/frontend service
+# definitions from docker-compose.yml (minus the backend). Keep the two in sync
+# when changing shared infrastructure settings.
 
 services:
   opensearch:
@@ -66,37 +74,12 @@ services:
       - 6379:6379
     restart: unless-stopped
 
-  backend:
-    build:
-      context: ./backend
-    image: auctus-backend:local
-    container_name: auctus-backend
-    environment:
-      - PYTHONUNBUFFERED=1
-      - OPENSEARCH_HOST=opensearch
-      - OPENSEARCH_PORT=9200
-      - MINIO_ENDPOINT=auctus-minio:9000
-      # Rank search results on the AutoDDG search-focused description by default.
-      # Compose deployments ingest with the worker, so the field is always
-      # populated; the in-code fallback stays "original" to protect existing
-      # indices that have not been re-ingested.
-      - DEFAULT_DESCRIPTION_SOURCE=sfd
-    ports:
-      - 8000:8000
-    depends_on:
-      - opensearch
-      - minio
-      - redis
-    restart: unless-stopped
-
   arq-worker:
-    # Reuses the backend image (same code + dependencies). AutoDDG is installed
-    # at container start from PyPI rather than baked in: it is only needed by the
-    # worker, and its numpy>=2.2.2 requirement conflicts with the Intel-macOS
-    # numpy<2 pin the shared requirements.txt carries (that pin is a no-op inside
-    # this Linux image, so the install succeeds here). Runs as root so the runtime
-    # pip install can write to site-packages; the install is best-effort and the
-    # worker still starts (descriptions skipped) if it fails.
+    # Reuses the backend image (built from backend/Dockerfile). AutoDDG is
+    # installed at container start from PyPI; see docker-compose.yml for the full
+    # rationale. Runs as root so the runtime pip install can write to
+    # site-packages; the install is best-effort and the worker still starts
+    # (descriptions skipped) if it fails.
     build:
       context: ./backend
     image: auctus-arq-worker:local
@@ -123,12 +106,12 @@ services:
       context: ./frontend
     image: auctus-frontend:local
     container_name: auctus-frontend
-    # Published on 5173 so the browser origin matches the backend CORS allow-list
-    # (http://localhost:5173). The bundled app calls the API at localhost:8000.
+    # Published on 5173 so the browser origin matches the backend CORS allow-list.
+    # The bundled app calls the API at localhost:8000 — here that is your
+    # host-run backend, not a container.
     ports:
       - 5173:80
-    depends_on:
-      - backend
+    # No depends_on: the backend runs on the host, not as a Compose service.
     restart: unless-stopped
 
 volumes:

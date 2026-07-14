@@ -13,18 +13,23 @@ WORKDIR /app
 
 # System dependencies:
 #   build-essential - compile Python packages that ship without a manylinux wheel
-#   libpq-dev       - PostgreSQL client headers for database drivers
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
-        libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies first so this layer stays cached until
-# requirements.txt actually changes.
-COPY requirements.txt ./
+# Install the CPU-only build of PyTorch FIRST, from PyTorch's dedicated CPU wheel
+# index. torch is only pulled in transitively (via sentence-transformers, to embed
+# search queries) and runs on CPU here, so installing the +cpu build up front stops
+# the default PyPI wheel from dragging in the ~6 GB NVIDIA CUDA runtime. The later
+# requirements install then sees torch already satisfied and skips it.
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install the remaining Python dependencies. Kept after the torch layer so both
+# stay cached until their respective inputs change.
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application source.
 COPY . .
