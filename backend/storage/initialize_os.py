@@ -114,7 +114,10 @@ def create_dashboard_index_pattern(index_name: str = AUCTUS_INDEX_NAME):
     
     Fails gracefully if Dashboards is not available or still bootstrapping.
     """
-    dashboards_url = "http://localhost:5601"
+    # Configurable so the script works both on the host (localhost) and inside a
+    # container, where Dashboards is reachable by its Compose service name
+    # (e.g. DASHBOARDS_URL=http://dashboards:5601).
+    dashboards_url = os.getenv("DASHBOARDS_URL", "http://localhost:5601")
     pattern_url = f"{dashboards_url}/api/saved_objects/index-pattern/{index_name}"
     
     payload = {
@@ -140,7 +143,7 @@ def create_dashboard_index_pattern(index_name: str = AUCTUS_INDEX_NAME):
     except Exception as exc:
         # Dashboards may not be running; fail gracefully
         print(f"⚠️  OpenSearch Dashboards is not available ({exc}). Skipping index pattern creation.")
-        print("    You can manually create the index pattern via the Dashboards UI at http://localhost:5601")
+        print(f"    You can manually create the index pattern via the Dashboards UI at {dashboards_url}")
 
 
 
