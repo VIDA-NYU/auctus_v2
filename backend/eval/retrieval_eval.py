@@ -106,6 +106,10 @@ SOURCE_FIELDS = {
     "llm_direct": "llm_direct_description",
     "ufd": "autoddg_description",
     "sfd": "autoddg_search_description",
+    # Benchmark-EDA arms (deterministic). Kept in sync with
+    # storage.opensearch_client.DESCRIPTION_SOURCE_FIELDS.
+    "profile_only": "profile_only_description",
+    "t_od_s": "tods_description",
 }
 
 

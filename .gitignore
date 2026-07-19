@@ -15,3 +15,5 @@ dist/
 
 # Retrieval-eval run artifacts
 backend/eval/results/
+# Benchmark-EDA generated artifacts (corpus slices, pools, query sets — regenerable)
+backend/eval/benchmark/

@@ -29,6 +29,11 @@ DESCRIPTION_SOURCE_FIELDS = {
     "llm_direct": "llm_direct_description",
     "ufd": "autoddg_description",
     "sfd": "autoddg_search_description",
+    # Benchmark-EDA arms (deterministic, no LLM): profile text only, and the raw
+    # Title+Original-Description+Sample bundle. Fill the 6-column matrix so the
+    # AutoDDG arms can be compared against ungrounded/un-synthesised baselines.
+    "profile_only": "profile_only_description",
+    "t_od_s": "tods_description",
 }
 
 # The evaluation-arm description fields, defined once so the index mapping, the
@@ -41,6 +46,10 @@ GENERATED_DESCRIPTION_FIELD_MAPPINGS = {
     "autoddg_description": {"type": "text", "analyzer": "text_analyzer"},
     "autoddg_search_description": {"type": "text", "analyzer": "text_analyzer"},
     "llm_direct_description": {"type": "text", "analyzer": "text_analyzer"},
+    # Benchmark-EDA arms — same analyzer as `description` so cross-arm BM25 is not
+    # skewed by an analyzer mismatch (see DESCRIPTION_SOURCE_FIELDS).
+    "profile_only_description": {"type": "text", "analyzer": "text_analyzer"},
+    "tods_description": {"type": "text", "analyzer": "text_analyzer"},
 }
 
 
