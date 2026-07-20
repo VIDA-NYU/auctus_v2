@@ -18,7 +18,13 @@ from arq.connections import RedisSettings
 from crawlers.socrata.transformer import build_validation_record
 from storage.minio_client import get_storage_client, upload_heavy_profile
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
-from run_pipeline_ingest import apply_socrata_timestamp, isolate_search_payload, load_runtime_config, sync_portal_metadata
+from run_pipeline_ingest import (
+    DEFAULT_FALLBACK_BBOX,
+    apply_socrata_timestamp,
+    isolate_search_payload,
+    load_runtime_config,
+    sync_portal_metadata,
+)
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -41,6 +47,10 @@ _autoddg = None
 # Portkey gateway defaults (overridable via environment).
 PORTKEY_BASE_URL = os.getenv("PORTKEY_BASE_URL", "https://ai-gateway.apps.cloud.rt.nyu.edu/v1/")
 AUTODDG_MODEL = os.getenv("AUTODDG_MODEL", "@vertexai/gemini-2.5-flash")
+
+# Last-resort portal domain, matching crawlers.socrata.crawler's default, used
+# only when neither the job payload nor config.json names one.
+DEFAULT_PORTAL_DOMAIN = "data.cityofnewyork.us"
 
 # Evaluation-only description arms (currently the LLM-direct baseline) exist purely
 # for the retrieval/quality evaluation. They default ON on this branch, whose point
@@ -351,22 +361,74 @@ async def startup(ctx: dict[str, Any]) -> None:
     ctx["autoddg"] = get_autoddg()
 
 
+def resolve_ingest_settings(dataset_meta: dict[str, Any]) -> dict[str, Any]:
+    """Resolve one dataset's ingest settings: job payload first, config.json second.
+
+    ``load_runtime_config()`` returns the WHOLE config dict, so it must be
+    indexed by key. Unpacking it into three names instead yields its three keys
+    as plain strings, and every ``portal_cfg.get(...)`` /
+    ``pipeline_settings.get(...)`` fallback below then raises AttributeError.
+    That stayed hidden for as long as the dispatcher always populated
+    ``base_url`` / ``fallback_bbox`` / ``spatial_label`` (the ``or`` fallbacks
+    short-circuit), and only fired when a job was enqueued by hand with a
+    partial payload — hence this is split out and covered by a regression test.
+    """
+    cfg = load_runtime_config()
+    provider_type = str(dataset_meta.get("provider") or "socrata")
+    portal_cfg = (cfg.get("providers") or {}).get(provider_type) or {}
+    pipeline_settings = cfg.get("pipeline_settings") or {}
+    # No single "active domain" exists in a multi-provider config; prefer the
+    # domain the job names, then an explicit config override, then the default.
+    active_domain = (
+        dataset_meta.get("domain")
+        or cfg.get("active_portal")
+        or DEFAULT_PORTAL_DOMAIN
+    )
+
+    base_url = dataset_meta.get("base_url") or portal_cfg.get("base_url", f"https://{active_domain}")
+    spatial_label = dataset_meta.get("spatial_label")
+    if spatial_label is None:
+        spatial_label = portal_cfg.get("label", "")
+
+    return {
+        "provider_type": provider_type,
+        "base_url": base_url,
+        "domain_url": str(
+            dataset_meta.get("domain")
+            or base_url.replace("https://", "").replace("http://", "")
+        ),
+        "fallback_bbox": dataset_meta.get("fallback_bbox")
+        or portal_cfg.get("fallback_bbox", DEFAULT_FALLBACK_BBOX),
+        "spatial_label": spatial_label,
+        "max_sample_rows": int(
+            dataset_meta.get("max_sample_rows") or pipeline_settings.get("max_sample_rows", 500)
+        ),
+        "max_sample_bytes": int(
+            dataset_meta.get("max_sample_bytes")
+            or pipeline_settings.get("max_sample_bytes", 2_100_000)
+        ),
+        "http_timeout_seconds": float(
+            dataset_meta.get("http_timeout_seconds")
+            or pipeline_settings.get("http_timeout_seconds", 30.0)
+        ),
+        "socrata_updated_at": dataset_meta.get("socrata_updated_at"),
+    }
+
+
 async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]) -> str:
     """Run the heavy ingestion workflow for one Socrata dataset."""
     dataset_id = dataset_meta.get("dataset_id") or dataset_meta.get("id")
     if not dataset_id:
         raise ValueError("dataset_meta missing required dataset_id")
 
-    active_domain, portal_cfg, pipeline_settings = load_runtime_config()
-    base_url = dataset_meta.get("base_url") or portal_cfg.get("base_url", f"https://{active_domain}")
-    fallback_bbox = dataset_meta.get("fallback_bbox") or portal_cfg.get("fallback_bbox", [-74.259, 40.477, -73.7, 40.917])
-    spatial_label = dataset_meta.get("spatial_label")
-    if spatial_label is None:
-        spatial_label = portal_cfg.get("label", "")
-    max_sample_rows = int(dataset_meta.get("max_sample_rows") or pipeline_settings.get("max_sample_rows", 500))
-    max_sample_bytes = int(dataset_meta.get("max_sample_bytes") or pipeline_settings.get("max_sample_bytes", 2_100_000))
-    http_timeout_seconds = float(dataset_meta.get("http_timeout_seconds") or pipeline_settings.get("http_timeout_seconds", 30.0))
-    socrata_updated_at = dataset_meta.get("socrata_updated_at")
+    settings = resolve_ingest_settings(dataset_meta)
+    base_url = settings["base_url"]
+    fallback_bbox = settings["fallback_bbox"]
+    spatial_label = settings["spatial_label"]
+    max_sample_rows = settings["max_sample_rows"]
+    max_sample_bytes = settings["max_sample_bytes"]
+    http_timeout_seconds = settings["http_timeout_seconds"]
+    socrata_updated_at = settings["socrata_updated_at"]
 
     os_client = ctx.get("os_client") or get_client()
     storage_client = ctx.get("storage_client") or get_storage_client()
@@ -414,9 +476,9 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
         LOGGER.info("Uploading full profile to MinIO for dataset %s", routing_key)
         upload_heavy_profile(storage_client, routing_key, full_metadata_record)
 
-        # 1. Resolve provider and domain details from dataset_meta
-        provider_type = str(dataset_meta.get("provider") or "socrata")
-        domain_url = str(dataset_meta.get("domain") or base_url.replace("https://", "").replace("http://", ""))
+        # 1. Provider and domain were already resolved from dataset_meta + config.
+        provider_type = settings["provider_type"]
+        domain_url = settings["domain_url"]
 
         search_payload = isolate_search_payload(full_metadata_record)
         search_payload = attach_embedding(search_payload, model=embedding_model)
