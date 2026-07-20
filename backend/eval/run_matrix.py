@@ -4,10 +4,13 @@ Scores each description arm by isolating its field: a BM25 match on the arm fiel
 ONLY (title excluded = the title-boost-0 control, so the title echo cannot make
 all arms look equal), operator OR (paper BM25). Reuses ``metric_ndcg``.
 
+Qrels are BINARY (0/1) — aligned with the AutoDDG paper's own evaluation
+protocol, and the only grade distinction our LLM judge + judgment pool can
+actually support at this corpus size.
+
 Diagnostics the meeting needs:
   * the 6-arm x 4-class NDCG matrix (provisional),
   * per-facet arm separation (where AutoDDG's advantage lives),
-  * binary-vs-graded arm ordering (the graded-upgrade trigger),
   * k sensitivity (NDCG@5 vs @10).
 
 Retrieval here is deterministic (BM25), so there is no retrieval-seed variance;
@@ -57,11 +60,10 @@ def _mean(xs: list[float]) -> float:
     return round(statistics.mean(xs), 4) if xs else 0.0
 
 
-def run(os_client, queries: list[dict], qrels: dict[str, dict], k: int, binary: bool):
+def run(os_client, queries: list[dict], qrels: dict[str, dict], k: int):
     """Return per-arm NDCG aggregates, keyed overall / by class / by facet."""
     def grades_of(qid: str) -> dict[str, int]:
-        g = qrels.get(qid, {})
-        return {i: (1 if v > 0 else 0) if binary else v for i, v in g.items()}
+        return qrels.get(qid, {})
 
     # cache ranked ids per (arm, query) — independent of grades/k within this call
     overall = {a: [] for a in ARMS}
@@ -114,35 +116,30 @@ def main(argv: list[str] | None = None) -> int:
     qrels = {q["query_id"]: {i: int(v) for i, v in q["relevant"].items()} for q in qrels_raw}
 
     os_client = get_client()
-    graded = run(os_client, queries, qrels, args.k, binary=False)
-    binary = run(os_client, queries, qrels, args.k, binary=True)
-    k_sens = run(os_client, queries, qrels, 5, binary=False)
+    binary = run(os_client, queries, qrels, args.k)
+    k_sens = run(os_client, queries, qrels, 5)
 
     report = {
         "index": AUCTUS_INDEX_NAME,
         "k": args.k,
         "controls": {"title_boost": 0, "operator": "or", "retrieval": "deterministic BM25"},
-        "provenance": "PROVISIONAL: LLM-judged qrels, shakedown not benchmark-grade.",
-        "graded": graded,
+        "provenance": "PROVISIONAL: LLM-judged binary qrels, shakedown not benchmark-grade.",
         "binary": binary,
-        "graded_at_k5": {"overall": k_sens["overall"]},
+        "binary_at_k5": {"overall": k_sens["overall"]},
     }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    _print_matrix(f"GRADED NDCG@{args.k}", graded)
-    print("\nGRADED overall ordering:",
-          " > ".join(f"{a}={graded['overall'][a]:.3f}"
-                     for a in sorted(ARMS, key=lambda a: -graded['overall'][a])))
-    print("BINARY overall ordering:",
+    _print_matrix(f"BINARY NDCG@{args.k}", binary)
+    print("\nBINARY overall ordering:",
           " > ".join(f"{a}={binary['overall'][a]:.3f}"
                      for a in sorted(ARMS, key=lambda a: -binary['overall'][a])))
-    print("\nPer-facet GRADED NDCG (arm x facet):")
-    facets = sorted({f for a in ARMS for f in graded["by_facet"][a]})
+    print("\nPer-facet BINARY NDCG (arm x facet):")
+    facets = sorted({f for a in ARMS for f in binary["by_facet"][a]})
     print("facet".ljust(20) + "".join(a[:9].rjust(11) for a in ARMS))
     for f in facets:
-        print(f.ljust(20) + "".join(f"{graded['by_facet'][a].get(f,0):.3f}".rjust(11) for a in ARMS))
+        print(f.ljust(20) + "".join(f"{binary['by_facet'][a].get(f,0):.3f}".rjust(11) for a in ARMS))
     print(f"\n-> {out}")
     return 0
 
