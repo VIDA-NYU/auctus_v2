@@ -46,6 +46,14 @@ FORBIDDEN_ARM_FIELDS = frozenset(DESCRIPTION_SOURCE_FIELDS.values())
 SAMPLE_CHARS = 1500
 
 QUERY_CLASSES = ("keyword", "nl_requesting", "nl_describing", "nl_implying")
+# Query-side facets: "by which aspect does a user search for this dataset?"
+# Each one must be (a) plausible to search by, (b) something retrieval can
+# succeed or fail at, and (c) VERIFIABLE BY THE JUDGE from the neutral bundle.
+# Criterion (c) is why provenance / quality / usage (from the 8 description
+# features in "Less Is More?", 2606.02334) are deliberately NOT here: the
+# profiler computes no publisher, update frequency, or known-limitations data,
+# so the judge could not ground those grades. Those 8 features belong to a
+# separate INTRINSIC description-quality axis, not to the query axis.
 FACETS = ("topic", "temporal", "spatial", "schema", "statistical", "entity",
           "vocabulary_mismatch", "composite")
 
