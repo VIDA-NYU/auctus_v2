@@ -341,21 +341,15 @@ def _merge_profiler_output(
         "truncated_by_bytes": sample_stats.truncated_by_bytes,
     }
 
-    # Ensure high-level summary count defaults exist if the actual library did not specify them
-    raw_columns = meta.get("columns", [])
-    meta.setdefault("nb_profiled_rows", len(raw_columns))
-    
-    meta["nb_spatial_columns"] = len([
-        c for c in raw_columns if isinstance(c, dict) and 
-        ("GeoCoordinates" in str(c.get("structural_type")) or "AdministrativeArea" in str(c.get("semantic_types")))
-    ])
-    meta["nb_temporal_columns"] = len([
-        c for c in raw_columns if isinstance(c, dict) and "DateTime" in str(c.get("structural_type"))
-    ])
-    
-    meta.setdefault("nb_numerical_columns", profiler_output.get("nb_numerical_columns", 0))
-    meta.setdefault("nb_categorical_columns", profiler_output.get("nb_categorical_columns", 0))
-    
+    # The nb_*_columns counts are the profiler's own (see profiler/core.py, which
+    # derives all four from determine_dataset_type) and are carried through
+    # untouched. They used to be recomputed here against the wrong fields --
+    # "DateTime" was looked for in structural_type where the profiler puts it in
+    # semantic_types (so nb_temporal_columns was always 0), and the spatial test
+    # missed GeoShape, latitude, longitude and address. Note the profiler omits a
+    # key entirely when its count is zero; nothing reads these values today, so
+    # absent is left to mean zero.
+
     # Compute safe validated internal spatial coordinates
     meta["spatial_bbox"] = _safe_bbox_from_profiler_or_sample(profiler_output, spatial_bbox, fallback_bbox)
 

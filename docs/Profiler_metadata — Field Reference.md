@@ -1,7 +1,8 @@
 # Profiler_metadata — Field Reference & Profile Trimming
 
 `profiler_metadata` is the JSON output of atlas-profiler for one dataset. It
-describes the dataset's structure (columns, types, size, spatial coverage).
+describes the dataset's structure (columns, types, size, spatial and temporal
+coverage).
 During ingestion Auctus passes a **trimmed** subset of it to AutoDDG as grounding
 context for description generation (`describe_dataset(..., use_profile=True)`).
 
@@ -25,7 +26,34 @@ Dataset-level:
 | `nb_rows` | Number of rows (dataset size). |
 | `nb_columns` | Number of columns. |
 | `types` | Dataset-level types, e.g. `["categorical", "spatial"]`. |
-| `spatial_coverage.label`, `spatial_coverage.bbox` | Geographic extent as a human label + bounding box, e.g. label "New York City", bbox `[-74.23, 40.52, -73.71, 40.90]`. Read from the **top-level record** (a sibling of `profiler_metadata`); only `label` and `bbox` are kept. |
+| `spatial_coverage.bbox` | Geographic extent as a bounding box, emitted as `{"type": "envelope", "coordinates": [[min_lon, max_lat], [max_lon, min_lat]]}` — a GeoJSON envelope object, not a flat four-number list. Read from the **top-level record** (a sibling of `profiler_metadata`). **Conditional, see below.** |
+| `temporal_coverage` | The dataset's date range, flattened to `{"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}`. **Conditional, see below.** |
+
+### Coverage fields are conditional
+
+Both coverage fields are emitted **only when the profiler derived them from this
+dataset's own data**. An absent field therefore means "this dataset has no
+geography / no dates", and is never a profiling failure.
+
+- **Spatial** is gated on `profiler_metadata.spatial_coverage`, which exists only
+  when the profiler found real coordinates. The gate is necessary because the
+  top-level `spatial_coverage` block is written for *every* dataset:
+  `transformer._safe_bbox_from_profiler_or_sample` falls back to a portal-level
+  bbox when the data has none, so without the gate a purely categorical dataset
+  would be told it covers New York City. That fallback is deliberate — the search
+  API's geo filter (`api/search.py`) relies on it — so it stays in the record and
+  in the index, and is excluded only here.
+- **`spatial_coverage.label` is not kept.** It is portal-level, so it is identical
+  for every dataset on the portal and says nothing about any one of them. As
+  currently configured it renders as the bare domain string
+  `data.cityofnewyork.us`.
+- **Temporal** comes from `profiler_metadata.temporal_coverage` — the profiler's
+  ranges over values in columns it typed as `DateTime`. It is **not** taken from
+  the record's top-level `temporal_coverage`, which `transformer.infer_temporal_range`
+  derives from a column-**name** regex over the sampled rows only, and which is
+  therefore both wrongly selected and truncated to the sample. Where several
+  datetime columns disagree, the profile reports the outer envelope of their
+  ranges as a dataset-level summary, not a per-column statement.
 
 Per-column (`columns[]`) — the core signal. For each column:
 
@@ -49,7 +77,10 @@ Per-column (`columns[]`) — the core signal. For each column:
   description; the bounding box already summarizes the same coverage.
 - `nb_profiled_rows`, `nb_spatial_columns`, `nb_temporal_columns`,
   `nb_numerical_columns`, `nb_categorical_columns` — operational counts; add little
-  to a textual description.
+  to a textual description. All four `nb_*_columns` are the **profiler's own**
+  values (`profiler/core.py` derives them from `determine_dataset_type`) and are
+  carried through the crawler untouched. The profiler omits a key entirely when
+  its count is zero, so an absent key means zero.
 - `sample` — the raw CSV sample. Already passed to AutoDDG separately as
   `dataset_sample`, so including it here would be duplication.
 - `_sample_telemetry` — download mechanics (temp file path, bytes loaded,

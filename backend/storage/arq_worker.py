@@ -145,15 +145,78 @@ _COLUMN_CORE_FIELDS = ("name", "structural_type", "semantic_types")
 _COLUMN_STAT_FIELDS = ("num_distinct_values", "mean", "std", "min", "max")
 
 
+def _temporal_interval(temporal_coverage: Any) -> dict[str, str] | None:
+    """Flatten the profiler's temporal coverage to one ``{start, end}`` interval.
+
+    The profiler emits a list of per-column entries, each carrying one or more
+    ``ranges``. The column names in those entries duplicate ``columns[]`` and the
+    nesting costs prompt tokens, so we keep only the outer envelope across every
+    range of every column. That envelope is a dataset-level summary, not a
+    per-column statement.
+
+    Both range shapes are accepted: the installed profiler wraps its bounds
+    (``{"range": {"gte": <posix ts>, "lte": <posix ts>}}``, see
+    ``profiler/core.py`` and ``get_numerical_ranges``), while the shape recorded
+    from ingested corpus data is unwrapped (``{"gte": ..., "lte": ...}``). Which
+    one a given record carries has not been confirmed against a live index, so
+    reading only one of them risks silently dropping every date range.
+
+    Note the ranges are not always the true min/max: when the profiler could not
+    scan the full CSV it clusters the values and trims each cluster to its 5th/95th
+    percentile, so the envelope can be narrower than the real extent. It is still
+    derived from parsed datetime values, which is what makes it preferable to the
+    record's top-level ``temporal_coverage`` (a column-name regex over the sample).
+
+    Returns None when nothing usable is present.
+    """
+    if not isinstance(temporal_coverage, list):
+        return None
+
+    starts: list[float] = []
+    ends: list[float] = []
+    for entry in temporal_coverage:
+        if not isinstance(entry, dict):
+            continue
+        for rng in entry.get("ranges") or []:
+            if not isinstance(rng, dict):
+                continue
+            bounds = rng.get("range") if isinstance(rng.get("range"), dict) else rng
+            if not isinstance(bounds, dict):
+                continue
+            gte, lte = bounds.get("gte"), bounds.get("lte")
+            if isinstance(gte, (int, float)) and isinstance(lte, (int, float)):
+                starts.append(float(gte))
+                ends.append(float(lte))
+
+    if not starts:
+        return None
+
+    def _iso(ts: float) -> str | None:
+        try:
+            return datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
+        except (OverflowError, OSError, ValueError):
+            return None
+
+    start, end = _iso(min(starts)), _iso(max(ends))
+    if start is None or end is None:
+        return None
+    return {"start": start, "end": end}
+
+
 def build_profile_text(record: dict[str, Any]) -> str:
     """Render a trimmed, content-focused profile as a JSON string for AutoDDG.
 
     AutoDDG injects this string into its prompt (use_profile=True). We keep only
     fields that describe *what the dataset contains* — size, column schema, and
-    geographic coverage — and drop operational/rendering fields (telemetry,
-    profiling times, raw geohash grids, redundant keyword splits). This is the
-    profile-aware usage emphasized in the AutoDDG paper. Returns "" if there is
-    nothing useful to report. The selection is deterministic (no LLM).
+    geographic and temporal coverage — and drop operational/rendering fields
+    (telemetry, profiling times, raw geohash grids, redundant keyword splits).
+    This is the profile-aware usage emphasized in the AutoDDG paper. Returns "" if
+    there is nothing useful to report. The selection is deterministic (no LLM).
+
+    Every value here must be derived from this dataset's own data: a field whose
+    value is unknown is omitted rather than defaulted, so that the absence of, say,
+    spatial coverage is readable as "this dataset has no geography" instead of
+    being indistinguishable from a portal-wide placeholder.
 
     The per-column detail is *adaptive* to table width: narrow tables keep full
     numeric stats, wide tables keep only the core meaning-bearing fields and cap
@@ -196,12 +259,27 @@ def build_profile_text(record: dict[str, Any]) -> str:
         # Fallback when profiling produced no columns (edge cases): names only.
         profile["column_names"] = pm["attribute_keywords"]
 
-    # Geographic coverage: clean label + bbox only (drop the raw geohash grids).
-    spatial = record.get("spatial_coverage")
-    if isinstance(spatial, dict) and (spatial.get("label") or spatial.get("bbox")):
-        profile["spatial_coverage"] = {
-            k: spatial[k] for k in ("label", "bbox") if spatial.get(k)
-        }
+    # Coverage fields, spatial and temporal alike, are emitted only when the
+    # profiler derived them from this dataset's own data.
+    #
+    # The record's top-level spatial_coverage is written for *every* dataset:
+    # transformer._safe_bbox_from_profiler_or_sample falls back to a portal-level
+    # bbox when the data has no coordinates, so a purely categorical dataset would
+    # otherwise be handed a profile asserting it covers New York City. That
+    # fallback exists to keep such datasets reachable by the search API's geo
+    # filter; it is an index affordance, not a fact about the dataset, and it must
+    # not reach the description prompt. Gating on the profiler's own
+    # spatial_coverage -- present only when real coordinates were found -- is what
+    # separates the two. The portal label is dropped as well: it is identical for
+    # every dataset on the portal, so it says nothing about this one.
+    if pm.get("spatial_coverage"):
+        spatial = record.get("spatial_coverage")
+        if isinstance(spatial, dict) and spatial.get("bbox"):
+            profile["spatial_coverage"] = {"bbox": spatial["bbox"]}
+
+    temporal = _temporal_interval(pm.get("temporal_coverage"))
+    if temporal:
+        profile["temporal_coverage"] = temporal
 
     return json.dumps(profile, ensure_ascii=False) if profile else ""
 
