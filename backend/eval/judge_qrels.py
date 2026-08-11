@@ -5,8 +5,10 @@ label 0/1 (aligned with the AutoDDG paper's evaluation protocol). The judge sees
 ONLY the neutral bundle (title + profile + data sample) — the description arm
 under test is PHYSICALLY ABSENT from the prompt (report F1b). If the judge saw
 the arm, NDCG would systematically favour the description arms and the whole
-evaluation would be void. The same ``assert_no_arm_leak`` invariant the query
-generator uses is asserted on every judged dataset here.
+evaluation would be void. The judge is held to the same F1 enforcement as the
+query generator, by construction rather than by repetition: it fetches with the
+shared ``NEUTRAL_SOURCE_FIELDS`` allowlist and builds its prompt through the same
+``build_neutral_bundle``, which refuses any document carrying an arm field.
 
 Label: 1 = relevant (the dataset answers the query, fully or partially);
        0 = not relevant.
@@ -30,7 +32,7 @@ from pathlib import Path
 
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
 from eval.backfill_descriptions import load_full_profile
-from eval.generate_queries import build_neutral_bundle, assert_no_arm_leak
+from eval.generate_queries import NEUTRAL_SOURCE_FIELDS, build_neutral_bundle
 from eval.llm_client import (
     LLM_MODEL, MODEL_LAB, complete_verbose, get_llm_client, supports_temperature,
     temperature_pinned,
@@ -97,8 +99,8 @@ def judge_query(client, query_text: str, items: list[tuple[str, dict, str | None
     """Grade every (query, dataset) in ``items``. Returns ({dataset_id: grade}, usage)."""
     bundles = []
     for _id, doc, sample in items:
+        # F1b invariant: build_neutral_bundle refuses a doc carrying any arm field.
         bundle = build_neutral_bundle(doc, sample)
-        assert_no_arm_leak(bundle, doc)  # F1b invariant: no arm prose in the prompt
         bundles.append(bundle)
     rendered = "\n\n".join(_render_bundle(i + 1, b) for i, b in enumerate(bundles))
     prompt = JUDGE_PROMPT.format(query=query_text, datasets=rendered)
@@ -155,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
         if dataset_id not in doc_cache:
             doc_cache[dataset_id] = os_client.get(
                 index=AUCTUS_INDEX_NAME, id=dataset_id,
-                _source=["title", "profiler_metadata", "spatial_coverage"],
+                _source=list(NEUTRAL_SOURCE_FIELDS),
             ).get("_source") or {}
             rec = load_full_profile(storage_client, dataset_id) if storage_client else None
             sample_cache[dataset_id] = rec.get("sample") if isinstance(rec, dict) else None

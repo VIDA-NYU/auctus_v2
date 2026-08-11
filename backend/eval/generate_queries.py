@@ -16,6 +16,23 @@ set is produced and later applied identically to every arm. ``source_dataset_id`
 is kept for the leakage audit only; it is NOT a qrel (qrels come from the judge
 over the pool — F8).
 
+How F1 is enforced, and where. Two layers, both structural:
+
+  1. ``NEUTRAL_SOURCE_FIELDS`` is the single allowlist every caller fetches with —
+     here and in ``judge_qrels`` — and an import-time assert keeps it disjoint from
+     the arm fields. A document that never carries an arm field cannot produce a
+     bundle containing one.
+  2. ``build_neutral_bundle`` refuses any document that carries an arm field, so a
+     caller who fetches too widely fails immediately instead of silently relying on
+     this function reading only certain keys.
+
+Neither layer looks at *content*. Whether a finished query happens to sit unusually
+close to one arm's vocabulary is a property of the output, decidable only over the
+final query set with every arm's text loaded — that is ``leakage_audit.py``'s job,
+and it is the only content-level check in the pipeline. An earlier substring guard
+(``assert_no_arm_leak``) tried to do content detection here and could not: both
+call sites fetch neutrally, so it compared against absent fields and never fired.
+
     python -m eval.generate_queries --slice eval/benchmark/corpus_slice.json \
         --out eval/benchmark/queries.json
 """
@@ -43,6 +60,19 @@ LOGGER = logging.getLogger("generate_queries")
 # The ONLY fields build_neutral_bundle may read off a document. Any description
 # arm is forbidden grounding — see the module docstring (F1).
 FORBIDDEN_ARM_FIELDS = frozenset(DESCRIPTION_SOURCE_FIELDS.values())
+
+# The fields every neutral-bundle caller fetches, here and in judge_qrels. This
+# allowlist is what actually enforces F1: a document that never carries an arm
+# field cannot yield a bundle containing one. Shared rather than duplicated per
+# call site, so widening it for one stage cannot silently widen only that stage.
+NEUTRAL_SOURCE_FIELDS = ("title", "profiler_metadata", "spatial_coverage")
+
+# Fail at import if the two ever overlap, rather than at the end of a run.
+assert not (set(NEUTRAL_SOURCE_FIELDS) & FORBIDDEN_ARM_FIELDS), (
+    "the neutral fetch allowlist must not contain a description-arm field: "
+    f"{sorted(set(NEUTRAL_SOURCE_FIELDS) & FORBIDDEN_ARM_FIELDS)}"
+)
+
 SAMPLE_CHARS = 1500
 
 QUERY_CLASSES = ("keyword", "nl_requesting", "nl_describing", "nl_implying")
@@ -94,26 +124,26 @@ def build_neutral_bundle(doc: dict, sample: str | None) -> dict:
     ``build_profile_text`` recomputes the profile from raw ``profiler_metadata``,
     so even though the ``profile_only`` arm holds the same facts, this reads the
     metadata — not the arm field. No ``DESCRIPTION_SOURCE_FIELDS`` value is touched.
+
+    Enforcing F1 here, at the door, is deliberately stricter than "no arm prose
+    ends up in the bundle": the document must not carry an arm field *at all*. A
+    caller holding a full OpenSearch document has to strip it rather than trust
+    this function to read only certain keys — "reads only three keys" is a
+    property of the current body, not of the contract, and a fourth key is a
+    one-line change away.
     """
+    present = sorted(FORBIDDEN_ARM_FIELDS & doc.keys())
+    if present:
+        raise AssertionError(
+            f"non-neutral document: carries description-arm field(s) {present}. "
+            f"Fetch with _source=NEUTRAL_SOURCE_FIELDS ({list(NEUTRAL_SOURCE_FIELDS)}) "
+            "or strip the arm fields before building a neutral bundle."
+        )
     return {
         "title": doc.get("title") or "",
         "profile": build_profile_text(doc),
         "sample": (sample or "")[:SAMPLE_CHARS],
     }
-
-
-def assert_no_arm_leak(bundle: dict, doc: dict) -> None:
-    """Invariant (F1): no arm's stored prose may appear in the neutral bundle."""
-    blob = json.dumps(bundle, ensure_ascii=False)
-    for field in FORBIDDEN_ARM_FIELDS:
-        if field == "description":
-            continue  # 'description' is the ORIGINAL arm; never read here either,
-            # but its text can coincide with facts — we assert on generated arms.
-        val = doc.get(field)
-        if val and isinstance(val, str) and val.strip() and val.strip() in blob:
-            raise AssertionError(
-                f"Arm field {field!r} leaked into the neutral query-generation bundle"
-            )
 
 
 def _parse_json(text: str) -> dict:
@@ -125,7 +155,6 @@ def _parse_json(text: str) -> dict:
 
 def generate_for_dataset(client, doc: dict, sample: str | None) -> list[dict]:
     bundle = build_neutral_bundle(doc, sample)
-    assert_no_arm_leak(bundle, doc)
     prompt = PROMPT.format(title=bundle["title"], profile=bundle["profile"],
                            sample=bundle["sample"] or "(no sample available)")
     parsed = _parse_json(complete(client, prompt, temperature=0.0))
@@ -166,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     for i, dataset_id in enumerate(ids, 1):
         doc = os_client.get(
             index=AUCTUS_INDEX_NAME, id=dataset_id,
-            _source=["title", "profiler_metadata", "spatial_coverage"],
+            _source=list(NEUTRAL_SOURCE_FIELDS),
         ).get("_source") or {}
         record = load_full_profile(storage_client, dataset_id) if storage_client else None
         sample = record.get("sample") if isinstance(record, dict) else None
