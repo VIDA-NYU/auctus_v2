@@ -36,6 +36,7 @@ from storage.opensearch_client import (
     DESCRIPTION_SOURCE_FIELDS,
     get_client,
 )
+from eval.provenance import code_version
 from eval.retrieval_eval import metric_ndcg
 
 ARMS = list(DESCRIPTION_SOURCE_FIELDS)
@@ -157,6 +158,7 @@ def main(argv: list[str] | None = None) -> int:
     k_sens.pop("per_query", None)
 
     report = {
+        "code_version": code_version(),
         "index": AUCTUS_INDEX_NAME,
         "k": args.k,
         "controls": {"title_boost": 0, "operator": "or", "retrieval": "deterministic BM25"},
@@ -170,6 +172,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.per_query_out:
         pq_report = {
+            "code_version": report["code_version"],
             "index": AUCTUS_INDEX_NAME,
             "k": args.k,
             "queries_source": args.queries,

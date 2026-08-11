@@ -33,6 +33,7 @@ from pathlib import Path
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
 from eval.backfill_descriptions import load_full_profile
 from eval.generate_queries import NEUTRAL_SOURCE_FIELDS, build_neutral_bundle
+from eval.provenance import code_version
 from eval.llm_client import (
     LLM_MODEL, MODEL_LAB, complete_verbose, get_llm_client, supports_temperature,
     temperature_pinned,
@@ -213,6 +214,7 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({
+        "code_version": code_version(),
         "_provenance": "PROVISIONAL LLM-judge BINARY qrels (un-calibrated on NYC); "
                        "anti-leakage guard: judge saw title+profile+sample only, "
                        "never any description arm.",

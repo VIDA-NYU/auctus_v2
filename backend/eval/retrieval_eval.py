@@ -62,12 +62,13 @@ import argparse
 import datetime as _dt
 import json
 import math
-import subprocess
 import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any, Iterable
+
+from eval.provenance import code_version
 
 # --- NDCG: reuse autoddg's implementation when available, else identical fallback ---
 try:  # pragma: no cover - depends on environment
@@ -401,19 +402,14 @@ def print_report(results: dict[str, Any], sources: list[str], metrics: list[str]
 
 
 def git_sha() -> str | None:
-    try:
-        return (
-            subprocess.run(
-                ["git", "rev-parse", "--short", "HEAD"],
-                capture_output=True,
-                text=True,
-                cwd=Path(__file__).parent,
-                timeout=5,
-            ).stdout.strip()
-            or None
-        )
-    except Exception:
-        return None
+    """This harness's own commit. Kept so older result files stay comparable.
+
+    Delegates to the shared helper rather than shelling out again: it resolves
+    both repositories the pipeline spans, and this one previously read only the
+    checkout containing *this file*, which is the wrong one under the symlinked
+    layout — see ``eval/provenance.py``.
+    """
+    return code_version()["eval"]["commit"]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -538,6 +534,7 @@ def main(argv: list[str] | None = None) -> int:
             "operator": args.operator,
             "title_boost": args.title_boost,
             "git_sha": git_sha(),
+            "code_version": code_version(),
             "preflight": preflight_report,
         },
         **results,

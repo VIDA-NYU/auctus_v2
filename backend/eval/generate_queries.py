@@ -53,6 +53,7 @@ from storage.opensearch_client import (
 )
 from eval.backfill_descriptions import load_full_profile
 from eval.llm_client import complete, get_llm_client
+from eval.provenance import code_version
 from storage.minio_client import get_storage_client
 
 LOGGER = logging.getLogger("generate_queries")
@@ -212,8 +213,10 @@ def main(argv: list[str] | None = None) -> int:
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps({"queries": all_queries}, ensure_ascii=False, indent=2),
-                   encoding="utf-8")
+    out.write_text(
+        json.dumps({"code_version": code_version(), "queries": all_queries},
+                   ensure_ascii=False, indent=2),
+        encoding="utf-8")
     by_class: dict[str, int] = {}
     by_facet: dict[str, int] = {}
     for q in all_queries:

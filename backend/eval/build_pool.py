@@ -27,6 +27,7 @@ import logging
 from pathlib import Path
 
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
+from eval.provenance import code_version
 
 LOGGER = logging.getLogger("build_pool")
 
@@ -119,6 +120,7 @@ def build_pool(os_client, queries: list[dict], k: int) -> dict:
             "pool": pooled,
         })
     return {
+        "code_version": code_version(),
         "index": AUCTUS_INDEX_NAME,
         "k_per_retriever": k,
         "bm25_fields": list(BM25_FIELDS),
