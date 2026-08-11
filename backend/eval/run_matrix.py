@@ -19,6 +19,9 @@ knob, noted but not run here. All numbers are PROVISIONAL (LLM-judged).
 
     python -m eval.run_matrix --queries eval/benchmark/queries.json \
         --qrels eval/benchmark/qrels.json --out eval/benchmark/matrix.json
+
+Pass ``--per-query-out`` to additionally dump the individual (query, arm)
+scores behind the aggregates, for arm x query-type interaction analysis.
 """
 
 from __future__ import annotations
@@ -61,7 +64,16 @@ def _mean(xs: list[float]) -> float:
 
 
 def run(os_client, queries: list[dict], qrels: dict[str, dict], k: int):
-    """Return per-arm NDCG aggregates, keyed overall / by class / by facet."""
+    """Return per-arm NDCG aggregates, keyed overall / by class / by facet.
+
+    Also returns ``per_query``: the individual (query, arm) scores the
+    aggregates are built from. These are the same floats that get averaged --
+    collected here rather than recomputed downstream, so a dump and the
+    aggregates cannot drift apart. ``facet`` is carried through verbatim,
+    including multi-label strings; folding them (e.g. into a "composite"
+    bucket) is an analysis-time choice and is deliberately not applied here.
+    Writing them out is the caller's decision; this function does no I/O.
+    """
     def grades_of(qid: str) -> dict[str, int]:
         return qrels.get(qid, {})
 
@@ -69,6 +81,7 @@ def run(os_client, queries: list[dict], qrels: dict[str, dict], k: int):
     overall = {a: [] for a in ARMS}
     by_class = {a: {c: [] for c in QUERY_CLASSES} for a in ARMS}
     by_facet: dict[str, dict[str, list]] = {a: {} for a in ARMS}
+    per_query: list[dict] = []
     scored = skipped = 0
     for q in queries:
         grades = grades_of(q["query_id"])
@@ -76,6 +89,7 @@ def run(os_client, queries: list[dict], qrels: dict[str, dict], k: int):
             skipped += 1
             continue  # no positive judgment -> cannot discriminate arms
         scored += 1
+        n_relevant = sum(1 for v in grades.values() if v > 0)
         for a in ARMS:
             ranked = search_arm(os_client, DESCRIPTION_SOURCE_FIELDS[a], q["text"], k)
             s = ndcg_for(ranked, grades, k)
@@ -83,12 +97,21 @@ def run(os_client, queries: list[dict], qrels: dict[str, dict], k: int):
             if q["query_class"] in by_class[a]:
                 by_class[a][q["query_class"]].append(s)
             by_facet[a].setdefault(q["facet"], []).append(s)
+            per_query.append({
+                "query_id": q["query_id"],
+                "arm": a,
+                "facet": q["facet"],
+                "query_class": q["query_class"],
+                "ndcg": s,
+                "n_relevant": n_relevant,
+            })
     return {
         "scored_queries": scored,
         "skipped_no_positive": skipped,
         "overall": {a: _mean(overall[a]) for a in ARMS},
         "by_class": {a: {c: _mean(by_class[a][c]) for c in QUERY_CLASSES} for a in ARMS},
         "by_facet": {a: {f: _mean(v) for f, v in by_facet[a].items()} for a in ARMS},
+        "per_query": per_query,
     }
 
 
@@ -109,6 +132,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--qrels", default="eval/benchmark/qrels.json")
     parser.add_argument("--out", default="eval/benchmark/matrix.json")
     parser.add_argument("--k", type=int, default=10)
+    parser.add_argument(
+        "--per-query-out",
+        help="Optional path for the per-(query, arm) NDCG dump at the primary k. "
+             "No default on purpose: a default path could resolve onto an "
+             "existing artifact, so a frozen run can only be overwritten by "
+             "naming it explicitly. Omit to leave behavior unchanged.",
+    )
     args = parser.parse_args(argv)
 
     queries = json.loads(Path(args.queries).read_text(encoding="utf-8"))["queries"]
@@ -118,6 +148,13 @@ def main(argv: list[str] | None = None) -> int:
     os_client = get_client()
     binary = run(os_client, queries, qrels, args.k)
     k_sens = run(os_client, queries, qrels, 5)
+
+    # Keep the per-query records out of the aggregate artifact: `binary` is
+    # embedded wholesale below, and the aggregate file must stay byte-identical
+    # to what the pre-change code produced. Only the primary-k records are
+    # exportable -- the k=5 call exists solely for overall sensitivity.
+    per_query = binary.pop("per_query")
+    k_sens.pop("per_query", None)
 
     report = {
         "index": AUCTUS_INDEX_NAME,
@@ -131,6 +168,24 @@ def main(argv: list[str] | None = None) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    if args.per_query_out:
+        pq_report = {
+            "index": AUCTUS_INDEX_NAME,
+            "k": args.k,
+            "queries_source": args.queries,
+            "qrels_source": args.qrels,
+            "controls": report["controls"],
+            "provenance": report["provenance"],
+            "facet_note": "facet is the raw queries-file value; multi-label "
+                          "strings are NOT folded into a composite bucket here.",
+            "scored_queries": binary["scored_queries"],
+            "records": per_query,
+        }
+        pq_out = Path(args.per_query_out)
+        pq_out.parent.mkdir(parents=True, exist_ok=True)
+        pq_out.write_text(json.dumps(pq_report, ensure_ascii=False, indent=2),
+                          encoding="utf-8")
+
     _print_matrix(f"BINARY NDCG@{args.k}", binary)
     print("\nBINARY overall ordering:",
           " > ".join(f"{a}={binary['overall'][a]:.3f}"
@@ -141,6 +196,8 @@ def main(argv: list[str] | None = None) -> int:
     for f in facets:
         print(f.ljust(20) + "".join(f"{binary['by_facet'][a].get(f,0):.3f}".rjust(11) for a in ARMS))
     print(f"\n-> {out}")
+    if args.per_query_out:
+        print(f"-> {args.per_query_out}  ({len(per_query)} per-query records)")
     return 0
 
 
