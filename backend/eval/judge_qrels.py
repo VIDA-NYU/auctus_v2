@@ -53,7 +53,12 @@ related, or its columns/coverage contain what the query asks for).
 - 0 = not relevant.
 
 Judge on the data itself (columns, coverage, sample) — a dataset whose columns \
-contain what the query asks for is relevant even if the wording differs.
+contain what the query asks for is relevant even if the wording differs. But a \
+shared column name or field type is not enough on its own: check that the \
+candidate's row-level entity actually matches the query's subject. (Example: a \
+driver-license roster and a vehicle-license roster can share columns like \
+"License Number, Expiration Date" while licensing two different things — that \
+shared shape does not make one relevant to a query about the other.)
 
 When a query names a time period, a candidate is relevant on temporal grounds \
 only if its subject matches what the query asks for AND its temporal coverage \
@@ -68,6 +73,13 @@ temporal_coverage range at all, that is missing information, not a failed \
 match: do not reject the candidate for an unconfirmed period. Instead, judge \
 it on subject match alone, exactly as you would for a query that named no \
 time period at all.
+
+When a query names a place, a candidate is relevant on spatial grounds only \
+if its subject matches what the query asks for AND its spatial coverage \
+includes that place — spatial coverage alone, without a matching subject, is \
+not sufficient. A dataset whose records are situated in the queried place but \
+whose subject is something else is NOT relevant. Latitude/longitude/address \
+columns cannot substitute for a subject match.
 
 Return STRICT JSON mapping each dataset number to its label, e.g. \
 {{"1": 1, "2": 0, "3": 1}}. No prose outside the JSON.
