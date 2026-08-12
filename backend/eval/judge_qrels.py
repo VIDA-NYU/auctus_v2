@@ -55,6 +55,20 @@ related, or its columns/coverage contain what the query asks for).
 Judge on the data itself (columns, coverage, sample) — a dataset whose columns \
 contain what the query asks for is relevant even if the wording differs.
 
+When a query names a time period, a candidate is relevant on temporal grounds \
+only if its subject matches what the query asks for AND its temporal coverage \
+includes that period — temporal coverage alone, without a matching subject, is \
+not sufficient. "Temporal coverage" means an explicit computed date range \
+reported in the profile (a temporal_coverage field) — not the mere presence \
+of a date-type column (e.g. an ARREST_DATE field), and not words in the title \
+such as "historic", "archive", "current", or a specific year. Column names \
+and title wording are NOT coverage evidence — do not use them to guess what \
+period a candidate covers. If a candidate's profile reports no \
+temporal_coverage range at all, that is missing information, not a failed \
+match: do not reject the candidate for an unconfirmed period. Instead, judge \
+it on subject match alone, exactly as you would for a query that named no \
+time period at all.
+
 Return STRICT JSON mapping each dataset number to its label, e.g. \
 {{"1": 1, "2": 0, "3": 1}}. No prose outside the JSON.
 
