@@ -39,24 +39,49 @@ def _git(args: list[str], cwd: Path) -> str | None:
     return done.stdout.strip() or None
 
 
+def _dirty(cwd: Path) -> bool | None:
+    """True / False / None — modified, clean, or undeterminable.
+
+    This does not go through ``_git``, deliberately. ``_git`` ends in
+    ``stdout.strip() or None``, which is right for ``rev-parse`` — an empty
+    answer there is meaningless — and wrong here, where empty output is the
+    *informative* case: it is exactly what a clean tree prints. Borrowing that
+    convention collapsed "clean" and "unknown" onto the same value, which left
+    the flag able to warn but never to reassure.
+
+    ``--untracked-files=no``: an untracked scratch directory beside the checkout
+    does not make the recorded commit differ from the code that ran.
+    """
+    try:
+        done = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=_TIMEOUT,
+        )
+    except Exception:
+        return None
+    if done.returncode != 0:
+        return None
+    return bool(done.stdout.strip())
+
+
 def _repo_version(cwd: Path) -> dict:
     """commit / branch / dirty for the checkout containing ``cwd``.
 
     ``dirty`` is not merely informational: a commit id read off a modified tree
     names code that was not the code that ran, so recording the id without the
-    flag would assert a reproducibility the artifact cannot support. It stays
-    ``None`` when the commit is unknown, rather than defaulting to False.
+    flag would assert a reproducibility the artifact cannot support. It is
+    three-valued and the three are kept distinguishable — True (modified),
+    False (clean, so the commit *is* the code that ran), None (undeterminable,
+    or the commit itself is unknown).
     """
     commit = _git(["rev-parse", "--short", "HEAD"], cwd)
     if commit is None:
         return {"commit": None, "branch": None, "dirty": None}
     branch = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd)
-    status = _git(["status", "--porcelain", "--untracked-files=no"], cwd)
-    return {
-        "commit": commit,
-        "branch": branch,
-        "dirty": None if status is None else bool(status),
-    }
+    return {"commit": commit, "branch": branch, "dirty": _dirty(cwd)}
 
 
 def _storage_dir() -> Path | None:

@@ -70,6 +70,25 @@ def test_dirty_is_a_bool_whenever_a_commit_was_found() -> None:
             assert isinstance(entry["dirty"], bool), (name, entry)
 
 
+def test_clean_and_unknown_are_different_values() -> None:
+    """The flag must be able to reassure, not only to warn.
+
+    ``dirty`` was previously routed through ``_git``, whose ``stdout.strip() or
+    None`` convention made a clean tree (empty ``git status`` output) and a
+    failed git call indistinguishable — both ``None``. A reader of an artifact
+    then could not tell "this commit is the code that ran" from "no idea".
+
+    Asserted structurally rather than by demanding ``False`` here, since the
+    working tree this runs in may legitimately be modified: inside a real
+    checkout the answer is decisive either way, outside one it is None.
+    """
+    inside = provenance._dirty(Path(__file__).resolve().parent)
+    assert isinstance(inside, bool), inside
+
+    outside = provenance._dirty(Path("/"))
+    assert outside is None, outside
+
+
 def test_every_offline_writer_imports_it() -> None:
     """The four artifact writers must all record it, not just some.
 
@@ -89,6 +108,7 @@ def main() -> int:
     test_missing_repository_yields_nulls_not_an_exception()
     test_absent_git_yields_nulls_not_an_exception()
     test_dirty_is_a_bool_whenever_a_commit_was_found()
+    test_clean_and_unknown_are_different_values()
     test_every_offline_writer_imports_it()
     print("OK: artifacts name both repositories' code versions")
     return 0
