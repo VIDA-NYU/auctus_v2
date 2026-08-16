@@ -142,7 +142,7 @@ MAX_COLUMNS_IN_PROFILE = 80        # cap how many columns we emit at all
 # Meaning-bearing fields kept for every column regardless of table width.
 _COLUMN_CORE_FIELDS = ("name", "structural_type", "semantic_types")
 # Numeric stats kept only for narrow tables (where prompt budget allows detail).
-_COLUMN_STAT_FIELDS = ("num_distinct_values", "mean", "std", "min", "max")
+_COLUMN_STAT_FIELDS = ("num_distinct_values", "mean", "stddev", "min", "max")
 
 
 def _temporal_interval(temporal_coverage: Any) -> dict[str, str] | None:
