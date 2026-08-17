@@ -153,6 +153,58 @@ def test_gate_fields_survive_into_the_indexed_document() -> None:
     assert profile["spatial_coverage"]["bbox"] == record["spatial_coverage"]["bbox"]
 
 
+def test_coverage_reaches_the_rendered_profile() -> None:
+    """`coverage` is exactly what §1b's value-span sub-type needs to ground a
+    query, and it used to be trimmed out before indexing (isolate_search_payload)
+    and dropped from the render on any wide table (build_profile_text's former
+    width gate). Guards both: the committed sample record's Latitude/Longitude
+    columns carry real multi-range coverage from the profiler.
+    """
+    record = json.loads(
+        (Path(__file__).resolve().parents[1] / "catalog_record.json").read_text()
+    )
+    indexed = isolate_search_payload(record)
+    profile = json.loads(build_profile_text(indexed))
+
+    by_name = {col["name"]: col for col in profile["columns"] if "name" in col}
+    assert by_name["Latitude"]["coverage"] == record["profiler_metadata"]["columns"][
+        next(i for i, c in enumerate(record["profiler_metadata"]["columns"]) if c["name"] == "Latitude")
+    ]["coverage"]
+    # Multi-range shape survives, not flattened to a single min/max.
+    assert len(by_name["Latitude"]["coverage"]) > 1, by_name["Latitude"]["coverage"]
+
+
+def test_coverage_reaches_wide_tables_too() -> None:
+    """The width gate that used to drop STAT fields (coverage, num_distinct_values,
+    mean, stddev) on tables >= 40 columns is gone (design.md D3, 2026-08-16). A
+    synthetic 40-column table must render coverage on its numeric column exactly
+    like a narrow table would — this is the direct regression guard for the gate
+    not quietly coming back.
+    """
+    columns = [
+        {"name": f"col_{i}", "structural_type": "http://schema.org/Text"}
+        for i in range(39)
+    ]
+    columns.append({
+        "name": "Measurement",
+        "structural_type": "http://schema.org/Float",
+        "num_distinct_values": 42,
+        "coverage": [{"range": {"gte": 0.0, "lte": 100.0}}],
+    })
+    record = {
+        "profiler_metadata": {
+            "nb_rows": 1000,
+            "nb_columns": 40,
+            "types": ["numerical"],
+            "columns": columns,
+        }
+    }
+    profile = json.loads(build_profile_text(record))
+    by_name = {col["name"]: col for col in profile["columns"] if "name" in col}
+    assert by_name["Measurement"]["coverage"] == [{"range": {"gte": 0.0, "lte": 100.0}}]
+    assert by_name["Measurement"]["num_distinct_values"] == 42
+
+
 def test_merge_leaves_the_profilers_column_counts_alone() -> None:
     """The committed sample record is the case the old predicate got wrong.
 
@@ -186,5 +238,7 @@ if __name__ == "__main__":
     test_both_range_shapes_are_accepted()
     test_malformed_temporal_coverage_is_ignored_not_crashed_on()
     test_gate_fields_survive_into_the_indexed_document()
+    test_coverage_reaches_the_rendered_profile()
+    test_coverage_reaches_wide_tables_too()
     test_merge_leaves_the_profilers_column_counts_alone()
     print("OK: the profile only claims what the dataset's own data supports")

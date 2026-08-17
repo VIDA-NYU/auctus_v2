@@ -20,6 +20,8 @@ from storage.minio_client import get_storage_client, upload_heavy_profile
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
 from run_pipeline_ingest import (
     DEFAULT_FALLBACK_BBOX,
+    _COLUMN_CORE_FIELDS,
+    _COLUMN_STAT_FIELDS,
     apply_socrata_timestamp,
     isolate_search_payload,
     load_runtime_config,
@@ -133,16 +135,11 @@ def get_autoddg():
     return _autoddg
 
 
-# --- Adaptive profile-trimming thresholds (see "docs/Profiler_metadata — Field Reference.md") ---
-# Wide tables blow up the AutoDDG prompt and dilute it with per-column noise, so the
-# wider the table the less we keep per column. These are deterministic, no LLM.
-WIDE_TABLE_COLUMN_THRESHOLD = 40   # at/above this, drop numeric stats per column
-MAX_COLUMNS_IN_PROFILE = 80        # cap how many columns we emit at all
-
-# Meaning-bearing fields kept for every column regardless of table width.
-_COLUMN_CORE_FIELDS = ("name", "structural_type", "semantic_types")
-# Numeric stats kept only for narrow tables (where prompt budget allows detail).
-_COLUMN_STAT_FIELDS = ("num_distinct_values", "mean", "stddev", "min", "max")
+# --- Profile-rendering caps (see "docs/Profiler_metadata — Field Reference.md") ---
+# _COLUMN_CORE_FIELDS / _COLUMN_STAT_FIELDS live in run_pipeline_ingest.py (imported
+# above) — the single definition isolate_search_payload's indexing trim also reads,
+# so the indexed copy and the rendered profile cannot drift out of step.
+MAX_COLUMNS_IN_PROFILE = 80        # cap how many columns we emit at all, any width
 
 
 def _temporal_interval(temporal_coverage: Any) -> dict[str, str] | None:
@@ -218,10 +215,13 @@ def build_profile_text(record: dict[str, Any]) -> str:
     spatial coverage is readable as "this dataset has no geography" instead of
     being indistinguishable from a portal-wide placeholder.
 
-    The per-column detail is *adaptive* to table width: narrow tables keep full
-    numeric stats, wide tables keep only the core meaning-bearing fields and cap
-    the number of columns, so the prompt stays focused on wide datasets. The
-    keep/drop rules and thresholds are documented in
+    Every column gets the same field set (CORE + STAT, including `coverage`)
+    regardless of table width — there is no longer a width-based narrowing here;
+    a wide table's numeric columns are exactly as groundable for a value-span
+    query as a narrow table's (profile-enrichment-coverage-distinct design.md D3,
+    2026-08-16, superseding the narrower-tier version of this docstring). The
+    only cap left is MAX_COLUMNS_IN_PROFILE, which limits how many columns are
+    emitted at all, independent of width. Keep/drop rules are documented in
     "docs/Profiler_metadata — Field Reference.md".
     """
     pm = record.get("profiler_metadata")
@@ -234,10 +234,7 @@ def build_profile_text(record: dict[str, Any]) -> str:
             profile[key] = pm[key]
 
     columns = [col for col in (pm.get("columns") or []) if isinstance(col, dict)]
-    # Decide per-column detail by table width: wide tables -> core fields only.
-    n_columns = pm.get("nb_columns") or len(columns)
-    is_wide = isinstance(n_columns, int) and n_columns >= WIDE_TABLE_COLUMN_THRESHOLD
-    kept_fields = _COLUMN_CORE_FIELDS if is_wide else _COLUMN_CORE_FIELDS + _COLUMN_STAT_FIELDS
+    kept_fields = _COLUMN_CORE_FIELDS + _COLUMN_STAT_FIELDS
 
     trimmed_columns: list[dict[str, Any]] = []
     for col in columns[:MAX_COLUMNS_IN_PROFILE]:

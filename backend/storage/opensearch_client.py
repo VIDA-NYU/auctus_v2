@@ -163,6 +163,13 @@ DATASETS_MAPPING = {
                     "attribute_keywords": {"type": "text", "analyzer": "standard"},
                     "columns": {
                         "type": "nested",
+                        # Unmapped column keys stay readable in _source but create no
+                        # dynamic mapping, rather than silently becoming one in a shape
+                        # nobody chose (profile-enrichment-coverage-distinct design.md
+                        # D5, 2026-08-16). `strict` was considered and rejected: it
+                        # would fail the whole document on a harmless extra profiler
+                        # key rather than just not indexing it.
+                        "dynamic": False,
                         "properties": {
                             # text for full-text matching, .raw for exact aggregations
                             "name": {"type": "text", "fields": {"raw": {"type": "keyword"}}},
@@ -171,6 +178,15 @@ DATASETS_MAPPING = {
                             "mean": {"type": "float"},
                             "stddev": {"type": "float"},
                             "plot": {"type": "object", "enabled": False},
+                            # Stored, not indexed: nothing queries per-column numeric
+                            # ranges, only build_profile_text() reads it back via
+                            # _source (design.md D1). min/max deliberately have no
+                            # mapping entries — they never occur in a stored profile
+                            # (only computed on a route the crawler doesn't use), so
+                            # mapping them would document a field the pipeline never
+                            # produces.
+                            "coverage": {"type": "object", "enabled": False},
+                            "num_distinct_values": {"type": "long"},
                         },
                     },
                 },

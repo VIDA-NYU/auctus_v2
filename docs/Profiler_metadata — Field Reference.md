@@ -14,8 +14,9 @@ else is simply left out, never explicitly deleted. So "fields we drop" below mea
 before the description is generated; implementation: `build_profile_text()` in
 [`backend/storage/arq_worker.py`](../backend/storage/arq_worker.py).
 
-> The per-column detail is **adaptive to table width** (see "Adaptive trimming
-> rule" below); it is no longer a single fixed allowlist for every dataset.
+> The per-column field set is the same for every dataset regardless of table
+> width (see "Column cap" below for the one remaining width-independent limit —
+> how many columns are emitted at all).
 
 ## Fields we feed to AutoDDG
 
@@ -59,11 +60,13 @@ Per-column (`columns[]`) — the core signal. For each column:
 
 | Field | Kept when | Why |
 |---|---|---|
-| `name` | always (core) | The column name (e.g. Facility Name). |
-| `structural_type` | always (core) | Storage type (e.g. http://schema.org/Text, integer, date). |
-| `semantic_types` | always (core) | Meaning, when detected (e.g. latitude, city name). |
-| `num_distinct_values` | narrow tables only | Cardinality (categorical columns). |
-| `mean`, `std`, `min`, `max` | narrow tables only | Numeric stats; present only for numerical columns. Help the description state real ranges instead of guessing. |
+| `name` | always | The column name (e.g. Facility Name). |
+| `structural_type` | always | Storage type (e.g. http://schema.org/Text, integer, date). |
+| `semantic_types` | always | Meaning, when detected (e.g. latitude, city name). |
+| `num_distinct_values` | always, when the profiler computed it | Cardinality (categorical columns). |
+| `mean`, `stddev` | always, when the profiler computed it | Numeric stats for numerical columns. |
+| `coverage` | always, when the profiler computed it | The profiler's own numeric range(s) for the column — up to three disjoint `{"range": {"gte": ..., "lte": ...}}` entries, not flattened to a single min/max (a single span would cover gaps the data doesn't have). Grounds a value-span query ("salaries between $30k-$80k") in a range the data actually contains. |
+| `min`, `max` | in the allowlist, but **never occurs in a stored profile** | Only computed on a profiling route the crawler does not use. Kept in the allowlist for forward-compatibility; do not rely on it being present. |
 
 ## Fields we drop
 
@@ -88,43 +91,37 @@ Per-column (`columns[]`) — the core signal. For each column:
 - `_profiling_times` — how long each profiling step took. Purely operational.
 - `column_indexes` (inside spatial coverage) — internal positional indexes.
 
-## Adaptive trimming rule (by table width)
+## Column cap
 
-The per-column detail adapts to how wide the table is, because wide tables would
-otherwise produce an enormous, noisy profile:
+Every column gets the same field set regardless of table width — there was
+previously a width-based rule that dropped numeric stats (including `coverage`)
+on tables at or above 40 columns; it was removed 2026-08-16
+(`profile-enrichment-coverage-distinct`, design.md D3) because it made §1b's
+value-span query sub-type structurally ungroundable on ~29% of the corpus. The
+trade-off it existed to manage — wide tables producing a longer profile — is now
+accepted rather than designed around; see that change's Risks section for the
+current, unresolved status of that trade-off.
 
-| Condition | Per-column fields emitted | Column cap |
-|---|---|---|
-| `nb_columns < WIDE_TABLE_COLUMN_THRESHOLD` (narrow) | core **+** numeric stats | `MAX_COLUMNS_IN_PROFILE` |
-| `nb_columns >= WIDE_TABLE_COLUMN_THRESHOLD` (wide) | core only | `MAX_COLUMNS_IN_PROFILE` |
+One cap remains, independent of width:
 
-Current thresholds (module-level constants in `arq_worker.py`, tune there):
+- `MAX_COLUMNS_IN_PROFILE = 80` (module-level constant in `arq_worker.py`) —
+  when a table has more columns than this, only the first `MAX_COLUMNS_IN_PROFILE`
+  are emitted and a `columns_truncated` marker (`{shown, total}`) is added so the
+  LLM knows the schema is partial and does not over-claim coverage.
 
-- `WIDE_TABLE_COLUMN_THRESHOLD = 40`
-- `MAX_COLUMNS_IN_PROFILE = 80`
-
-When the table has more columns than `MAX_COLUMNS_IN_PROFILE`, only the first
-`MAX_COLUMNS_IN_PROFILE` are emitted and a `columns_truncated` marker
-(`{shown, total}`) is added so the LLM knows the schema is partial and does not
-over-claim coverage.
-
-### Rationale for the thresholds
-
-- **40 columns** is roughly where the per-column numeric stats start to dominate the
-  prompt without proportionally improving the description. Above it, the column
-  names + types + semantic types alone already convey the schema; exact numeric
-  ranges per column add bulk with diminishing returns.
-- **80 columns** caps truly wide tables (the AutoDDG benchmarks contain tables with
-  hundreds of columns) so a single dataset can't crowd out the rest of the prompt.
-
-These are starting points; adjust as we evaluate description quality on real data.
+Measured rendered `profile_only` length on two real datasets (acceptance check,
+2026-08-16): 2,478 characters for a 14-column table (2 columns with `coverage`),
+7,130 characters for a 44-column table (6 columns with `coverage`). Both are
+comfortably within normal prompt budgets; neither is close to
+`MAX_COLUMNS_IN_PROFILE`. A table with many more numeric-measurement columns than
+either of these has not yet been observed.
 
 ## Notes on variability
 
 The top-level schema is consistent across datasets, but field **contents** vary:
 
-- `columns[]` differs per dataset; numeric columns add mean/std/min/max,
-  categorical columns add num_distinct_values, spatial columns add coverage.
+- `columns[]` differs per dataset; numeric columns add `mean`/`stddev`/`coverage`,
+  categorical columns add `num_distinct_values`.
 - Datasets with no spatial columns may have empty/absent
   `spatial_coverage` / `spatial_bbox`.
 - If profiling hits an edge case, `columns` can be empty and an error field

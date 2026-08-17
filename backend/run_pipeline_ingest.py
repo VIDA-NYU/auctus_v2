@@ -115,6 +115,19 @@ async def discover_datasets_for_provider(provider_type: str, domain_url: str, ma
 	return []
 
 
+# Per-column fields the profile renderer (storage.arq_worker.build_profile_text)
+# can consume. Single source of truth for both the indexing trim below and the
+# renderer — imported by arq_worker.py rather than restated there, so the two
+# cannot drift (see openspec/changes/profile-enrichment-coverage-distinct).
+# Meaning-bearing fields kept for every column.
+_COLUMN_CORE_FIELDS = ("name", "structural_type", "semantic_types")
+# Numeric stats. `coverage` and `num_distinct_values` are always present in a
+# stored profile; `min`/`max` never are (only computed on a route the crawler
+# doesn't use) but are kept in the tuple since removing them is a separate
+# question this change does not open.
+_COLUMN_STAT_FIELDS = ("num_distinct_values", "mean", "stddev", "min", "max", "coverage")
+
+
 def isolate_search_payload(comprehensive_record: dict[str, Any]) -> dict[str, Any]:
 	"""Trim a full catalog record down to fields that are efficient for search indexing."""
 	payload = copy.deepcopy(comprehensive_record)
@@ -129,10 +142,16 @@ def isolate_search_payload(comprehensive_record: dict[str, Any]) -> dict[str, An
 	if isinstance(profiler_metadata, dict):
 		columns = profiler_metadata.get("columns")
 		if isinstance(columns, list):
+			# Widened unconditionally to every field the renderer can consume (CORE +
+			# STAT) regardless of table width — bulk fields (plot, sample, geohash
+			# grids) stay excluded. build_profile_text() no longer applies its own
+			# width-based narrowing on top of this (profile-enrichment-coverage-distinct
+			# design.md D3), so the two are not doing the same job at different tiers.
+			kept_fields = _COLUMN_CORE_FIELDS + _COLUMN_STAT_FIELDS
 			profiler_metadata["columns"] = [
 				{
 					key: column[key]
-					for key in ("name", "structural_type", "semantic_types")
+					for key in kept_fields
 					if key in column
 				}
 				for column in columns
