@@ -43,12 +43,14 @@ GEMINI_FLASH = "@vertexai/gemini-2.5-flash"
 GPT5_MINI = "@gpt-5-mini/gpt-5-mini"
 CLAUDE_HAIKU = "@vertexai/anthropic.claude-haiku-4-5@20251001"
 CLAUDE_SONNET = "@vertexai/anthropic.claude-sonnet-4-6"
+DEEPSEEK_V3 = "@bedrock/deepseek.v3.2"  # judge panel seat, settled 2026-08-16
 
 MODEL_LAB = {
     GEMINI_FLASH: "Google",
     GPT5_MINI: "OpenAI",
     CLAUDE_HAIKU: "Anthropic",
     CLAUDE_SONNET: "Anthropic",
+    DEEPSEEK_V3: "DeepSeek",  # @bedrock/ is hosting; lineage follows the lab
 }
 
 # Per-model call quirks, verified against the gateway.

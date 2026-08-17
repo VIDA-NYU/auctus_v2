@@ -1,9 +1,16 @@
 """Inter-judge agreement over a shared judgment pool.
 
-Reports pairwise Cohen's kappa plus each judge's positive rate. The positive
-rate is not decoration: kappa collapses toward 0 when one class dominates, so a
-low kappa on a heavily imbalanced pool must not be read as "the judges disagree
-wildly" without seeing the marginals.
+Reports pairwise quadratic-weighted Cohen's kappa (over grades {0, 1, 2}) plus
+each judge's grade distribution. The distribution is not decoration: kappa
+collapses toward 0 when one class dominates, so a low kappa on a heavily
+imbalanced pool must not be read as "the judges disagree wildly" without
+seeing the marginals. Weighted kappa also means a 0-vs-2 split costs more than
+a 0-vs-1 or 1-vs-2 split (quadratic weights), which plain agreement/disagreement
+counting cannot express.
+
+A graded round's dispute count is NOT comparable to a binary round's: three
+grades admit more ways to differ than two, so a higher raw dispute count does
+not by itself mean the judges agree less than they did under the old scale.
 
 Agreement measures CONSISTENCY, not correctness. Human calibration is a separate,
 gated phase — nothing here licenses calling any judge right.
@@ -28,17 +35,30 @@ def load_judge(path: Path) -> dict:
     data = json.loads(path.read_text(encoding="utf-8"))
     judge = data.get("judge") or {}
     labels: dict[str, dict[str, int]] = {}
+    # unverified/text captured for every query, succeeded or failed -- a
+    # failed query still has a query_id/text worth carrying (e.g. for the
+    # merge writer, which needs text regardless of whether either judge
+    # actually produced grades for it).
+    unverified: dict[str, set[str]] = {}
+    text: dict[str, str] = {}
     failed: set[str] = set()
     for q in data["queries"]:
+        text[q["query_id"]] = q.get("text", "")
         if q.get("judge_failed"):
             failed.add(q["query_id"])
             continue
         labels[q["query_id"]] = {k: int(v) for k, v in (q.get("relevant") or {}).items()}
+        # Older (pre-judge-graded-qrels) qrels files carry no "unverified"
+        # key at all -- .get() defaults to empty rather than erroring, so
+        # this loader stays usable on binary-round files too.
+        unverified[q["query_id"]] = set(q.get("unverified") or [])
     return {
         "name": judge.get("model") or path.stem,
         "lab": judge.get("lab", "unknown"),
         "temperature_pinned": judge.get("temperature_pinned",
                                         judge.get("deterministic")),
+        "text": text,
+        "unverified": unverified,
         # Set on any judge that also authored material under test; such a judge
         # is a contrast, never an input to a merged label set.
         "role_conflict": judge.get("role_conflict"),
@@ -48,28 +68,64 @@ def load_judge(path: Path) -> dict:
     }
 
 
+GRADES = (0, 1, 2)
+
+
 def vectorise(judge: dict, pool: dict, query_ids: list[str]) -> list[int]:
-    """Flatten to one 0/1 label per pooled (query, dataset) pair."""
+    """Flatten to one 0/1/2 grade per pooled (query, dataset) pair.
+
+    Absent-as-0 is the stated qrels convention (D5, judge-graded-qrels
+    design.md): a query that succeeded graded every pooled dataset, so a
+    dataset missing from ``relevant`` was judged 0, not left unjudged.
+    """
     out: list[int] = []
     for qid in query_ids:
         relevant = judge["labels"][qid]
         for dataset_id in pool[qid]:
-            out.append(1 if relevant.get(dataset_id, 0) > 0 else 0)
+            out.append(int(relevant.get(dataset_id, 0)))
     return out
 
 
-def cohens_kappa(a: list[int], b: list[int]) -> float:
+def weighted_kappa(a: list[int], b: list[int], grades: tuple[int, ...] = GRADES) -> float:
+    """Quadratic-weighted Cohen's kappa over an ordinal scale.
+
+    Unlike plain kappa (exact-match agreement only), a weighted kappa charges
+    a 0-vs-2 disagreement more than a 0-vs-1 or 1-vs-2 one — the right notion
+    of "how much do two judges disagree" once the scale has an order, not just
+    distinct categories. Quadratic weights (as opposed to linear) are the
+    standard choice for ordinal agreement (Cohen 1968).
+
+    Degenerate cases (n=0, or expected agreement pe=1 i.e. both judges
+    constant and identical) return NaN, same guard as the binary version.
+    """
     n = len(a)
     if n == 0:
         return float("nan")
-    agree = sum(1 for x, y in zip(a, b) if x == y)
-    po = agree / n
-    pe = 0.0
-    for label in (0, 1):
-        pe += (a.count(label) / n) * (b.count(label) / n)
-    if pe == 1.0:  # both judges constant and identical — kappa undefined
+    k = len(grades)
+    idx = {g: i for i, g in enumerate(grades)}
+    # weight[i][j] = (i-j)^2 / (k-1)^2, so the max disagreement (0 vs k-1) is
+    # weighted 1.0 and exact agreement is weighted 0.0.
+    denom = (k - 1) ** 2
+    weight = [[((i - j) ** 2) / denom for j in range(k)] for i in range(k)]
+
+    observed = [[0] * k for _ in range(k)]
+    for x, y in zip(a, b):
+        observed[idx[x]][idx[y]] += 1
+    row_marg = [sum(observed[i]) for i in range(k)]
+    col_marg = [sum(observed[i][j] for i in range(k)) for j in range(k)]
+
+    po = sum(weight[i][j] * observed[i][j] for i in range(k) for j in range(k)) / n
+    pe = sum(weight[i][j] * row_marg[i] * col_marg[j] for i in range(k) for j in range(k)) / (n * n)
+    if pe == 0.0:
+        # Both judges used one constant grade, and the same one (the only way
+        # the weighted-expected-disagreement can be exactly 0) — 0/0,
+        # undefined, same as the unweighted version's pe==1.0 guard.
         return float("nan")
-    return (po - pe) / (1 - pe)
+    return 1.0 - (po / pe)
+
+
+def grade_distribution(v: list[int], grades: tuple[int, ...] = GRADES) -> dict[int, int]:
+    return {g: v.count(g) for g in grades}
 
 
 def write_agreement_subset(judges: list[dict], pool: dict, query_ids: list[str],
@@ -100,16 +156,22 @@ def write_agreement_subset(judges: list[dict], pool: dict, query_ids: list[str],
     for qid in query_ids:
         agreed: dict[str, int] = {}
         for dataset_id in pool[qid]:
-            la = 1 if a["labels"][qid].get(dataset_id, 0) > 0 else 0
-            lb = 1 if b["labels"][qid].get(dataset_id, 0) > 0 else 0
+            la = int(a["labels"][qid].get(dataset_id, 0))
+            lb = int(b["labels"][qid].get(dataset_id, 0))
+            # Disputed = grades differ by >=1 (the only kind of difference two
+            # integers can have) — same effective test as the binary round's
+            # exact-match check, now over {0,1,2} instead of {0,1}. Recorded
+            # with its magnitude (0-vs-2 is a bigger split than 0-vs-1) since
+            # that distinction didn't exist under binary.
             if la == lb:
                 n_agreed += 1
                 if la > 0:
-                    agreed[dataset_id] = 1
+                    agreed[dataset_id] = la
             else:
                 n_disputed += 1
                 disagreements.append({"query_id": qid, "dataset_id": dataset_id,
-                                      a["name"]: la, b["name"]: lb})
+                                      a["name"]: la, b["name"]: lb,
+                                      "diff": abs(la - lb)})
         out_queries.append({"query_id": qid, "relevant_agreed": agreed})
 
     report = {
@@ -120,6 +182,10 @@ def write_agreement_subset(judges: list[dict], pool: dict, query_ids: list[str],
                          "'relevant_agreed', not 'relevant'.",
         "_purpose": "Human-annotation targeting: the disputed pairs below are "
                     "where human labels buy the most.",
+        "_dispute_count_note": "Not comparable to a binary round's dispute count "
+                               "— three grades admit more ways to differ than "
+                               "two, so a higher count here does not mean less "
+                               "agreement than a prior binary run.",
         "judges": [{"model": j["name"], "lab": j["lab"], "qrels": j["path"]}
                    for j in judges],
         "queries_covered": len(out_queries),
@@ -134,6 +200,8 @@ def write_agreement_subset(judges: list[dict], pool: dict, query_ids: list[str],
     print(f"  agreed {n_agreed} pairs, disputed {n_disputed} "
           f"({n_disputed / max(1, n_agreed + n_disputed):.1%}) — "
           f"NOT scorable, for human annotation only")
+    print("  NOTE: this dispute count is not comparable to a binary round's — "
+          "grades {0,1,2} admit more ways to differ than {0,1}.")
     return report
 
 
@@ -168,19 +236,20 @@ def main(argv: list[str] | None = None) -> int:
     vectors = {j["name"]: vectorise(j, pool, query_ids) for j in judges}
     n_pairs = len(next(iter(vectors.values()))) if vectors else 0
 
-    print(f"\nPositive rate over {n_pairs} pooled pairs:")
-    marginals = {}
+    print(f"\nGrade distribution over {n_pairs} pooled pairs:")
+    distributions = {}
     for j in judges:
         v = vectors[j["name"]]
-        rate = (sum(v) / len(v)) if v else float("nan")
-        marginals[j["name"]] = rate
+        dist = grade_distribution(v)
+        distributions[j["name"]] = dist
+        shares = "  ".join(f"{g}={dist[g]/len(v):.1%}" if v else f"{g}=n/a" for g in GRADES)
         det = "" if j["temperature_pinned"] in (None, True) else "  [temp unpinned]"
-        print(f"  {j['name']:52s} {rate:6.1%}  ({j['lab']}){det}")
+        print(f"  {j['name']:52s} {shares}  ({j['lab']}){det}")
 
-    print("\nPairwise Cohen's kappa:")
+    print("\nPairwise quadratic-weighted kappa (over grades {0,1,2}):")
     pairs = []
     for a, b in itertools.combinations(judges, 2):
-        k = cohens_kappa(vectors[a["name"]], vectors[b["name"]])
+        k = weighted_kappa(vectors[a["name"]], vectors[b["name"]])
         same_lab = a["lab"] == b["lab"] and a["lab"] != "unknown"
         note = "  (same lab)" if same_lab else ""
         print(f"  {a['name']:40s} x {b['name']:40s}  kappa={k:.3f}{note}")
@@ -188,17 +257,21 @@ def main(argv: list[str] | None = None) -> int:
 
     print("\nNOTE: kappa is inter-judge consistency, NOT agreement with human "
           "ground truth. Human calibration remains a separate, gated phase.")
+    print("NOTE: not comparable to a binary round's kappa or dispute count — "
+          "three grades admit more ways to differ than two.")
 
     if args.out:
         report = {
-            "_note": "Inter-judge consistency only; not validated against humans.",
+            "_note": "Inter-judge consistency only; not validated against humans. "
+                     "Grade distribution / weighted kappa are not comparable to "
+                     "a binary round's positive rate / kappa.",
             "pool": args.pool,
             "comparable_queries": len(query_ids),
             "excluded_queries": excluded,
             "pooled_pairs": n_pairs,
             "judges": [{"model": j["name"], "lab": j["lab"],
                         "temperature_pinned": j["temperature_pinned"],
-                        "positive_rate": marginals[j["name"]],
+                        "grade_distribution": distributions[j["name"]],
                         "failed_queries": sorted(j["failed"]),
                         "qrels": j["path"]} for j in judges],
             "pairwise_kappa": pairs,
