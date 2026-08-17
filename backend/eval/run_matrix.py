@@ -43,15 +43,28 @@ ARMS = list(DESCRIPTION_SOURCE_FIELDS)
 QUERY_CLASSES = ("keyword", "nl_requesting", "nl_describing", "nl_implying")
 
 
-def search_arm(os_client, arm_field: str, text: str, k: int) -> list[str]:
-    """Rank dataset ids by BM25 on the arm field ONLY (title excluded)."""
+def field_scores(
+    os_client, field: str, text: str, size: int, operator: str = "or"
+) -> dict[str, float]:
+    """Single-field BM25 scores, id -> score, in the order OpenSearch returns
+    them (score descending). The one place that builds this query shape --
+    `search_arm` and `eval/three_channel_retrieval.py`'s BM25 channels both
+    go through this rather than each constructing their own `match` body, so
+    a change to how the field is queried can't drift out of step between the
+    two paths silently (see three-channel-retrieval-scores tasks.md 5.1/5.2:
+    that drift is exactly what a stale second copy produced before)."""
     resp = os_client.search(
         index=AUCTUS_INDEX_NAME,
-        body={"query": {"match": {arm_field: {"query": text, "operator": "or"}}},
+        body={"query": {"match": {field: {"query": text, "operator": operator}}},
               "_source": False},
-        size=k,
+        size=size,
     )
-    return [h["_id"] for h in resp["hits"]["hits"]]
+    return {h["_id"]: h["_score"] for h in resp["hits"]["hits"]}
+
+
+def search_arm(os_client, arm_field: str, text: str, k: int) -> list[str]:
+    """Rank dataset ids by BM25 on the arm field ONLY (title excluded)."""
+    return list(field_scores(os_client, arm_field, text, k, operator="or"))
 
 
 def ndcg_for(ranked: list[str], grades: dict[str, int], k: int) -> float:
