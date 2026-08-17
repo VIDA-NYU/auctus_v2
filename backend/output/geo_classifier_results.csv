@@ -683,3 +683,297 @@ x_sp,"['1027431.148', '1034455.701', '1001822.831']",x_coord
 council district,"['29', '19', '34']",borough_code
 bin,"['4052307', '4101931', '3338310']",bin
 Geo Place Name,"['Kingsbridge - Riverdale', 'Northeast Bronx', 'Fordham - Bronx Pk']",borough
+PRIMARY_ADDRESS_LINE_1,"['333 EAST  4 STREET', '185 1 AVENUE', '166 ESSEX STREET']",address
+STATE_CODE,['NY'],state_code
+X_COORDINATE,"['990141', '988547', '988044']",x_coord
+Y_COORDINATE,"['202349', '205239', '202068']",y_coord
+COMMUNITY_DISTRICT,"['103', '102', '108']",borough_code
+COUNCIL_DISTRICT,"['2', '1', '3']",borough_code
+GEOGRAPHICAL_DISTRICT_CODE,"['1', '2', '3']",borough_code
+ADMINISTRATIVE_DISTRICT_NAME,"['COMMUNITY SCHOOL DISTRICT 01', 'COMMUNITY SCHOOL DISTRICT 02', 'COMMUNITY SCHOOL DISTRICT 03']",borough
+validated_borough,"['Bronx', 'Brooklyn', 'Manhattan']",borough
+unverified_borough,"['Bronx', 'Brooklyn', 'Manhattan']",borough
+latitude,"['40.802977', '40.764912', '40.785958']",latitude
+longitude,"['-73.95353', '-73.95955', '-73.951808']",longitude
+owner,"['City Owned', 'City Leased']",city
+street,"['West  115 Street', 'East   67 Street', 'East   96 Street']",address
+city,"['New York', 'Bronx', 'Staten Island']",city
+postcode,"['10026', '10065', '10128']",zip5
+borough,"['Manhattan', 'Bronx', 'Staten Island']",borough
+bin,"['1055236', '1044749', '1048501']",bin
+num_floors,"['3', '4', '2']",borough_code
+council district,"['9', '5', '4']",borough_code
+nta,"['Central Harlem South', 'Lenox Hill-Roosevelt Island', 'Upper East Side-Carnegie Hill']",borough
+target_neighborhood,"['Y', 'N']",city
+From New York State Source,"['158', '42896', '292']",state
+Location,"['SS - IFO 1420 E/S Grand Concourse, 1st SS S/O E 171st St, 20""', 'SS - N/S Dewey Ave, btw Quincy & Swinton Aves, 12""', 'SS - N/S Jefferson Avenue, 2nd SS W/O Lewis Avenue, 20""']",address
+BBL,"['1-1268-1102', '1-4-1010', '1-16-150']",bbl
+Borough,['Manhattan'],borough
+Building Name,"['666 Fifth Avenue', 'One New York Plaza', '250 Vesey Street']",address
+Street Address,"['666 5 AVENUE', '1 WATER STREET', '250 VESEY PLACE']",address
+Diverse Riser Locations,"['Yes', 'Does not have two or more diverse riser locations']",address
+Latitude,"['40.760549', '40.702444', '40.711537']",latitude
+Longitude,"['-73.976421', '-74.012742', '-74.015673']",longitude
+BIN,"['1034520', '1000005', '1000058']",bin
+NTA,"['Midtown-Midtown South', 'Battery Park City-Lower Manhattan', 'Murray Hill-Kips Bay']",borough
+Postcode,"['10103', '10004', '10280']",zip5
+Council District,"['4', '1', '3']",borough_code
+borocode,"['X', 'M', 'Q']",borough_code
+primary_address_line_1,"['800 EAST GUN HILL ROAD', '122 AMSTERDAM AVENUE', '121-10 ROCKAWAY BOULEVARD']",address
+city,"['BRONX', 'MANHATTAN', 'SOUTH OZONE PARK']",city
+state_code,['NY'],state_code
+postcode,"['10467', '10023', '11420']",zip5
+subway,"['2, 5 to Gun Hill Rd', '1 to 66th St-Lincoln Center; 2, 3 to 72nd St; A, C, B, D to 59th St-Columbus Circle', '1 to 191st St; A to 190th St']",address
+psal_sports_coed,"['Double Dutch', 'Cricket', 'Golf']",country
+girls,['1'],borough_code
+boys,['1'],borough_code
+seats9ge6,"['25', '29', '33']",latitude
+Borough,"['BRONX', 'MANHATTAN', 'QUEENS']",borough
+Latitude,"['40.875953', '40.774351', '40.675771']",latitude
+Longitude,"['-73.86197', '-73.984753', '-73.816938']",longitude
+Council District,"['12', '6', '28']",borough_code
+BIN,"['2057045', '1030343', '4253607']",bin
+Location1,"['POINT (-73.86197 40.875953)', 'POINT (-73.984753 40.774351)', 'POINT (-73.816938 40.675771)']",point
+Project Address,"['157-10/156-20\nRiverside Drive West, New York, New York', '443 West 135th Street, New York, NY, 10031', '220 East 106th Street, New York, NY 10029']",address
+Postcode,"['10031', '10029', '10024']",zip5
+Borough,['Manhattan'],borough
+Latitude,"['40.818188', '40.791238', '40.781312']",latitude
+Longitude,"['-73.950356', '-73.943908', '-73.972254']",longitude
+BIN,"['1059409', '1052428', '1083846']",bin
+NTA,"['Manhattanville', 'East Harlem South', 'Upper West Side']",borough
+BORO_NM,"['STATEN ISLAND', 'BROOKLYN', 'QUEENS']",borough
+HOUSING_PSA,"['42004', '252', '1291']",zip5
+PATROL_BORO,"['PATROL BORO STATEN ISLAND', 'PATROL BORO BKLYN SOUTH', 'PATROL BORO QUEENS SOUTH']",borough
+TRANSIT_DISTRICT,"['34', '23']",borough_code
+X_COORD_CD,"['934887', '935052', '939698']",x_coord
+Y_COORD_CD,"['131256', '133094', '139876']",y_coord
+Latitude,"['40.526814', '40.531862', '40.5505']",latitude
+Longitude,"['-74.177565', '-74.176985', '-74.160315']",longitude
+New Georeferenced Column,"['POINT (-74.177565 40.526814)', 'POINT (-74.176985 40.531862)', 'POINT (-74.160315 40.5505)']",point
+BOROUGH,"['Manhattan', 'Bronx', 'Brooklyn']",borough
+PROGRAM,"['FEDERAL', 'FORMER NEW YORK STATE', 'FORMER NEW YORK CITY']",state
+Residents 4 to 5,"['5492', '358', '293']",borough_code
+Residents 14 to 17,"['19501', '1351', '991']",address
+Residents 18 to 20,"['14427', '1057', '723']",address
+Street,"['JACKSON AVENUE', 'LINDEN PLACE', '19 AVENUE']",address
+City,"['Long Island City', 'Flushing', 'Brooklyn']",city
+State,['NY'],state_code
+Borough,"['Queens', 'Brooklyn', 'Bronx']",borough
+ZipCode,"['11101', '11354', '11214']",zip5
+LATITUDE,"['40.747941', '40.770178', '40.611476']",latitude
+LONGITUDE,"['-73.940079', '-73.832924', '-73.994677']",longitude
+BIN,"['4005127', '4100749', '3160923']",bin
+BOROCODE,"['4', '3', '2']",borough_code
+NEIGHBORHOOD,"['AIRPORT LA GUARDIA', 'ARVERNE', 'ASTORIA']",city
+num_trips,"['4', '61', '53']",borough_code
+race_1,"['0', '1']",borough_code
+race_3,"['0', '1']",borough_code
+race_4,"['0', '1']",borough_code
+race_5,"['0', '1']",borough_code
+ethnicity_1,"['0', '1']",borough_code
+ethnicity_2,"['0', '1']",borough_code
+ethnicity_3,"['1', '0']",borough_code
+ethnicity_4,"['0', '1']",borough_code
+ethnicity_5,"['1', '0']",borough_code
+work_county,"['36061', '36081', '36005']",zip5
+no_bike_nyc_1,"['995', '0', '1']",borough_code
+no_bike_nyc_2,"['995', '0', '1']",borough_code
+no_bike_nyc_3,"['995', '0', '1']",borough_code
+no_bike_nyc_4,"['995', '0', '1']",borough_code
+no_bike_nyc_5,"['995', '0', '1']",borough_code
+no_bike_nyc_6,"['995', '0', '1']",borough_code
+City Funds,"['1106', '1100', '1098']",city
+District,"['1', '2', '3']",borough_code
+Address,"['333 East 4th Street', '185 1st Avenue', '166 Essex Street']",address
+Postcode,"['10009', '10003', '10002']",zip5
+Borough,"['MANHATTAN', 'BRONX', 'BROOKLYN']",borough
+Latitude,"['40.721791', '40.729636', '40.72154']",latitude
+Longitude,"['-73.978986', '-73.983818', '-73.986648']",longitude
+Council District,"['2', '1', '3']",borough_code
+BIN,"['1004415', '1006478', '1004325']",bin
+State of Registration,['NY'],state_code
+Street Address,"['28 West 25th Street', '167 West 89th Street', '325 3rd Avenue']",address
+Borough,"['Manhattan', 'New York', 'Brooklyn']",borough
+Postcode,"['10010', '10024', '10017']",zip5
+Latitude,"['40.743416', '40.78917', '40.739682']",latitude
+Longitude,"['-73.990083', '-73.972525', '-73.98252']",longitude
+Council District ,"['3', '6', '2']",borough_code
+BIN,"['1080687', '1081050', '1019784']",bin
+Borough,"['Bronx', 'Brooklyn', 'Manhattan']",borough
+Development,"['1010 East 178th Street', '104-14 Tapscott Street', '1162-1176 Washington Avenue']",address
+Council District,"['1', '2', '3']",borough_code
+Registration State,"['NY', 'MA', '99']",state_code
+Street Name,"['E 112TH ST', 'E 100TH ST', '1ST AVE']",address
+Intersecting Street,"['10 ST', '15TH ST', 'N/O RANDALL AVE']",address
+Unregistered Vehicle?,['0'],country
+ADMINISTRATIVE DISTRICT,"['1', '2', '3']",borough_code
+Borough,"['Bronx', 'Manhattan']",borough
+BoroughName,"['Queens', 'Brooklyn', 'Manhattan']",borough
+city_agency,"['DOHMH', 'DEP', 'PEU']",city
+park_borough,"['Brooklyn', 'Queens', 'Manhattan']",borough
+TruckState,"['GA', 'PA', 'NJ']",state_code
+TrailerState,"['GA', 'PA', 'NJ']",state_code
+StartStreetAddress,"['26-01 Ulmer st', '400 Walnut Street', '47TH ST & MADISON AVE']",address
+StartCity,"['Flushing', 'Bronx', 'MANHATTAN']",city
+StartState,['NY'],state_code
+StartZipCode,"['11354', '10454', '10017']",zip5
+EndStreetAddress,"['1288 Herkimer st', '120 Schermerhorn', '47TH ST & MADISON AVE']",address
+EndCity,"['Brooklyn', 'New York', 'MANHATTAN']",city
+EndState,['NY'],state_code
+EndZipCode,"['11233', '11201', '22222']",zip5
+On Street,"['Dawson Street', 'Home St', 'Bogart St']",address
+To Street,"['Longwood Ave', 'Southern Blvd', 'Flushing Ave']",address
+the_geom,"['MULTIPOLYGON (((-74.08100100007205 40.63708100001727, -74.08232099994294 40.636349000355644, -74.08379399991477 40.63579199986794, -74.08515199964269 40.636349000030435, -74.08483099945983 40.636741999683466, -74.08542599960774 40.636638999946975, -74.08585400000766 40.63668100018461, -74.08715800030568 40.637679999872354, -74.08759299959117 40.63824799959347, -74.0874180001038 40.63914100015735, -74.08643300036657 40.64297899968616, -74.08663900047928 40.643951000448624, -74.08892099952865 40.64675100023088, -74.08734900001015 40.64762099974518, -74.08651000022758 40.64652999957313, -74.08573900024825 40.64683200024266, -74.08445000048107 40.64675899983898, -74.08128400040745 40.646029999937745, -74.07890299953684 40.642971000407535, -74.07823199956019 40.642239000403045, -74.07807899995441 40.64196000033007, -74.07778199970835 40.6416209996189, -74.07784299956684 40.641289000121276, -74.07694199989857 40.63777200039887, -74.07781999999273 40.638119000016246, -74.07852199979995 40.63830199994789, -74.07885700054258 40.638279000176595, -74.07906299945188 40.63820999963274, -74.0804369996508 40.63740199967137, -74.08044399999748 40.637398000071244, -74.0805890002412 40.6373289998186, -74.08093299987559 40.637279999602846, -74.0808939999421 40.63716500012841, -74.08100100007205 40.63708100001727)))', 'MULTIPOLYGON (((-73.86942458231836 40.749156869177575, -73.86968550926491 40.74961236198335, -73.87084215289002 40.75154471169357, -73.87179244187887 40.75332566967336, -73.8720704686952 40.75386200525498, -73.8727110000469 40.75502799976053, -73.87188583255904 40.75511354800125, -73.87099317582592 40.75520380096075, -73.8700830434721 40.755301500597966, -73.86916858653278 40.75539475764361, -73.86815019719812 40.755503845489635, -73.86713034503397 40.75561260747011, -73.86623774040446 40.75570572147661, -73.8653445357632 40.7557997481843, -73.86429755307825 40.755915756479936, -73.86339785770244 40.75599958292852, -73.86250537966028 40.756099162622654, -73.8616109035656 40.756188465431, -73.8607185203269 40.75628664461909, -73.86055700471788 40.75543815423083, -73.86042245576758 40.75464515838106, -73.86029001598048 40.753935487813145, -73.86023957813659 40.75360485064658, -73.85999430599813 40.753112255700124, -73.85958608711285 40.75232148307513, -73.85917841682945 40.751527286745315, -73.85876324878132 40.75071697140668, -73.85986299966251 40.75037800041345, -73.8611170723241 40.75002424586927, -73.86175071544201 40.749967591805806, -73.86272633497452 40.74986795589245, -73.86405819599422 40.74973109601633, -73.86655661056915 40.74946414912745, -73.8675141286424 40.74937570803689, -73.86845757605887 40.74926382073106, -73.86942458231836 40.749156869177575)))', 'MULTIPOLYGON (((-73.88713100050974 40.76488899996335, -73.88658900002495 40.76203899986565, -73.88623000006008 40.76060900016722, -73.88594799977055 40.75921999966695, -73.89106000045204 40.758700999865, -73.89437899964518 40.75840799999479, -73.89914699944524 40.75791900029329, -73.89897899963714 40.75901000006314, -73.89837600046546 40.75987199983524, -73.89740799976013 40.75997200024958, -73.89757500043225 40.76098999979811, -73.89701099979752 40.76179099964603, -73.89669799974942 40.76187100033574, -73.89672099986183 40.7620889999052, -73.89636200041564 40.76300000023276, -73.89521800055063 40.76393899974139, -73.89441699988524 40.76507899991049, -73.89405799984931 40.765469000382815, -73.89360800021461 40.7656899999759, -73.89279899941018 40.7657590004492, -73.88715400011445 40.76489999964631, -73.88713100050974 40.76488899996335)))']",multi-polygon
+address,"['119 95TH STREET', '62 EAST 79th STREET', '164 EAST 73rd STREET']",address
+Borough,"['Brooklyn', 'Manhattan', 'Queens']",borough
+applicant_address1,"['26 BROADWAY', '66 WYOMING AVENUE', '17 grosvenor street']",address
+applicant_address2,"['611 Broadway Suite 706', 'SUITE#954', 'Suite 1303']",address
+applicant_zip,"['10022', '10004', '11561']",zip5
+applicant_city,"['New York', 'NEW YORK', 'LONG BEACH']",city
+applicant_state,"['NY', 'NJ', 'OH']",state_code
+owner_address1,"['119 95th Street', '770 Lexington Avenue', '166 East 73rd Street']",address
+owner_address2,"['MANHATTAN AVE', 'Basement', '36th floor']",address
+owner_zip,"['11209', '10065', '10021']",zip5
+owner_city,"['Brooklyn', 'NEW YORK', 'Little Neck']",city
+owner_state,"['NY', 'NJ', 'OH']",state_code
+xCoordinate,"['973775', '995033', '1052503']",x_coord
+latitude,"['40.616744', '40.776017', '40.770848']",latitude
+longitude,"['-74.03773', '-73.961425', '-73.961117']",longitude
+Median Square Feet,"['850', '950', '886']",address
+District,"['1', '2', '3']",borough_code
+the_geom,"['POINT (-73.9662229434025 40.58072443841677)', 'POINT (-73.91346357493707 40.82396071841408)', 'POINT (-73.85464259798522 40.7424797328943)']",point
+BoroCode,"['3', '2', '4']",borough_code
+BoroName,"['Brooklyn', 'Bronx', 'Queens']",borough
+BoroCD,"['313', '203', '404']",borough_code
+Nearest_Add,"['359 Neptune Avenue', '406 E 161 Street', '53-04 108 Street']",address
+On_Street,"['Neptune Avenue', 'E 161 Street', '108 Street']",address
+To_Street,"['Brighton 3 Street', 'Elton Avenue', 'Martense Street']",address
+Side_of_St,"['N', 'S', 'W']",state_code
+Latitude,"['40.580733', '40.823969', '40.742488']",latitude
+Longitude,"['-73.966224', '-73.913465', '-73.854644']",longitude
+NTAName,"['Brighton Beach', 'Morrisania', 'Corona']",borough
+Street,"['BROADWAY', 'FULTON STREET', 'EAST 1ST STREET']",address
+Borough,"['MANHATTAN', 'BRONX', 'QUEENS']",borough
+Bin,"['1064985', '1001224', '3000000']",bin
+Borough Code,"['Q', 'M', 'S']",borough_code
+Location On Street,"['228 STREET', 'UNION TURNPIKE', 'VARICK STREET']",address
+Location From Street,"['145 AVENUE', 'LONG ISLAND RAILROAD', 'DOMINICK STREET']",address
+Location To Street,"['145 ROAD', 'MARGARET PLACE', 'SPRING STREET']",address
+Location Actual Protect Until,"['03/25/2030', '08/25/2030', '07/23/2030']",address
+Location Actual Lane Miles Paved,"['0.22', '0.19', '0.2']",address
+Location Actual Paving Square Yard,"['1380', '2080', '1410']",address
+Location WKT,"['LINESTRING (1053202.1894000024 180580.57799999416, 1053023.8498000056 180221.03479999304)', 'LINESTRING (1025074.0248000026 197034.6521999985, 1024530.2132000029 196805.07189999521, 1024514.1679999977 196798.63930000365, 1024343.0199999958 196730.02429999411, 1024303.7425999939 196714.27760000527, 1024191.7963999957 196668.54199999571, 1023848.9912 196519.25959999859)', 'LINESTRING (982616.10899999738 203423.08740000427, 982647.59520000219 203659.0286000073)']",line
+DISTRICT,"['1', '2', '3']",borough_code
+Applicant Address 2,"['9th Floor', '11th Floor', '18th Floor']",address
+Applicant City,"['Brooklyn', 'Bronx', 'New York']",city
+Applicant State,"['NY', 'FL', 'NJ']",state_code
+Project Borough,"['Manhattan', 'Bronx', 'Brooklyn']",borough
+Applicant Borough,"['BROOKLYN', 'BRONX', 'MANHATTAN']",borough
+Latitude,"['40.676465', '40.820317', '40.834233']",latitude
+Longitude,"['-73.990861', '-73.901366', '-73.941421']",longitude
+Council District,"['39', '17', '7']",borough_code
+BIN,"['3255167', '2005007', '1062764']",bin
+Event Location,"['34 W 134th Street', '715 Leonard Street', '175  Delancey street 4th floor']",address
+City,"['New York', 'BROOKLYN', 'FLUSHING']",city
+State,['NY'],state_code
+ZipCode,"['10037', '11222', '10002']",zip5
+Borough,"['Manhattan', 'BROOKLYN', 'QUEENS']",borough
+Latitude,"['40.812702', '40.729007', '40.717466']",latitude
+Longitude,"['-73.939645', '-73.95276', '-73.985004']",longitude
+Council District,"['9', '33', '1']",borough_code
+BIN,"['1083985', '3333076', '1089451']",bin
+Primary Boro Identifier,"['3', '2', '1']",borough_code
+Primary Borough Name,"['BROOKLYN', 'BRONX', 'MANHATTAN']",borough
+Primary Low House Number,"['1', '615', '1605']",address
+Primary High House Number,"['17', '621', '1615']",address
+Primary Street Name,"['LORRAINE STREET', 'EAST 105 STREET', 'EAST 174 STREET']",address
+Primary Postcode,"['11231', '11236', '10472']",zip5
+NYCHA Address Section BoroID,"['3', '2', '1']",address
+NYCHA Address Section Borough,"['BROOKLYN', 'BRONX', 'MANHATTAN']",borough
+NYCHA Address Section House Number,"['11', '105-12', '1609']",address
+NYCHA Address Section Street Name,"['LORRAINE STREET', 'FARRAGUT ROAD', 'EAST 174 STREET']",address
+NYCHA Address Section PostCode,"['11231', '11236', '10472']",address
+Latitude,"['40.675118', '40.650186', '40.833901']",latitude
+Longitude,"['-74.009568', '-73.897621', '-73.876512']",longitude
+Council District,"['38', '42', '17']",borough_code
+BIN,"['3326207', '3321415', '2092908']",bin
+ADDRESS,"['300 EAST 56TH STREET  SUITE 26H', '1370 CONEY ISLAND AVENUE', '60-68 69TH LANE']",address
+CITY,"['NEW YORK', 'BROOKLYN', 'MASPETH']",city
+STATE,"['NY', 'CT', 'PA']",state_code
+POSTCODE,"['10022', '11230', '11378']",zip5
+LATITUDE,"['40.758477', '40.624164', '40.721251']",latitude
+LONGITUDE,"['-73.965434', '-73.965068', '-73.889427']",longitude
+COUNCIL DISTRICT,"['5', '44', '30']",borough_code
+BIN,"['1039975', '3171272', '4063996']",bin
+NTA,"['Turtle Bay-East Midtown', 'Midwood', 'Middle Village']",borough
+District,['27'],borough_code
+Boro,['QUEENS'],borough
+Borough,['4'],borough_code
+Postcode,"['11104', '11106', '11373']",zip5
+Latitude,"['40.746741', '40.765584', '40.734349']",latitude
+Longitude,"['-73.921764', '-73.926139', '-73.865897']",longitude
+Council District,"['26', '22', '25']",borough_code
+BIN,"['4001835', '4311892', '4433108']",bin
+QUEENS CONDOMINIUM PROPERTY Neighborhood,"['SUNNYSIDE', 'FLUSHING-NORTH', 'ASTORIA']",borough
+COMPARABLE RENTAL 1  Neighborhood,"['SUNNYSIDE', 'FLUSHING-NORTH', 'ASTORIA']",address
+COMPARABLE RENTAL 1 Full Market Value,"['2920000', '3970000', '1270000']",address
+Building Address,"['512 West 212th St [Shorac Kappock School]', '232 East 103rd St [Roberto Clemente School]', '549 Audubon Ave [George Washington High School?]']",address
+Borough,"['1', '2', '3']",borough_code
+Postcode,"['10034', '10029', '10040']",zip5
+Latitude,"['40.867826', '40.788952', '40.855954']",latitude
+Longitude,"['-73.917059', '-73.944538', '-73.927051']",longitude
+Council District,"['10', '8', '2']",borough_code
+BIN,"['1064871', '1052384', '1076751']",bin
+NTA,"['Marble Hill-Inwood', 'East Harlem South', 'Washington Heights North']",borough
+Borough,"['Bronx', 'Brooklyn', 'Manhattan']",borough
+OID,"['1', '2', '3']",borough_code
+ADMINISTRATIVE DISTRICT,"['1', '2', '3']",borough_code
+District,['20'],borough_code
+Boro,['BROOKLYN'],borough
+OID,"['1', '2', '3']",borough_code
+Borough Name,"['Brooklyn', 'Manhattan', 'Queens']",borough
+Latitude,"['40.57278', '40.57267', '40.57266']",latitude
+Longitude,"['-73.98563', '-73.98562', '-73.98575']",longitude
+Address,"['37-43 77th Street, 2nd Floor', '500 West 159th Street', '1616 Newkirk Ave']",address
+City,"['Jackson Heights', 'New York', 'Brooklyn']",city
+State,['NY'],state_code
+Postcode,"['11372', '10032', '11226']",zip5
+Borough,"['QUEENS', 'MANHATTAN', 'BROOKLYN']",borough
+Latitude,"['40.747993', '40.834279', '40.63604']",latitude
+Longitude,"['-73.888827', '-73.941537', '-73.962241']",longitude
+Council District,"['25', '7', '40']",borough_code
+BIN,"['4029909', '1062764', '3121203']",bin
+Borough,"['Queens', 'Manhattan', 'Brooklyn']",borough
+Council District,"['26', '31', '3']",borough_code
+Street Address,"['52-19 QUEENS BOULEVARD', '138-02 FARMERS BOULEVARD', '715 8 AVENUE']",address
+Cross Street 1,"['53rd Street', '138TH AVENUE', 'WEST 45 STREET']",address
+Cross Street 2,"['52nd Street', '139TH ROAD', 'WEST 44 STREET']",address
+Postcode,"['11377', '11434', '10036']",zip5
+Latitude,"['40.742636', '40.672663', '40.759107']",latitude
+Longitude,"['-73.912044', '-73.764196', '-73.988579']",longitude
+Building Identification Number (BIN),"['1024992', '1016976', '3000483']",bin
+Borough-Block-Lot (BBL),"['4125820031', '1010350036', '1008600065']",bbl
+City,"['BROOKLYN', 'BRONX', 'NEW YORK']",city
+State,['NY'],state_code
+ZIP Code,"['11208', '10454', '11207']",zip5
+Borough,"['Brooklyn', 'Bronx', 'Manhattan']",borough
+Street Address,"['651 East 183rd Street', '1761 Southern Boulevard', '1942 Marmion Avenue']",address
+Borough,"['Bronx', 'Brooklyn', 'New York']",borough
+"Zip 
+Code","['10458', '10460', '10459']",zip5
+Latitude,"['40.852568', '40.837267', '40.842942']",latitude
+Longitude,"['-73.887484', '-73.888016', '-73.887136']",longitude
+Council District,"['15', '17', '8']",borough_code
+BIN,"['2012464', '2009878', '2010156']",bin
+Zip Code,"['10300', '10335', '10360']",zip5
+Borough,"['Bronx', 'Brooklyn', 'Manhattan']",borough
+Crash Borough,"['Bronx', 'Brooklyn', 'Manhattan']",borough
+Latitude,"['40.858707', '40.87155', '40.823673']",latitude
+Longitude,"['-73.9037', '-73.86428', '-73.87233']",longitude
+On Street,"['JEROME AVENUE', 'BRONX RIVER PARKWAY', 'BOSTON ROAD']",address
+Cross Street,"['EAST 183 STREET', 'WALLACE AVENUE', 'DEKALB AVENUE']",address
+Address,"['3207       WALLACE AVENUE', '3007       3 AVENUE', '864        WESTCHESTER AVENUE']",address
+Council District,"['12', '17', '18']",borough_code
+Building Identification Number (BIN),"['2056281', '2001396', '2096474']",bin
+ZIP Code,"['11209', '10279', '10301']",zip5
+Borough,"['Brooklyn', 'Manhattan', 'Staten Island']",borough
