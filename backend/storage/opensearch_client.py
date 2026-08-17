@@ -98,6 +98,11 @@ DATASETS_MAPPING = {
             "id": {"type": "keyword"},
             "domain": {"type": "keyword"},
             "provider": {"type": "keyword"},
+            # Publishing agency, parsed from portal metadata at ingest time.
+            # Uncapped by design (corpus-resample-100-with-frame design.md D4):
+            # recorded so dispute rates can be broken down by agency, not to
+            # correct for concentration.
+            "agency": {"type": "keyword"},
             "embedding_metadata": {
                 "type": "object",
                 "properties": {
@@ -364,7 +369,11 @@ def init_db():
             try:
                 client.indices.put_mapping(
                     index=AUCTUS_INDEX_NAME,
-                    body={"properties": {"domain": {"type": "keyword"}, "provider": {"type": "keyword"}}},
+                    body={"properties": {
+                        "domain": {"type": "keyword"},
+                        "provider": {"type": "keyword"},
+                        "agency": {"type": "keyword"},
+                    }},
                 )
             except Exception as exc:
                 logger.debug("Could not update dataset index mapping with portal fields: %s", exc)

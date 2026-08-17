@@ -79,6 +79,9 @@ def _analyze(doc_id: str, src: dict) -> dict:
         "id": doc_id,
         "domain": src.get("domain"),
         "provider": src.get("provider"),
+        # None (not "") means the portal supplied no agency, distinct from a
+        # value that happens to be empty (design.md D4).
+        "agency": src.get("agency"),
         "title": src.get("title"),
         "nb_rows": nb_rows,
         "nb_columns": pm.get("nb_columns") or len(columns),
@@ -95,7 +98,7 @@ def build_slice(os_client, domains: list[str] | None) -> dict:
         query = {"terms": {"domain": domains}}
     resp = os_client.search(
         index=AUCTUS_INDEX_NAME,
-        body={"query": query, "_source": ["domain", "provider", "title", "description",
+        body={"query": query, "_source": ["domain", "provider", "agency", "title", "description",
                                           "profiler_metadata", *ARM_FIELDS.values()]},
         size=1000,
     )
@@ -120,11 +123,21 @@ def build_slice(os_client, domains: list[str] | None) -> dict:
         e["exclude_reasons"] = reasons
 
     included = [e for e in entries if e["included"]]
+
+    # Agency concentration, uncapped by design (design.md D4): reported so
+    # dispute rates can be broken down by agency, not corrected for here.
+    agency_counts: dict[str, int] = defaultdict(int)
+    for e in entries:
+        agency_counts[e["agency"] or "(no agency)"] += 1
+    top_agency_share = (max(agency_counts.values()) / len(entries)) if entries else 0.0
+
     return {
         "index": AUCTUS_INDEX_NAME,
         "total": len(entries),
         "included_count": len(included),
         "domains": sorted({e["domain"] for e in entries if e["domain"]}),
+        "agency_counts": dict(sorted(agency_counts.items(), key=lambda kv: kv[1], reverse=True)),
+        "top_agency_share": top_agency_share,
         "flag_summary": {
             k: sum(1 for e in entries if e["flags"].get(k))
             for k in ("empty_description", "short_description", "unnamed_columns",
@@ -150,6 +163,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Corpus slice: {manifest['included_count']}/{manifest['total']} included "
           f"across domains {manifest['domains']}")
     print(f"Flags: {manifest['flag_summary']}")
+    print(f"Top-agency share: {manifest['top_agency_share']:.3f} ({manifest['agency_counts']})")
     if manifest["near_duplicate_groups"]:
         print(f"Near-duplicate groups: {manifest['near_duplicate_groups']}")
     print(f"Manifest -> {out}")

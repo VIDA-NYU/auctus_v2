@@ -1,0 +1,116 @@
+{
+  "pulled_at": "2026-08-17T02:00:40Z",
+  "figures": {
+    "total": 2396,
+    "description_len_deciles": {
+      "p10": 50.0,
+      "p20": 87.0,
+      "p30": 138.0,
+      "p40": 209.0,
+      "p50": 303.5,
+      "p60": 384.0,
+      "p70": 477.9,
+      "p80": 650.6,
+      "p90": 936.6
+    },
+    "short_description_count": 414,
+    "short_description_share": 0.17278797996661102,
+    "categories": {
+      "Transportation": {
+        "count": 270,
+        "share": 0.11268781302170283,
+        "median_len": 372.0,
+        "short_share": 0.05185185185185185
+      },
+      "City Government": {
+        "count": 682,
+        "share": 0.2846410684474123,
+        "median_len": 308.0,
+        "short_share": 0.13636363636363635
+      },
+      "Housing & Development": {
+        "count": 177,
+        "share": 0.07387312186978297,
+        "median_len": 455,
+        "short_share": 0.03389830508474576
+      },
+      "Social Services": {
+        "count": 149,
+        "share": 0.06218697829716194,
+        "median_len": 326,
+        "short_share": 0.19463087248322147
+      },
+      "Public Safety": {
+        "count": 121,
+        "share": 0.0505008347245409,
+        "median_len": 318,
+        "short_share": 0.1322314049586777
+      },
+      "Health": {
+        "count": 70,
+        "share": 0.02921535893155259,
+        "median_len": 657.0,
+        "short_share": 0.014285714285714285
+      },
+      "Environment": {
+        "count": 142,
+        "share": 0.05926544240400668,
+        "median_len": 292.5,
+        "short_share": 0.1267605633802817
+      },
+      "Business": {
+        "count": 65,
+        "share": 0.02712854757929883,
+        "median_len": 274,
+        "short_share": 0.09230769230769231
+      },
+      "Education": {
+        "count": 582,
+        "share": 0.24290484140233723,
+        "median_len": 139.0,
+        "short_share": 0.35738831615120276
+      },
+      "Recreation": {
+        "count": 58,
+        "share": 0.024207011686143573,
+        "median_len": 310.5,
+        "short_share": 0.1206896551724138
+      },
+      "(uncategorized)": {
+        "count": 77,
+        "share": 0.03213689482470785,
+        "median_len": 360,
+        "short_share": 0.2077922077922078
+      },
+      "NYC BigApps": {
+        "count": 3,
+        "share": 0.0012520868113522537,
+        "median_len": 191,
+        "short_share": 0.0
+      }
+    }
+  },
+  "diff_vs_last_known": {
+    "short_description_share": {
+      "fresh": 0.17278797996661102,
+      "last_known": 0.173,
+      "delta": -0.00021202003338896547
+    },
+    "categories": {
+      "Education": {
+        "fresh": {
+          "count": 582,
+          "share": 0.24290484140233723,
+          "median_len": 139.0,
+          "short_share": 0.35738831615120276
+        },
+        "last_known": {
+          "count": 582,
+          "share": 0.243,
+          "median_len": 139,
+          "short_share": 0.357
+        }
+      }
+    }
+  }
+}

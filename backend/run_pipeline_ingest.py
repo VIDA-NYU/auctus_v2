@@ -266,6 +266,7 @@ def build_dataset_meta(
 	max_sample_bytes: int,
 	http_timeout_seconds: float,
 	socrata_updated_at: str | None,
+	agency: str | None = None,
 ) -> dict[str, Any]:
 	"""Build the payload handed to the ARQ worker."""
 	return {
@@ -277,6 +278,7 @@ def build_dataset_meta(
 		"max_sample_bytes": max_sample_bytes,
 		"http_timeout_seconds": http_timeout_seconds,
 		"socrata_updated_at": socrata_updated_at,
+		"agency": agency,
 	}
 
 

@@ -1,0 +1,988 @@
+{
+  "stage": "drawn_not_ingested",
+  "seed": 20260816,
+  "requested_n": 100,
+  "drawn_n": 100,
+  "targets": {
+    "category_targets": {
+      "Transportation": 11,
+      "City Government": 28,
+      "Housing & Development": 7,
+      "Social Services": 6,
+      "Public Safety": 5,
+      "Health": 3,
+      "Environment": 6,
+      "Business": 3,
+      "Education": 24,
+      "Recreation": 3,
+      "(uncategorized)": 3,
+      "NYC BigApps": 1
+    }
+  },
+  "realized": {
+    "category_counts": {
+      "Transportation": 11,
+      "City Government": 28,
+      "Housing & Development": 7,
+      "Social Services": 6,
+      "Public Safety": 5,
+      "Health": 3,
+      "Environment": 6,
+      "Business": 3,
+      "Education": 24,
+      "Recreation": 3,
+      "(uncategorized)": 3,
+      "NYC BigApps": 1
+    },
+    "short_description_count": 18,
+    "short_description_share": 0.18,
+    "top_agency_share": 0.25,
+    "agency_counts": {
+      "Department of Education (DOE)": 25,
+      "Department of Transportation (DOT)": 10,
+      "Office of Technology and Innovation (OTI)": 6,
+      "Department of Parks and Recreation (DPR)": 4,
+      "Department of Finance (DOF)": 4,
+      "(no agency)": 3,
+      "Department of Youth and Community Development (DYCD)": 3,
+      "Department of City Planning (DCP)": 3,
+      "Mayor's Office of Management and Budget (OMB)": 3,
+      "Mayor's Office of Climate and Environmental Justice (MOCEJ)": 3,
+      "Department of Finance": 2,
+      "Mayor's Office of Contract Services (MOCS)": 2,
+      "Department of Health and Mental Hygiene": 2,
+      "Department of Environmental Protection (DEP)": 2,
+      "Department of Consumer and Worker Protection (DCWP)": 2,
+      "Taxi and Limousine Commission (TLC)": 1,
+      "Mayor’s Office of Environmental Coordination (MOEC)": 1,
+      "Business Integrity Commission": 1,
+      "Conflicts of Interest Board (COIB)": 1,
+      "Department of Sanitation (DSNY)": 1,
+      "Department of Small Business Services": 1,
+      "Department of Citywide Services (DCAS)": 1,
+      "Mayor's Office of Operations (OPS)": 1,
+      "Brooklyn Borough President": 1,
+      "Independent Budget Office (IFO)": 1,
+      "New York City Housing Authority (NYCHA)": 1,
+      "Department of Housing Preservation and Development (HPD)": 1,
+      "Landmarks Preservation Commission (LPC)": 1,
+      "Department of Housing Preservation & Development (HPD)": 1,
+      "NYC Service": 1,
+      "Department of Homeless Services (DHS)": 1,
+      "Department for the Aging (NYC Aging)": 1,
+      "New York City Department of Correction": 1,
+      "Police Department (NYPD)": 1,
+      "Fire Department of New York City (FDNY)": 1,
+      "Department of Probation (DOP)": 1,
+      "Department of Health and Mental Hygiene (DOHMH)": 1,
+      "NYC School Construction Authority (SCA)": 1,
+      "Department of Cultural Affairs (DCLA)": 1,
+      "Latin Media & Entertainment Commission (LMEC)": 1,
+      "Economic Development Corporation (EDC)": 1
+    }
+  },
+  "datasets": [
+    {
+      "id": "23z9-6uk9",
+      "title": "2020 DOE High School Directory",
+      "description": "Directory of Department of Education High Schools in 2020.",
+      "description_len": 58,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "2bsr-c6qq",
+      "title": "Universal Solicitation for Broadband Asset Dataset",
+      "description": "List of existing City and City Partner assets for the Universal Solicitation of Broadband (USB).\r\n\r\n<b>Data Limitations:</b> Data accuracy is limited as of the date of publication and by the methodology and accuracy of the original sources. The City shall not be liable for any costs related to, or in reliance of, the data contained in these datasets.",
+      "description_len": 352,
+      "domain_category": "City Government",
+      "agency": "Office of Technology and Innovation (OTI)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "2iga-a6mk",
+      "title": "Zoning Application Portal (ZAP) - BBL",
+      "description": "The Department of City Planning (DCP) processes land use applications submitted by City or other public agencies and other (private) applicants. This data set provides information on land use applications, specifically the project tracking and description data related to approximately 30,000 projects since the late 1970s.\n\nZAP project data appears on NYC Planning - Zoning Application Portal Search. It includes data migrated from the prior applications tracking system (LUCATS) and covers all projects that have been \"Noticed\" (that they will appear before the City Planning Commission in 30 or more days for Certification as complete for the ULURP process to begin) or Filed (a CEQR or Land Use application has been formally submitted to the Department for review) through completion (approval, disapproval, withdrawal, or termination). For more information on the land use and environmental review application process see: <a href=\"https://www1.nyc.gov/site/planning/applicants/applicant-portal/application-process.page\">Application Process Overview</a>\n\nYou can explore this data in the <a href=\"https://zap.planning.nyc.gov/projects\">Zoning Application Portal</a>\n\nTo report data errors or for questions, email <a href=\"mailto:zap_feedback_dl@planning.nyc.gov\">zap_feedback_dl@planning.nyc.gov</a>.\n\nAll previously released versions of this data are available on the <a href=\"https://www.nyc.gov/content/planning/pages/resources/datasets/zoning-application-portal\">DCP Website: BYTES of the BIG APPLE</a>. Current version: 20260706",
+      "description_len": 1538,
+      "domain_category": "City Government",
+      "agency": "Department of City Planning (DCP)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "2jrp-puwz",
+      "title": "Mayor's Management Report Spending and Budget",
+      "description": "Contains Spending and Budget information for City agencies, as reported in the Mayoral Management Report (MMR).",
+      "description_len": 111,
+      "domain_category": "City Government",
+      "agency": "Mayor's Office of Operations (OPS)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "2rd2-9uwy",
+      "title": "Local Law 50 New York State Food Purchasing FY15",
+      "description": "Local Law 50 of 2011 required MOCS to establish guidelines for City agencies that assist in increasing the purchase of New York State food through food purchase and food-related services contracts. City agencies use the New York State Department of Agriculture and Markets (NYSDAM) list of food items available from New York State sources.",
+      "description_len": 339,
+      "domain_category": "City Government",
+      "agency": "Mayor's Office of Contract Services (MOCS)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "33c5-b922",
+      "title": "Summary of DBP Quarterly Report",
+      "description": "The data tables summarizes the disinfection by-product results for TTHM and HAA5 from distribution sites and calculated compliance values for each quarter\r\n\r\n\r\n\r\n(a) : analyzed by EPA Method 524.3\t\t\t\t\t\t\t\t\t\t\r\n(b) : analyzed by EPA Method 552.3\t\t\t\t\t\t\t\t\t\t\r\nLRAA:   The Locational Running Annual Average (LRAA) is calculated by taking the value of this quarter and the three previous consecutive quarters.\t\t\t\t\t\t\t\t\t\t\r\nRAA:  \tThe System-wide Running Annual Average (RAA) is calculated by taking the average of the Quarterly Average of this quarter and the three previous consecutive quarters.\t\t\t\t\t\t\t\t\t\r\nOEL:    The Operational Evalution Level (OEL) is calculated by averaging 2 times this quarter's value and the two previous consecutive quarters.\t\t\t\t\t\t\t\t\t\t\r\n   Both the LRAA and the System-wide RAA is not to exceed 80 µg/L for TTHM and 60 µg/L for HAA5.",
+      "description_len": 849,
+      "domain_category": "Environment",
+      "agency": "Department of Environmental Protection (DEP)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "37it-gmcp",
+      "title": "WiredNYC – Certified Buildings",
+      "description": "This dataset contains information for buildings that have completed the certification process. These buildings are all publicly viewable on the WiredNYC website (www.wiredscore.com)",
+      "description_len": 181,
+      "domain_category": "NYC BigApps",
+      "agency": "Economic Development Corporation (EDC)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "43qn-d6r8",
+      "title": "2017- 2018 Class Size Report City Middle School And High School Core Average Class Size",
+      "description": "2017- 2018 Class Size Report City Middle School And High School Core Average Class Size",
+      "description_len": 87,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "46g3-savk",
+      "title": "2015-2017 Historical Daily Attendance By School",
+      "description": "Daily listing (counts) of students registered, present, absent and released by School DBN.",
+      "description_len": 90,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "47g8-ngxw",
+      "title": "2018 - 2019 Average Class Size City K8",
+      "description": "2018-19 Preliminary Class Size Report School K-8 Average Class Size \r\n\r\nGeneral Education and Integrated Co-Teaching (ICT) classes and course sections with more than 100 students or fewer than seven students are excluded from this report, as are self-contained courses with fewer than two students",
+      "description_len": 297,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "5ery-qagt",
+      "title": "DOHMH School Cafeteria Inspections (2020-Present)",
+      "description": "This is an official DOHMH dataset. Creating derivative/community datasets based on this dataset is allowed so long as it is done in a manner that is not misleading and does not imply endorsement of such datasets by DOHMH. \nThe dataset contains current inspection data for cafeterias permitted in public, private, and parochial schools in NYC. Data for cafeterias that have ceased operations and any violations cited during the inspection that were dismissed during adjudication are excluded from this dataset. During COVID-19 public health emergency, Health Department inspections have followed a modified inspection protocol designed to reduce the risk of COVID-19 transmission among inspectors and staff of facilities being inspected. As a result, there may be differences in the\ndata collected during this time period compared to data collected prior to March 2020.",
+      "description_len": 868,
+      "domain_category": "Health",
+      "agency": "Department of Health and Mental Hygiene",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "5mad-ntua",
+      "title": "VZV Speed Limits",
+      "description": "On November 7, 2014, New York City’s default speed limit was changed from 30 mph to 25 mph. Unless otherwise signed, all streets in New York City are governed by this 25 mph speed limit. Driving at or below 25 MPH decreases stopping distance, gives drivers and pedestrians more time to see each other and react, and improves drivers’ ability to avoid crashes. Pedestrians struck by vehicles traveling at 25 MPH are half as likely to die as those struck at 30 MPH. If crashes do occur, the severity of injuries is reduced a lower speeds. The information shown here was compiled by the New York City Department of Transportation for governmental purposes. The information is updated as soon as reasonably practicable. The public is advised that speed limits are subject to temporary or permanent change and that posted signage must be observed for compliance with laws and regulations.\r\n\r\nFor a complete list of Vision Zero maps, please follow <a href=\"https://data.cityofnewyork.us/browse?q=vzv&sortBy=last_modified&utf8=%E2%9C%93\">this link</a>",
+      "description_len": 1044,
+      "domain_category": "Transportation",
+      "agency": "Department of Transportation (DOT)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "5r5y-pvs3",
+      "title": "NYCHA Resident Data Book Summary",
+      "description": "Contains resident demographic data at a summary level.\nThe Resident Data Book is compiled to serve as an information source for queries involving resident demographic as well as a source of data for internal analysis.  Statistics are compiled via HUD mandated annual income reviews involving NYCHA Staff and residents. Data is then aggregated and compiled by development.  Each record pertains to a single public housing development.",
+      "description_len": 433,
+      "domain_category": "Housing & Development",
+      "agency": "New York City Housing Authority (NYCHA)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "5uac-w243",
+      "title": "NYPD Complaint Data Current (Year To Date)",
+      "description": "This dataset includes all valid felony, misdemeanor, and violation crimes reported to the New York City Police Department (NYPD) for all complete quarters so far this year (2019). For additional details, please see the attached data dictionary in the ‘About’ section.",
+      "description_len": 267,
+      "domain_category": "Public Safety",
+      "agency": "Police Department (NYPD)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "66yh-nemi",
+      "title": "Capital Grant Awards 2018",
+      "description": "Every year the Manhattan Borough President provides funding in support of various important capital projects throughout Manhattan. This funding is available to city agencies, nonprofit organizations, cultural institutions, and public schools for projects serving New York City purposes.",
+      "description_len": 286,
+      "domain_category": "City Government",
+      "agency": null,
+      "asset_type": "dataset"
+    },
+    {
+      "id": "6r4h-c2y6",
+      "title": "Sustainability Indicators (2012)",
+      "description": "The sustainability indicators are used by the Mayor's Office of Long-Term Planning and Sustainability to track the progress of the PlaNYC program.",
+      "description_len": 146,
+      "domain_category": "Environment",
+      "agency": "Mayor's Office of Climate and Environmental Justice (MOCEJ)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "6rf2-gv9k",
+      "title": "DOF: Summary of Neighborhood Sales Citywide Class 1-, 2- and 3-Family homes",
+      "description": "The Department of Finance (DOF) maintains records for all property sales in New York City, including sales of family homes in each borough. This list is a summary of all neighborhood sales for Class 1-, 2- and 3-Family homes Citywide.\r\n\r\nThis list includes all sales of 1-, 2-, and 3-Family Homes', whose sale price is equal to or more than $150,000. The Building Class Category for Sales is based on the Building Class at the time of the sale.",
+      "description_len": 444,
+      "domain_category": null,
+      "agency": "Department of Finance",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "6ucq-tfej",
+      "title": "2021 City Council - September Attendance Report",
+      "description": "Attendance data include 3K-12 students in Districts 1-32 and 75 (Special Education). Students in District 79 (Alternative Programs), charter schools, home schooling, and home and hospital instruction are excluded. Infants in D79 (LYFE program) and students with a grade level \"AD\" (adult) are also excluded. Pre-K data do not include NYC Early Education Centers; therefore, Pre-K data are limited to those who attend K-12 schools that offer Pre-K and District Pre-K Centers.\nThis spreadsheet reports attendance rates (overall and remote) for September 13 through September 30, 2021. Data comprises attendance records for those dates reported by schools in ATS as of October 28, 2021.\nOverall Attendance Rate is defined as the percent of days where students have present attendance status, out of total days with reported attendance data, across 13 days of attendance data September 13-30. Remote Instruction Attendance Rate* is defined as the percent of days where students have present remote attendance status out of total days with a remote attendance record reported, across 13 days of attendance data. Full attendance definitions for SY2021-22 can be found here: https://infohub.nyced.org/school-year/school-year-2021-22/attendance\nStudents participating in the Shared Instruction (SHIN) model may have their attendance recorded at separate sites, but attendance records are attributed to students’ home school of record as of the date of attendance.\nStudent demographic data is based on student records in ATS pulled on October 28, 2021. Because a small number of students are missing demographics data in ATS, demographic disaggregations may not roll up to higher-level aggregations. Data for Asian students include Native Hawaiian or Other Pacific Islanders.\nStudents in temporary housing (STH) include all students who lack a fixed, regular, and adequate nighttime residence as defined by Section 725 of the McKinney-Vento Act. It includes students who are identified as \"doubled up\" (sharing the housing of others due to economic hardship), or living in some other unstable, temporary housing. It does not include students who are identified as residing in shelters.\nIn order to comply with the Family Educational Rights and Privacy Act (FERPA) regulations on public reporting of education outcomes, subgroups with fewer than 5 students are suppressed and have been replaced with an \"s\".\nInstances where there are no reported attendance data have been marked with an \"NA\".\n*Remote Instruction Attendance Rate includes students receiving Medically Necessary Instruction (MNI), students receiving remote instruction while quarantining, and system-wide remote learning days.",
+      "description_len": 2681,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "75e9-fg2t",
+      "title": "DYCD Contractors",
+      "description": "A list of all contractors providing service(s) to New York City youth and the amount of their contract",
+      "description_len": 102,
+      "domain_category": "Social Services",
+      "agency": "Department of Youth and Community Development (DYCD)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "7fnf-kyf4",
+      "title": "DOF: Summary of Neighborhood Sales in Queens for Class 1-, 2- and 3-Family homes - 2005",
+      "description": "The Department of Finance (DOF) maintains records for all property sales in New York City, including sales of family homes in each borough. This list is a summary of neighborhood sales for Class 1-, 2- and 3-Family homes in Queens in 2005.\r\n\r\nThis list includes all sales of 1-, 2-, and 3-Family Homes' from January 1st, 2005 to December 31, 2005, whose sale price is equal to or more than $150,000.  The Building Class Category for Sales is based on the Building Class at the time of the",
+      "description_len": 488,
+      "domain_category": "Housing & Development",
+      "agency": "Department of Finance (DOF)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "7qdz-u9hr",
+      "title": "Citywide Mobility Survey - Person 2022",
+      "description": "Citywide Mobility Survey (CMS) Person table contains characteristics of individual members of the participant’s household, including age, race, gender, disability status, education, employment, remote work, typical commute mode, biking frequency, shared services, and other demographic and transportation-related information.",
+      "description_len": 325,
+      "domain_category": "Transportation",
+      "agency": "Department of Transportation (DOT)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "84ax-hg3y",
+      "title": "Full-Time and FTE Headcount including Covered Organizations",
+      "description": "This dataset contains estimated fiscal year-end headcount information for full-time and full-time equivalent employees (FTE) for Mayoral Agencies and Covered Organizations (updated twice a year). The information is summarized by agency, fiscal year, personnel type and funding.",
+      "description_len": 277,
+      "domain_category": "City Government",
+      "agency": "Mayor's Office of Management and Budget (OMB)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "8532-9v5k",
+      "title": "2020 DOE Kindergarten Admissions Guide",
+      "description": "Directory of Department of Education Elementary Schools in 2020.",
+      "description_len": 64,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "8fj8-3sgg",
+      "title": "CEQR Project Milestones",
+      "description": "CEQR Open Data contains information on projects that are undergoing or have completed review through the City Environmental Quality Review (CEQR) process. Project information available at the Open Data Portal includes the CEQR Number, Project Name, the Project Description, the Lead Agency, project milestones, and geographical locations. CEQR Open Data contains information on CEQR projects, which were filed with the Mayor’s Office from January 1, 2005 to the present.  For associated documents, please follow the links to the CEQR Access Database.",
+      "description_len": 550,
+      "domain_category": "City Government",
+      "agency": "Mayor’s Office of Environmental Coordination (MOEC)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "8zyi-kxay",
+      "title": "Housing Database by 2020 Census Block",
+      "description": "Net change in housing units arising from new buildings, demolitions, or alterations for NYC Census Blocks since 2010. The NYC Department of City Planning's (DCP) <a href=\"https://www1.nyc.gov/site/planning/data-maps/open-data/dwn-housing-database.page#housingdevelopmentproject\">Housing Database</a> provide the 2010 census count of housing units, the net change in Class A housing units since the census, and the count of units pending completion for commonly used political and statistical boundaries. These tables are aggregated from the DCP Housing Database, which is derived from Department of Buildings (DOB)-approved housing construction and demolition jobs filed or completed in NYC since January 1, 2010. Net housing unit change is calculated as the sum of all three construction job types that add or remove residential units: new buildings, major alterations, and demolitions, and can be used to determine the change in legal housing units across time and space.\nAll previously released versions of this data are available on the <a href=\"https://www.nyc.gov/content/planning/pages/resources/datasets/housing-unit-change-summary\">DCP Website: BYTES of the BIG APPLE</a>. Current version: 25q4",
+      "description_len": 1203,
+      "domain_category": "Housing & Development",
+      "agency": "Department of City Planning (DCP)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "9vpn-rpgs",
+      "title": "DCWP Licensed Vehicles",
+      "description": "DCWP issues license plates and/or decals to sightseeing buses, tow trucks, pedicabs and horse drawn cabs. This data set features all active vehicles licensed by DCWP.",
+      "description_len": 166,
+      "domain_category": "Business",
+      "agency": "Department of Consumer and Worker Protection (DCWP)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "9z9b-6hvk",
+      "title": "Latin Media Organizations",
+      "description": "Listing of Latin media organizations",
+      "description_len": 36,
+      "domain_category": "Recreation",
+      "agency": "Latin Media & Entertainment Commission (LMEC)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "a2pm-dj2w",
+      "title": "2018 Local Law 163 TASC Report",
+      "description": "This dataset contains information about NYCHA residents who passed the Test Assessing Secondary Completion (TASC) exam, exams that assess if an exam-taker has the required knowledge to receive a high school equivalency certification, for Calendar Year 2018. This number only includes Pathways to Graduation students who passed TASC in 2018. Pathways to Graduation is a full-time free program that helps students earn their High School Equivalency Diploma.",
+      "description_len": 455,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "a5td-mswe",
+      "title": "Parking Violations Issued - Fiscal Year 2018",
+      "description": "This dataset provides data on Parking Violations Issued between July 1, 2017 to June 30, 2018.  In New York City, the fiscal year begins on July 1st of one calendar year and ends on June 30th of the following calendar year.  <a target=\"_blank\" href=\"https://www.nyc.gov/site/omb/faq/frequently-asked-questions.page#:~:text=our%20Careers%20page.-,The%20Expense%20Budget,-What%20is%20the\">Click here</a> to find out more about the NYC Fiscal Year.\n<br>Parking Violations Issuance datasets contain violations issued during the respective fiscal year. The Issuance datasets are not updated to reflect violation status, the information only represents the violation(s) at the time they are issued. Since appearing on an issuance dataset, a violation may have been paid, dismissed via a hearing, statutorily expired, or had other changes to its status. To see the current status of outstanding parking violations, please look at the <a target=\"_blank\" href=\"https://data.cityofnewyork.us/City-Government/Open-Parking-and-Camera-Violations/nc67-uf89\">Open Parking & Camera Violations</a> dataset.\n<br>You may find all of the Parking Violations Issued since fiscal year 2014 in this <a target=\"_blank\" href=\"https://data.cityofnewyork.us/browse?Data-Collection_Data-Collection=DOF+Parking+Violations+Issued&q=&sortBy=alpha&utf8=%E2%9C%93\">dataset collection</a>.",
+      "description_len": 1354,
+      "domain_category": "City Government",
+      "agency": "Department of Finance (DOF)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "a8si-arxu",
+      "title": "2017-2018 Student Discipline Annual Report - ELL",
+      "description": "Student discipline annual report for English Language Learner aggregated by removals, principal, and/or superintendent intervention and expulsions.",
+      "description_len": 147,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "abh8-frsx",
+      "title": "2015-2018 School Closure Discharge Reporting",
+      "description": "This report provides data regarding students enrolled in the closed schools according to the guidelines set by Local Law 43 of 2011.",
+      "description_len": 132,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "aizm-q3sx",
+      "title": "Newsrack Inspections",
+      "description": "Tracks complaints, inspections and reinspections of News racks and reports on the Inspection results.",
+      "description_len": 101,
+      "domain_category": "Transportation",
+      "agency": "Department of Transportation (DOT)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "akzx-fghb",
+      "title": "Social Distancing: Citywide Ambassador Data",
+      "description": "During the Covid-19 response, the Mayors Office of Operations worked with several city agencies to deploy Interagency Ambassadors across NYC parks to educate patrons on social distancing. This dataset contains encounters and non-encounters during deployment recorded by these Interagency Ambassadors.\n\nThis is part of the NYC Parks Covid-19 Social Distancing and Enforcement Data Collection: https://data.cityofnewyork.us/browse?Data-Collection_Data-Collection=NYC+Parks+Covid-19+Social+Distancing+and+Enforcement&q=nyc+parks+covid\n\nData Dictionary:\n\nhttps://docs.google.com/spreadsheets/d/1ofOI4WqlXfrRAqEdNDA15QFmKJTMjTXlwcG5uyxZybg/edit?usp=sharing",
+      "description_len": 651,
+      "domain_category": "City Government",
+      "agency": null,
+      "asset_type": "dataset"
+    },
+    {
+      "id": "as69-ew8f",
+      "title": "Over Dimensional Vehicle Permits (ODVP)",
+      "description": "The Over Dimensional Vehicle Permit (ODVP) is a web application used by trucking companies to apply for Daily Permits for over dimensional vehicles.\n\nMain permit record, one row per permit.\n\n For Permit Stipulation dataset, please follow <a href=\"https://data.cityofnewyork.us/dataset/dbo-PMO_ODVP_PermitStipulations/t9iz-i583\">this link</a>.",
+      "description_len": 342,
+      "domain_category": "Transportation",
+      "agency": "Department of Transportation (DOT)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "as9z-kwsh",
+      "title": "Street Network Changes",
+      "description": "This dataset contains locations of one-way conversions and reversals, two-way conversions and street closure(s) within the five boroughs of New York City. It does NOT contain information on closures or temporary re-routing due to construction or special events.",
+      "description_len": 261,
+      "domain_category": "Transportation",
+      "agency": "Department of Transportation (DOT)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "b3eu-nmy6",
+      "title": "Local Law 85 – Visitation Quarterly",
+      "description": "Quarterly report on DOC visitation metrics. \n</p>\nNew York City Local Law 85 of 2015 requires the New York City Department of Correction (DOC) to publicly report Jail Visitation Statistics within 30 days of the beginning of each quarter for the preceding quarter. Specifically, the DOC is required to report the following metrics on a quarterly basis: \n\n(1)The total number of visitors to city jails, the total number of visitors to borough jail facilities, and the total number of visitors to city jails on Rikers Island,</p>\n\n(2) The total number of visitors that visited a person in custody at city jails, the total number of visitors that visited a person in custody at borough jail facilities, and the total number of visitors that visited a person in custody at city jails on Rikers Island, </p>\n\n(3) The number of visitors unable to visit a person in custody at any city jail, in total and disaggregated by the reason such visit was not completed, </p>\n\n(4) The person in custody visitation rate, which shall be calculated by dividing the average daily number of visitors who visited persons in custody at city jails during the reporting period by the average daily person in custody population of city jails during the reporting period, </p>\n\n(5) The borough jail facility visitation rate, which shall be calculated by dividing the average daily number of visitors who visited persons in custody at borough jail facilities during the reporting period by the average daily person in custody population of borough jail facilities during the reporting period, and </p>\n\n(6) The Rikers Island visitation rate, which shall be calculated by dividing the average daily number of visitors who visited persons in custody at city jails on Rikers Island during the reporting period by the average daily person in custody population of city jails on Rikers Island during the reporting period. The data within this report represents information that was available to the Department at the time of report production is subject to change based on updated information subsequently reported by staff members to the Department.",
+      "description_len": 2117,
+      "domain_category": "Public Safety",
+      "agency": "New York City Department of Correction",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "b9a3-rexv",
+      "title": "2021 City Council March Attendance",
+      "description": "Total enrollment count for students whose learning preference is remote or blended or missing and who have attended school in person at least once since September 16, 2020. Because student learning preference is based in part on student attendance (see below), only students for whom attendance data is reported are included.",
+      "description_len": 325,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "biws-g3hs",
+      "title": "2017 Yellow Taxi Trip Data",
+      "description": "These records are generated from the trip record submissions made by yellow taxi Technology Service Providers (TSPs). Each row represents a single trip in a yellow taxi. The trip records include fields capturing pick-up and drop-off dates/times, pick-up and drop-off taxi zone locations, trip distances, itemized fares, rate types, payment types, and driver-reported passenger counts.",
+      "description_len": 384,
+      "domain_category": "Transportation",
+      "agency": "Taxi and Limousine Commission (TLC)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "bqye-aqft",
+      "title": "VZV Neighborhood Slow Zones",
+      "description": "The Neighborhood Slow Zone program is an application based program which takes a neighborhood area and reduces the speed limit to 20 mph. Areas are chosen based on crashes, presence of schools and other neighborhood amenities, and community support. The treatments include a mixture of markings, signage, and speed humps.\r\n\r\nFor a complete list of Vision Zero maps, please follow <a href=\"https://data.cityofnewyork.us/browse?q=vzv&sortBy=last_modified&utf8=%E2%9C%93\">this link</a>",
+      "description_len": 482,
+      "domain_category": "Transportation",
+      "agency": "Department of Transportation (DOT)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "bst7-5464",
+      "title": "Fire Companies",
+      "description": "Fire Companies boundaries of New York City.\n\nAll previously released versions of this data are available on the <a href=\"https://www.nyc.gov/content/planning/pages/resources/datasets/fire-battalions-companies-divisions\">DCP Website: BYTES of the BIG APPLE</a>. Current version: 26b",
+      "description_len": 281,
+      "domain_category": "City Government",
+      "agency": "Department of City Planning (DCP)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "c49b-3kmd",
+      "title": "DOP Juvenile Case Count By Type",
+      "description": "The number of active juvenile probation supervision cases on the last day of the reporting period: General Supervision, Pathways to Excellence Achievement and Knowledge (PEAK), Every Child Has An Opportunity To Excel And Succeed (ECHOES), IMPACT, Juvenile Justice Initiative (JJI), Advocate Intervene Mentor (AIM), Enhanced Supervision Program (ESP).",
+      "description_len": 350,
+      "domain_category": "Public Safety",
+      "agency": "Department of Probation (DOP)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "c4xj-jp46",
+      "title": "2019-2020 Local Law 231",
+      "description": "The workshop provides an overview of the DOE policies related to New York State’s Dignity for All Students Act, with a focus on Chancellor’s Regulations A-832-Student to Student Discrimination, Harassment, Intimidation, and/or Bullying and A-831-Student to Student Sexual Harassment as well as the Staff to Student Discrimination and Sexual Harassment components of Chancellor’s Regulation A-830. Participants will also learn about the protected classifications for students and staff, their reporting responsibilities and under what circumstances off-school premises behavior is covered under Chancellor’s Regulations.",
+      "description_len": 619,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "c5vm-g2dk",
+      "title": "Parks Permit Areas",
+      "description": "● One line of data represents a single geographic area for which an event permit can be requested in the Citywide Event Management System (CEMS).\r\n● Data was digitized in desktop GIS in consultation with borough permit offices.\r\n● Data is updated when changes are requested by the borough permit offices.\r\n● Along with this dataset, the Athetlic Facilities dataset are sent to CEMS\r\n● Spaces not outlined in this dataset are not available for permitting",
+      "description_len": 453,
+      "domain_category": "Recreation",
+      "agency": "Department of Parks and Recreation (DPR)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "dpm2-m9mq",
+      "title": "LPC Permit Application Information",
+      "description": "Contains information pertaining to permit applications for work to landmark sites submitted to and processed by LPC.",
+      "description_len": 116,
+      "domain_category": "Housing & Development",
+      "agency": "Landmarks Preservation Commission (LPC)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "dxru-eun8",
+      "title": "Storefront Registration Class 2 and 4 Statistics",
+      "description": "Aggregate statistics for all registered storefront by identified geographic boundaries (Citywide, Borough, Council District, Census Tract)",
+      "description_len": 138,
+      "domain_category": "City Government",
+      "agency": "Department of Finance (DOF)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "e27m-uhjk",
+      "title": "Banking Corporation Issuer's Allocation Percentage Report",
+      "description": "Issuer's Allocation Percentage for all corporations subject to taxes.\n\nThese reports are used by general corporations and unincorporated taxpayers to compute their investment allocation percentages, and by general corporation taxpayers to compute their allocated subsidiary capital. For 2006 and prior, the list include only corporations whose issuer's allocation percentages are known to be less than 100%. For 2007 and later, the lists include corporations whose issuer's allocation percentages are 100% or less.",
+      "description_len": 514,
+      "domain_category": "City Government",
+      "agency": "Department of Finance",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "e5c5-ieuv",
+      "title": "Math Test Results 2006-2012",
+      "description": "This report includes results for the New York State Math exams for the years 2006-2012.\nFor the results for the New York State Math exams for the years 2013-2023, please follow <a href=\"https://data.cityofnewyork.us/Education/Math-Test-Results-2013-2023/74kb-55u9\">this link</a>.",
+      "description_len": 279,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "e6ph-9uv7",
+      "title": "Brooklyn Borough President's Office Legislation - Passed",
+      "description": "List of legislation that was sponsored by the Borough President and passed.",
+      "description_len": 75,
+      "domain_category": "City Government",
+      "agency": "Brooklyn Borough President",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "e7yp-wx55",
+      "title": "Parking Meters - ParkNYC Block Faces",
+      "description": "NYCDOT sets parking meter rates across the five boroughs to be reflective of individual neighborhood parking conditions such as land use, density, and parking demand. Individual meter rates are posted on each parking meter and are represented in this dataset by blockface segments. NYCDOT provides this map for informational purpose only. Confirm the rate at the parking meter or on the ParkNYC app before paying and observe all posted signs.",
+      "description_len": 442,
+      "domain_category": "Transportation",
+      "agency": "Department of Transportation (DOT)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "esep-hmvs",
+      "title": "2017 - 2018 November2017 Pct Class Size District K8 - Open Data Portal",
+      "description": "K8 Class Size Report - Aggregated by Districts",
+      "description_len": 46,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "esmy-s8q5",
+      "title": "Seating Locations",
+      "description": "This dataset identifies the locations of DOT seating features throughout New York City including benches and leaning bars on sidewalks and at bus stops.",
+      "description_len": 152,
+      "domain_category": "Transportation",
+      "agency": "Department of Transportation (DOT)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "f4rp-2kvy",
+      "title": "Clean Air Tracking System (CATS) Permits",
+      "description": "Clean Air Tracking System (CATS) is online application with end-to-end process where NYC Residents can submit for New Boiler Registration, Boiler Registration Renewal, Affidavit, Amendment, Boiler Work Permits, Inspection requests, Emergency Engine, Generator Registration, Gas Stations, Industrial Work Permits. For additional context, please go to this link: <a href=\"https://a826-web01.nyc.gov/DEP.BoilerInformationExt/\">https://a826-web01.nyc.gov/DEP.BoilerInformationExt/</a> as the external source to this dataset.",
+      "description_len": 520,
+      "domain_category": "Environment",
+      "agency": "Department of Environmental Protection (DEP)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "fb6n-h22r",
+      "title": "2016 Public Data File Student",
+      "description": "2016 NYC School Survey student data for all schools\r\nTo understand the perceptions of families, students, and teachers regarding their school.  School leaders use feedback from the survey to reflect and make improvements to schools and programs. Also, results from the survey used to help measure school quality. \r\nEach year, all parents, teachers, and students in grades 6-12 take the NYC School Survey. The survey is aligned to the DOE's Framework for Great Schools. It is designed to collect important information about each school's ability to support student success.",
+      "description_len": 572,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "ffaf-8mrv",
+      "title": "DOT In-house Street Resurfacing Projects",
+      "description": "List of all New York City Department of Transportation (NYC DOT) in-house street paving and milling projects for a street block or at an intersection. For information, please the DOT website: https://www.nyc.gov/html/dot/html/motorist/resurfintro.shtml",
+      "description_len": 252,
+      "domain_category": "Transportation",
+      "agency": "Department of Transportation (DOT)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "fpci-ws56",
+      "title": "Violent and Disruptive Incidents",
+      "description": "Violent and Disruptive Incidents (VADIR) in the NYC public schools.",
+      "description_len": 67,
+      "domain_category": "Public Safety",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "frre-6z6q",
+      "title": "Low Income Housing Tax Credits Awarded by HPD: Project-Level (9% Awards)",
+      "description": "The Department of Housing Preservation and Development (HPD) receives a sub-allocation of 9% Low Income Housing Tax Credits and allocated its credits through one competitive round each calendar year.  It is also charged with allocating 4% Low Income Housing Tax Credits to projects receiving tax exempt bonds through New York City Housing Development Corporation.\r\nEach entry represents an allocation to a low income housing development project with households at or below 60% of Area Median Income.\r\n\r\nFor the Low Income Housing Tax Credits Awarded by HPD: Building-Level (9% Awards) dataset, please follow <a href=\"https://data.cityofnewyork.us/Housing-Development/Low-Income-Housing-Tax-Credits-Awarded-by-HPD-Buil/kmtx-45c9\">this link</a>",
+      "description_len": 742,
+      "domain_category": "Housing & Development",
+      "agency": "Department of Housing Preservation & Development (HPD)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "fzv4-jan3",
+      "title": "2006-07 School Progress Reports - All Schools",
+      "description": "2006/07 Progress Report results for all schools (data as of 1/14/09)\r\n\r\nPeer indices are calculated differently depending on School Level.  Schools are only compared to other schools in the same School Level (e.g., Elementary, K-8, Middle, High)\r\n\r\n1) Elementary & K-8 - peer index is a value from 0-100.  We use a composite demographic statistic based on % ELL, % SpEd, % Title I free lunch, and % Black/Hispanic.  Higher values indicate student populations with higher need\r\n\r\n2) Middle & High - peer index is a value from 1.00-4.50.  For middle schools, we use the average 4th grade proficiency ratings in ELA and Math for all their students that have 4th grade test scores.  For high schools, we use the average 8th grade proficiency ratings in ELA and Math for all their students that have 8th grade test scores.  Lower values indicate student populations with higher need\r\n\r\n3) D84 / Charter Schools - the overall score does not include the results of the learning environment survey. \r\n\r\n4) Schools for Transfer Students - consists of schools with large populations of high school students transferring from NYC High Schools or from out of state/country.  No peer index value is assigned because this set of schools is its own peer group. The reports contain 3 categories with one additional credit section.  Unlike the HS Progress Report, the Environment Category is only composed of Survey Results.  Performance measures 6-year graduation rate and Progress captures student level improvements in attendance, credit accumulation and Regents passed.  The additional credit section rewards schools demonstrating exceptional achievement (11 credits or more earned per year) among overage/under-credit populations.",
+      "description_len": 1718,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "fzy4-e84j",
+      "title": "Older Adult Center (OAC) Activities",
+      "description": "This dataset contains a listing of events and activities offered by NYC Aging funded Older Adult Centers. \n\nThere are more than 300 older adult centers (OACs) and affiliated sites throughout the five boroughs that provide healthy meals, fun activities, classes, fitness programs and social services. For more information, please refer to https://www.nyc.gov/site/dfta/services/older-adult-center.page",
+      "description_len": 400,
+      "domain_category": "Social Services",
+      "agency": "Department for the Aging (NYC Aging)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "gcnt-k7eq",
+      "title": "Firefighter Probationary School Results Admissions and Graduation Statistics",
+      "description": "This dataset contain cumulative counts of applicants from the current active firefighter exam listings, which include Exam 7001 (open-competitive) and Exam 7501 (promotional).  This dataset dissects the career path stages of becoming a firefighter from application, examinations, to graduation. Visit https://www.joinfdny.com/careers/firefighter/ for more information on the firefighter career path.",
+      "description_len": 399,
+      "domain_category": "Public Safety",
+      "agency": "Fire Department of New York City (FDNY)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "graj-69em",
+      "title": "Department of Youth and Community Development (DYCD) Contracts",
+      "description": "This dataset provides information describing Department of Youth and Community Development (DYCD) contracts including dollar amounts funded and contract registration information. Contract information is displayed per fiscal year, though the total amount funded for a given contract across fiscal years is also given. For contracts that extend for more than one fiscal year, each year of the contract is represented by a separate row. For each row (contract-fiscal year pair), the DYCD business unit (Major Program), associated organization (Provider), start and end dates, Contract Status, RFP details, and DYCD internal contract identifiers are given.\n\nFor more information about programs, visit <a href=\"https://www1.nyc.gov/site/dycd/services/services.page\">https://www1.nyc.gov/site/dycd/services/services.page</a>\n or <a href=\"https://discoverdycd.dycdconnect.nyc/home\">https://discoverdycd.dycdconnect.nyc/home</a>.",
+      "description_len": 921,
+      "domain_category": "City Government",
+      "agency": "Department of Youth and Community Development (DYCD)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "im9z-53hg",
+      "title": "Housing Maintenance Code Violations NYCHA properties",
+      "description": "This dataset displays violations of the New York City Housing Maintenance Code or New York State Multiple Dwelling Law issued by Housing Inspectors pursuant to inspections of NYCHA buildings at the request of the NYC Housing Court.",
+      "description_len": 231,
+      "domain_category": "Housing & Development",
+      "agency": "Department of Housing Preservation and Development (HPD)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "ipc3-2nbm",
+      "title": "Personal Income By AGI Range",
+      "description": "Number of tax filers/payers and total income by income ranges",
+      "description_len": 61,
+      "domain_category": "City Government",
+      "agency": "Independent Budget Office (IFO)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "irna-apch",
+      "title": "2024 Survey of Volunteerism",
+      "description": "This dataset aggregates answers from NYC Service’s survey and report on the Power of Volunteering. Over 8,000 respondents citywide were asked about their experience volunteering, personal impact of volunteering, and impact on community.\n\nNYC Service is a division of the Mayor’s Office that provides meaningful access, opportunity, and resources for communities to come together and answer the call to serve NYC.\n\nThe full report and analysis of the Power of Volunteering: Findings on connection, unity, and health of volunteers in NYC Survey can be found on the NYC Service website:\n <a href=\"https://www.nycservice.org/power-of-volunteering\" target=\"_blank\" rel=\"noreferrer\">https://www.nycservice.org/power-of-volunteering</a>",
+      "description_len": 729,
+      "domain_category": "Social Services",
+      "agency": "NYC Service",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "irs3-wn2g",
+      "title": "Vendor List by Commodity",
+      "description": "This list will include commodity enrollments by Passport-enrolled vendors.",
+      "description_len": 74,
+      "domain_category": "City Government",
+      "agency": "Mayor's Office of Contract Services (MOCS)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "k66c-pzws",
+      "title": "Walk to a Park Service Area for CEQR Open Space Assessment",
+      "description": "This dataset builds on the Walk to A Park Service Area (https://data.cityofnewyork.us/Recreation/Walk-to-a-Park-Service-area/5vb5-y6cv) to provide a dataset that can be viewed as an on-line map or downloaded to support the preparation of an Open Space assessment pursuant to City Environment Quality Review Technical Manual. The data has been modified to ensure that if 50% or more of a tax lot is within a Walk to a Park Service area, then the entire lot is shown as served.\r\n\r\nNew York City, as part of the OneNYC 2050 Building a Strong and Fair City plan, has put forth a goal of 85 percent of New York City residents living within a walking distance of a park by 2030. The Walk to a Park initiative focuses on increasing access to parks and open spaces, concentrating on areas of the city that are under-resourced and where residents are living further than a walk to a park. NYC Parks calculates the number of New Yorkers within walking distance of a park and reports on this as part of the Mayor’s Management Report. “Walking distance” is defined as a 1/4-mile or less for sites such as small playgrounds and sitting areas; or a 1/2-mile or less for larger parks that serve a wider region, typically over 6 acres or with access to recreation center. Certain properties in NYC Parks' portfolio, such as cemeteries, community gardens, or sites with no recreational equipment were not included in this analysis. Similarly, some publicly accessible parks and open-space amenities not under the jurisdiction of NYC Parks were included in this analysis, as they provide recreational value.\r\n\r\nThis information is periodically updated and is only current as of the last publication date. The analysis is performed in part using secondary data. Data accuracy is limited by the scale and accuracy of the original sources. For more information about this analysis and the Walk to a Park Initiative, visit: https://www.nycgovparks.org/planning-and-building/planning/walk-to-a-park\r\n\r\nData Dictionary: https://docs.google.com/spreadsheets/d/16VtACcFyKR_hYJNwrYYtFcvMVV9ybmALIWdvce7uJww/edit?usp=sharing",
+      "description_len": 2096,
+      "domain_category": null,
+      "agency": "Department of Parks and Recreation (DPR)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "kcrr-myj9",
+      "title": "Pedestrian Zone Shapefile (Tabular)",
+      "description": "Polygon features representing the boundary limits for pedestrian zones. The Pedestrian Corridor is based on the DCP zoning maps, utilizing certain commercial overlay and commercial district designations.",
+      "description_len": 203,
+      "domain_category": "City Government",
+      "agency": "Office of Technology and Innovation (OTI)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "krx7-u82t",
+      "title": "Trade Waste Broker Registrants",
+      "description": "Companies listed as of the most recent export date have been issued trade waste broker's registrations by the Business Integrity Commission. They are authorized to broker agreements between business customers and trade waste removal\r\ncompanies and/or to conduct evaluations of the customers' waste stream in order to recommend cost efficient means of waste disposal or other changes.\r\n\r\nThis data is collected on the entities that apply with the commission to operate as Class 2 Brokers \r\n\r\nEach record represents an entity that is approved to operate in the City of New York by the Commission. \r\n\r\nThe  Application Type field denotes the class of application 'CL2-Broker'  noting the type of applicant which is a  Broker Registrant They are authorized to broker agreements between business customers and trade waste removal companies throughout the city.\r\n\r\nThe BIC Number field is unique to every company that applies to the Commission.",
+      "description_len": 938,
+      "domain_category": "City Government",
+      "agency": "Business Integrity Commission",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "kydh-ijhc",
+      "title": "Replacement Projects by school",
+      "description": "Replacement project detail by school.",
+      "description_len": 37,
+      "domain_category": "Education",
+      "agency": "NYC School Construction Authority (SCA)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "m59i-mqex",
+      "title": "DOF: Condominium Comparable Rental Income – Queens – FY 2008/2009",
+      "description": "The Department of Finance (DOF) is required by NY State law to value condominiums or cooperatives as if they were residential rental apartment buildings.   DOF uses income information from rental properties similar in physical features and location to the condominiums or cooperatives. DOF applies this income data to the condominium or cooperative and determine its value in the same way DOF values rental apartment buildings.\r\nUpdate Frequency: Annually",
+      "description_len": 455,
+      "domain_category": "Housing & Development",
+      "agency": "Department of Finance (DOF)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "m6ag-gfcb",
+      "title": "2021 - 2022 Class Size Distribution by Borough",
+      "description": "Class Size Distribution by Borough report for middle and high school grades by program type, number of students, number of classes, and average class size.",
+      "description_len": 155,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "mq6n-s45c",
+      "title": "Energy Usage From DOE Buildings",
+      "description": "Energy data from a select portfolio of City-owned buildings (DOE)",
+      "description_len": 65,
+      "domain_category": "Environment",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "mrjc-v9pm",
+      "title": "New York City's Flood Vulnerability Index",
+      "description": "The Flood Vulnerability Index (FVI) assesses the distribution of vulnerability to flooding across NYC in order to guide flood resilience policies and programs. Vulnerability contains three components: exposure to a hazard, susceptibility to harm from the exposure, and capacity to recover (Cutter et al., 2009). There are six hazard-specific FVIs, one for each of the six different flood hazard scenarios, which include current and two future storm surge scenarios and current and two future tidal flooding scenarios. Exposures vary for different types of flooding and different scenarios within each flood type. \n\nEach FVI consists of two component sub-indices: an exposure index and an index that reflects susceptibility to harm and capacity to recover. The exposure index is different in each FVI in order to capture the different exposures to each of the flood hazard scenarios. The sub-index that reflects susceptibility to harm and capacity to recover -- the Flood Susceptibility to Harm and Recovery Index (FSHRI) -- is the same for each FVI. It aggregates 12 socio-economic indicators correlated with various types of hardships that people may suffer due to flooding and different dimensions of ability to recover. \n\nFor additional information, please visit <a href=\"https://climate.cityofnewyork.us/initiatives/vulnerability-impacts-and-adaptation-analysis/\">this link</a>.",
+      "description_len": 1382,
+      "domain_category": "Environment",
+      "agency": "Mayor's Office of Climate and Environmental Justice (MOCEJ)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "mse5-qs8i",
+      "title": "Public Wi-Fi Systems NYC",
+      "description": "The different providers in New York City of Public Wi-Fi at locations or “Hotspots” distributed across the city, not including service provided on buses or ferries.",
+      "description_len": 164,
+      "domain_category": "City Government",
+      "agency": "Office of Technology and Innovation (OTI)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "n9yn-6q3f",
+      "title": "2015 2016 Student Discipline Annual Report - R P S TOTALS",
+      "description": "Student Discipline Annual Report - Removals Principals/Supt TOTALS",
+      "description_len": 66,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "nfz9-tzba",
+      "title": "Pre-K Projects By School",
+      "description": "Pre-K Projects By School  details",
+      "description_len": 33,
+      "domain_category": "Education",
+      "agency": null,
+      "asset_type": "dataset"
+    },
+    {
+      "id": "npnk-wrj8",
+      "title": "Wi-Fi in Public Space (Open Space)",
+      "description": "Wi-Fi in Public Space (Open Space) is an analysis of the ‘NYC Wi-Fi Hotspot Locations’ OpenData records focused on the use of Wi-Fi in open spaces (in public parks and on Governors Island).",
+      "description_len": 189,
+      "domain_category": "City Government",
+      "agency": "Office of Technology and Innovation (OTI)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "p39r-nm7f",
+      "title": "Enforcement Fines",
+      "description": "This is a list of COIB enforcement actions against current or former public servants for violation(s) of the City's conflicts of interest law that were resolved by settlement through a public disposition or by a Board order. It summarizes monetary fines paid to the Board, monetary fines imposed but not paid to the Board, and additional penalties considered by the Board in assessing monetary fines.",
+      "description_len": 400,
+      "domain_category": "City Government",
+      "agency": "Conflicts of Interest Board (COIB)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "p6h4-mpyy",
+      "title": "2017 - 2018 School Locations",
+      "description": "School Location Information",
+      "description_len": 27,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "pjwn-nnx8",
+      "title": "2015 - 2016 Career Technical Education Report",
+      "description": "New York City Department of Education 2015 - 2016 Career Technical Education Report.\nLocal Law 174, enacted in 2016, requires the Department of Education of the New York City School District to submit to post publicly an annual report on Career and Technical Education (CTE) programs in New York City schools. Note that this report covers the 2015-16 academic year.\nThis report provides information about CTE programs and students in CTE programs and CTE-designated high schools, as defined in Local Law 174. The report also includes information regarding the number of applicants to CTE-designated schools, the graduation outcomes of CTE-designated high schools, the number and ratio of certified CTE instructors at schools offering CTE, and Professional Development (PD) offerings related to CTE",
+      "description_len": 797,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "qhm5-h46t",
+      "title": "Where the Dollar Comes From and Goes To",
+      "description": "This dataset shows where the dollar comes from and goes to in the budget. Data is reported in dollars and updated annually.",
+      "description_len": 123,
+      "domain_category": "City Government",
+      "agency": "Mayor's Office of Management and Budget (OMB)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "qjvp-rnsx",
+      "title": "Avenue NYC CFY17-CFY19",
+      "description": "Description of award funding",
+      "description_len": 28,
+      "domain_category": "City Government",
+      "agency": "Department of Small Business Services",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "qx6a-vcwx",
+      "title": "Youth Count",
+      "description": "This data tracks the demographics of participants who responded to DYCD's Youth Count survey. This survey is intended to identify additional unsheltered individuals who were not counted during broader NYC-wide measures of homelessness including DSS's HOPE Count and censuses of emergency shelters and transitional housing.",
+      "description_len": 322,
+      "domain_category": "Social Services",
+      "agency": "Department of Youth and Community Development (DYCD)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "rmhc-afj9",
+      "title": "DSNY - PlowNYC Data",
+      "description": "A table containing physical ID (a unique street segment identifier) and the date/time with which it was last associated with a GPS signal emitted by a NYC Department of Sanitation (DSNY) snow clearing vehicle. The PlowNYC website (https://plownyc.cityofnewyork.us/plownyc/) allows you to track the progress of DSNY snow removal vehicles. To learn more about DSNY’s Snow Response, visit: https://www.nyc.gov/site/dsny/what-we-do/snow-response.page.",
+      "description_len": 447,
+      "domain_category": "City Government",
+      "agency": "Department of Sanitation (DSNY)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "s4kf-3yrf",
+      "title": "LinkNYC Kiosk Locations",
+      "description": "LinkNYC is the City’s program to provide free high-speed Wi-Fi, nationwide calling, a dedicated 911 button, charging ports for mobile devices, and access to social services. The City has recently begun to roll out a new and improved design of the original LinkNYC kiosk: Link5G. This new design will provide all of the amenities of LinkNYC kiosks, with the added benefit of 4G and 5G connectivity to enhance mobile telecommunications networks. This dataset lists locations for LinkNYC kiosks plus four public payphones in the five boroughs.",
+      "description_len": 540,
+      "domain_category": "Social Services",
+      "agency": "Office of Technology and Innovation (OTI)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "sci4-yqgk",
+      "title": "Daily Report Of Single Adult And Family Intake",
+      "description": "Daily report of how many Single Adults and Families are served",
+      "description_len": 62,
+      "domain_category": "Social Services",
+      "agency": "Department of Homeless Services (DHS)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "tncb-agv4",
+      "title": "2015-2016 Demographic Data - Diversity Efforts",
+      "description": "Demographic Data - Diversity Efforts",
+      "description_len": 36,
+      "domain_category": null,
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "u35m-9t32",
+      "title": "DCLA Cultural Organizations",
+      "description": "Listing of all DCLA organizations either funded or with direct relation / business dealings",
+      "description_len": 91,
+      "domain_category": "Recreation",
+      "agency": "Department of Cultural Affairs (DCLA)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "u42f-se8e",
+      "title": "Lottery Applications for Tobacco Retail Dealer (TRD) and Electronic Cigarette Dealer Licenses (ECD)",
+      "description": "The Department of Consumer and Worker Protection (DCWP) conducts a semi-annual review of Tobacco Retail Dealer licenses and Electronic Cigarette Dealer Licenses in each Community District to determine if the number of current licenses has fallen below the Community District cap. DCWP issues a public notice in the City Record stating which Community Districts have available licenses, how many licenses are available, and when it will begin accepting Lottery Application forms.\n\nAt the close of the Lottery Application Period, DCWP will assign each accepted application a “Priority Number” using a computer-generated random number selection program. If the number of accepted Lottery Application Forms exceeds the number of available Tobacco Retail Dealer licenses for the Community District, DCWP will issue offers to apply for the license in the order of the assigned Priority Numbers.",
+      "description_len": 888,
+      "domain_category": "Business",
+      "agency": "Department of Consumer and Worker Protection (DCWP)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "ud4g-9x9z",
+      "title": "Recognized Shop Healthy Stores",
+      "description": "Bodegas & Grocery Stores Receiving Recognition from Borough President's Office\n\nEach year, bodegas and grocery stores located in and around  Action Center catchment areas participate in the Shop Healthy NYC program's Retail Challenge to increase (1) availability of healthier foods, such as low-sodium canned goods, healthier snacks and deli options; (2) promotion of healthier foods by posting Shop Healthy marketing materials for healthier foods and removing unhealthy advertising from the front door; and (3) visibility of healthier foods by placing them in more prominent locations, such as placing produce at the checkout counter or near the front entrance of the store, and water and other low-calorie drinks at eye-level. Stores that have implemented all of the program’s criteria at the conclusion of the Retail Challenge, and maintain them for at least one month, receive a recognition award from the Borough President's Office to acknowledge their efforts and dedication to make the healthy choice, the easier choice for their communities.\n\nThis is a manually compiled list of stores, which is based on data collected through implementation checklists; these are forms completed by Shop Healthy staff as part of store observations that track whether each criteria has been met. At this time, the program does not have processes in place to ensure that stores maintain the changes past one-month.",
+      "description_len": 1405,
+      "domain_category": "Health",
+      "agency": "Department of Health and Mental Hygiene",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "uedp-fegm",
+      "title": "Natural Gas Consumption by ZIP Code - 2010",
+      "description": "2010 Natural Gas consumption in therms and GJ, by ZIP code, building type, and utility company.",
+      "description_len": 95,
+      "domain_category": "Environment",
+      "agency": "Mayor's Office of Climate and Environmental Justice (MOCEJ)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "vmkw-p55f",
+      "title": "Parks Concession Transactions",
+      "description": "NYC Parks uses a Commercial Off-The-Shelf database for maintaining its concession-related data.  In its raw form, the Parks data within the Yardi Voyager database has a convoluted structure, the majority of which is not being used by Parks to store any data. In an effort to make the data more user friendly, the multitude of tables used by the source database have been distilled into two that contain the essential information for a concessions database. One table (Parks Concessions) represents the concession asset – the place and thing which is being operated – and who holds the contract.  The other (Parks Concession Transactions) represents transactions between those contract holders and NYC Parks.  Parks Concessions is here https://data.cityofnewyork.us/City-Government/Parks-Concessions/53m8-jdtg and can be joined to Parks Concession Transactions using  PersonID, PropertyID and UnitID.",
+      "description_len": 899,
+      "domain_category": "City Government",
+      "agency": "Department of Parks and Recreation (DPR)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "vn74-s6rt",
+      "title": "2018-2019 Average Class Size Borough - Middle & High School",
+      "description": "2018-2019 Class Size Borough report for middle and high school  grades by program type, number of students, number of classes and average class size.",
+      "description_len": 149,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "x3bb-kg5j",
+      "title": "2018-2019 Daily Attendance",
+      "description": "Daily listing (counts) of students registered, present, absent and released by School DBN.",
+      "description_len": 90,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "x3kb-2vbv",
+      "title": "2015-2016 Class Size Report - Pupil To Teacher Ratio",
+      "description": "Class Size Report - Pupil To Teacher Ratio",
+      "description_len": 42,
+      "domain_category": "Education",
+      "agency": "Department of Education (DOE)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "xatq-cxeq",
+      "title": "New York City Forecasts of Selected Economic Indicators",
+      "description": "This dataset contains the forecasts of selected economic indicators for the United States and New York City. Data is reported by indicator in the specified units. This dataset is updated two times per year after publication of the Preliminary and Executive Budget, usually in January and April respectively.",
+      "description_len": 307,
+      "domain_category": "City Government",
+      "agency": "Mayor's Office of Management and Budget (OMB)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "xeqp-qz8h",
+      "title": "Serious Injury Response, Tracking & Analysis Program (SIRTA)",
+      "description": "In accordance with NYC Administrative Code section 19-182.3, the Serious Injury Response, Tracking & Analysis Program (SIRTA) is a program at the New York City Department of Transportation (NYC DOT) that investigates, analyzes and reports on serious vehicular crashes, review street design, infrastructure and driver behavior at each crash location, and makes recommendations for safety street design or infrastructure. This dataset provides information on serious vehicular crashes that were analyzed and reported on as part of SIRTA.   For more information, please visit the NYC DOT website: https://www.nyc.gov/html/dot/html/about/dotlibrary.shtml#data",
+      "description_len": 655,
+      "domain_category": "Transportation",
+      "agency": "Department of Transportation (DOT)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "xmiz-qy72",
+      "title": "Parks Inspection Program – Public Restroom Feature Ratings",
+      "description": "This dataset contains ratings for inspected public restroom features. Each row represents a rating for a single feature.\n\nData Dictionary and User Guide can be found <a href=\"https://docs.google.com/spreadsheets/d/17LSfFUkhHPHJS4hszOYMVmVyU3xVF7J_dILhtIwWKKA/edit?usp=sharing\">here</a>.\n\nA complete list of all datasets in the series can be found <a href=\"https://data.cityofnewyork.us/browse?Data-Collection_Data-Collection=Parks%20Inspection%20Program%20(PIP)&sortBy=alpha\">here</a>.",
+      "description_len": 485,
+      "domain_category": "City Government",
+      "agency": "Department of Parks and Recreation (DPR)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "ykvb-493p",
+      "title": "HIV/AIDS Diagnoses by Neighborhood, Sex, and Race/Ethnicity (Historical)",
+      "description": "<strong>Please note, this is now a historical dataset.</strong></br>\nInformation related to HIV/AIDS annual reporting has been consolidated in the following dataset where data from 2011 - 2022 can be found here: <a href=\"https://data.cityofnewyork.us/Health/DOHMH-HIV-AIDS-Annual-Report/fju2-rdad/about_data\" target=\"_blank\" rel=\"noopener noreferrer\"> https://data.cityofnewyork.us/Health/DOHMH-HIV-AIDS-Annual-Report/fju2-rdad/about_data</a>\n</br>The Department of Health and Mental Hygiene is working to back fill the data for 2010 and at that time this dataset will be removed from the portal.",
+      "description_len": 596,
+      "domain_category": "Health",
+      "agency": "Department of Health and Mental Hygiene (DOHMH)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "ymvu-4x4s",
+      "title": ".nyc Domain Registrations by Zip Code (Historical)",
+      "description": "The results shown reflect data as of October 7, 2025, and this report is no longer being updated due to changes in available data sources.",
+      "description_len": 138,
+      "domain_category": "Business",
+      "agency": "Office of Technology and Innovation (OTI)",
+      "asset_type": "dataset"
+    },
+    {
+      "id": "ynic-uz5i",
+      "title": "Vehicle Auction List",
+      "description": "A list of vehicles to be auctioned.",
+      "description_len": 35,
+      "domain_category": "City Government",
+      "agency": "Department of Citywide Services (DCAS)",
+      "asset_type": "dataset"
+    }
+  ],
+  "source_snapshot": "eval/frame/catalog_snapshot_data.cityofnewyork.us_2026-08-17.json",
+  "drawn_at": "2026-08-17T02:02:11Z"
+}

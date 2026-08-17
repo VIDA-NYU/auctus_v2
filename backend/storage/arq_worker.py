@@ -487,6 +487,11 @@ def resolve_ingest_settings(dataset_meta: dict[str, Any]) -> dict[str, Any]:
             or pipeline_settings.get("http_timeout_seconds", 30.0)
         ),
         "socrata_updated_at": dataset_meta.get("socrata_updated_at"),
+        # Only the id-list ingestion path (run_pipeline_ingest.py, driven by a
+        # frame slice from eval/catalog_frame.py) has agency data to pass —
+        # the domain-crawl path's bare ids never carry it. None (not "") is
+        # the explicit "portal supplied no agency" marker (design.md D4).
+        "agency": dataset_meta.get("agency"),
     }
 
 
@@ -562,6 +567,7 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
         # 2. Assign fields manually so they match the updated auctus_catalog_master mapping! 👈
         search_payload["domain"] = domain_url
         search_payload["provider"] = provider_type
+        search_payload["agency"] = settings["agency"]
 
         LOGGER.info("Indexing trimmed search document into OpenSearch for dataset %s", routing_key)
         os_client.index(
