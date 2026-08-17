@@ -69,10 +69,12 @@ class SearchFilters(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     filters: Optional[SearchFilters] = None
-    # Which description the full-text query targets: the original portal description,
-    # the LLM-direct baseline, the AutoDDG UFD, or the AutoDDG SFD. Defaults to original
-    # (no behaviour change).
-    description_source: Literal["original", "llm_direct", "ufd", "sfd"] = DEFAULT_DESCRIPTION_SOURCE
+    # Which description the full-text query targets. Accepted values are whatever
+    # DESCRIPTION_SOURCE_FIELDS (storage/opensearch_client.py) maps to an index
+    # field — that mapping is the single source of truth; this field must not
+    # restate the arm list, or the two can drift out of step. Defaults to original
+    # (no behaviour change). description_fields_for() rejects an unknown value.
+    description_source: Optional[str] = DEFAULT_DESCRIPTION_SOURCE
     # Number of hits to return. Without this OpenSearch silently caps at 10, which
     # truncates any NDCG@k ranking beyond rank 10 in the retrieval eval.
     size: int = Field(default=10, ge=1, le=200)
@@ -95,13 +97,20 @@ async def search(request: SearchRequest):
     try:
         client = get_client()
 
+        try:
+            description_fields = description_fields_for(
+                request.description_source, title_boost=request.title_boost
+            )
+        except ValueError as exc:
+            # A typo'd or unconfigured source must not silently fall back to the
+            # default arm, and must not be swallowed by the broad except below.
+            raise HTTPException(status_code=400, detail=str(exc))
+
         must_clauses = [
             {
                 "multi_match": {
                     "query": request.query,
-                    "fields": description_fields_for(
-                        request.description_source, title_boost=request.title_boost
-                    ),
+                    "fields": description_fields,
                     "type": "best_fields",
                     "operator": request.match_operator,
                 }
@@ -145,6 +154,8 @@ async def search(request: SearchRequest):
             "total_results": total_results,
             "results": results,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"OpenSearch search failed: {e}")
         raise HTTPException(status_code=503, detail="Search backend unavailable")
