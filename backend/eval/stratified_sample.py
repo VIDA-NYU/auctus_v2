@@ -228,6 +228,7 @@ def main(argv: list[str] | None = None) -> int:
 
     snapshot = json.loads(Path(args.snapshot).read_text(encoding="utf-8"))
     result = draw_sample(snapshot["records"], n=args.n, seed=args.seed)
+    result["domain"] = snapshot["domain"]
     result["source_snapshot"] = args.snapshot
     result["drawn_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 

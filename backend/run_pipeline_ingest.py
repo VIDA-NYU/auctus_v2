@@ -304,6 +304,174 @@ async def sync_portal_metadata(domain_url: str, provider_type: str) -> None:
 	client.index(index=AUCTUS_PORTALS_INDEX_NAME, id=domain_url, body=summary_document, refresh=True)
 
 
+async def ingest_id_list(
+	dataset_records: list[dict[str, Any]],
+	provider_type: str,
+	domain_url: str,
+	redis_pool: Any = None,
+	run_init_db: bool = True,
+) -> dict[str, Any]:
+	"""Ingest an explicit list of dataset ids, bypassing
+	``discover_datasets_for_provider``'s crawl-prefix behaviour (corpus-resample-
+	100-with-frame tasks.md §5). Targets ``AUCTUS_INDEX_NAME`` unchanged — no new
+	index name, no change to index-name resolution (design.md D7).
+
+	Each record needs at least an ``id``; ``agency`` is threaded through when
+	present (design.md D4). A failure to enqueue one id is reported and the id
+	is dropped from ``enqueued_ids`` — never substituted or silently skipped,
+	since a substituted dataset breaks the stratification the draw exists to
+	produce (tasks.md 5.2).
+
+	``redis_pool`` is injectable for testing; the CLI path (``main_id_list``)
+	leaves it ``None`` and a real pool is constructed from ``REDIS_HOST``/
+	``REDIS_PORT``, matching ``main()``'s existing connection handling.
+	``run_init_db=False`` skips the OpenSearch mapping refresh, for tests that
+	inject a fake pool and have no live OpenSearch to talk to.
+	"""
+	if run_init_db:
+		LOGGER.info("Initializing OpenSearch index state")
+		init_db()
+
+	runtime_cfg = load_runtime_config()
+	providers_cfg = runtime_cfg.get("providers", {})
+	provider_cfg = providers_cfg.get(provider_type, {}) if isinstance(providers_cfg, dict) else {}
+	pipeline_settings = runtime_cfg.get("pipeline_settings", {})
+
+	max_sample_rows = int(pipeline_settings.get("max_sample_rows", 500))
+	max_sample_bytes = int(pipeline_settings.get("max_sample_bytes", 2_100_000))
+	http_timeout_seconds = float(pipeline_settings.get("http_timeout_seconds", 30.0))
+	base_url = str(provider_cfg.get("base_url", f"https://{domain_url}"))
+	fallback_bbox = provider_cfg.get("fallback_bbox", DEFAULT_FALLBACK_BBOX)
+	if not isinstance(fallback_bbox, list) or len(fallback_bbox) != 4:
+		fallback_bbox = DEFAULT_FALLBACK_BBOX
+	spatial_label = str(provider_cfg.get("label", domain_url))
+
+	owns_pool = redis_pool is None
+	if owns_pool:
+		redis_host = os.getenv("REDIS_HOST", "localhost")
+		redis_port = int(os.getenv("REDIS_PORT", "6379"))
+		redis_pool = await create_pool(RedisSettings(host=redis_host, port=redis_port))
+
+	requested_ids = [str(r["id"]) for r in dataset_records]
+	enqueued_ids: list[str] = []
+	failed: list[dict[str, str]] = []
+
+	try:
+		for index, record in enumerate(dataset_records, start=1):
+			dataset_id = str(record["id"])
+			try:
+				socrata_updated_at = None
+				if provider_type.lower() == "socrata":
+					try:
+						socrata_updated_at = await fetch_socrata_update_timestamp(
+							base_url=base_url,
+							dataset_id=dataset_id,
+							http_timeout_seconds=http_timeout_seconds,
+						)
+					except Exception as exc:
+						LOGGER.warning(
+							"Timestamp fetch failed for %s: %s. Proceeding without it.", dataset_id, exc
+						)
+
+				dataset_meta = build_dataset_meta(
+					dataset_id=dataset_id,
+					base_url=base_url,
+					fallback_bbox=fallback_bbox,
+					spatial_label=spatial_label,
+					max_sample_rows=max_sample_rows,
+					max_sample_bytes=max_sample_bytes,
+					http_timeout_seconds=http_timeout_seconds,
+					socrata_updated_at=socrata_updated_at,
+					agency=record.get("agency"),
+				)
+				dataset_meta["provider"] = provider_type
+				dataset_meta["domain"] = domain_url
+
+				await redis_pool.enqueue_job("process_dataset_task", dataset_meta)
+				enqueued_ids.append(dataset_id)
+				LOGGER.info("🚀 Enqueued dataset %d/%d: %s", index, len(requested_ids), dataset_id)
+			except Exception as exc:
+				LOGGER.error("Failed to enqueue dataset %s: %s", dataset_id, exc)
+				failed.append({"id": dataset_id, "error": str(exc)})
+	finally:
+		if owns_pool:
+			await redis_pool.aclose()
+
+	if failed:
+		LOGGER.warning(
+			"Failed to enqueue %d/%d requested datasets — not substituted, not skipped silently: %s",
+			len(failed),
+			len(requested_ids),
+			failed,
+		)
+
+	return {"requested_ids": requested_ids, "enqueued_ids": enqueued_ids, "failed": failed}
+
+
+def verify_ingested_ids(os_client: Any, requested_ids: list[str]) -> dict[str, Any]:
+	"""Compare the indexed id set against a requested list, surfacing any
+	difference (tasks.md 5.3).
+
+	Enqueueing is not ingestion: ``process_dataset_task`` runs asynchronously
+	on the ARQ worker, so call this only once the queue ``ingest_id_list``
+	fed has drained, not immediately after it returns.
+	"""
+	if not requested_ids:
+		return {"requested": [], "present": [], "missing": []}
+
+	response = os_client.mget(index=AUCTUS_INDEX_NAME, body={"ids": requested_ids})
+	docs = response.get("docs", [])
+	present = [doc["_id"] for doc in docs if doc.get("found")]
+	missing = [doc["_id"] for doc in docs if not doc.get("found")]
+	return {"requested": requested_ids, "present": present, "missing": missing}
+
+
+async def main_id_list(argv: list[str] | None = None) -> None:
+	"""CLI entry point for the id-list ingestion path (tasks.md §5) — a new
+	entry point rather than a flag on ``main()``, since ``main()`` takes no
+	CLI arguments at all today (a single positional dataset-limit int).
+
+	Reads a drawn slice in the shape ``eval/stratified_sample.py`` writes
+	(``{"domain": ..., "datasets": [{"id": ..., "agency": ...}, ...]}``) and
+	enqueues exactly those ids — not a crawl prefix.
+	"""
+	import argparse
+
+	logging.basicConfig(
+		level=logging.INFO,
+		format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+	)
+
+	parser = argparse.ArgumentParser(description="Ingest an explicit list of dataset ids.")
+	parser.add_argument("--slice", required=True, help="Path to a drawn_slice_*.json from eval/stratified_sample.py")
+	parser.add_argument("--provider", default="socrata")
+	parser.add_argument(
+		"--verify-only",
+		action="store_true",
+		help="Skip ingestion; only compare the slice's ids against what is already indexed.",
+	)
+	args = parser.parse_args(argv)
+
+	with open(args.slice, "r", encoding="utf-8") as fh:
+		slice_payload = json.load(fh)
+
+	dataset_records = slice_payload["datasets"]
+	domain_url = slice_payload.get("domain")
+	if not domain_url:
+		raise ValueError(
+			f"{args.slice} has no top-level 'domain' key — regenerate it with the "
+			"current eval/stratified_sample.py, which now records it."
+		)
+	requested_ids = [str(r["id"]) for r in dataset_records]
+
+	if args.verify_only:
+		result = verify_ingested_ids(get_client(), requested_ids)
+	else:
+		result = await ingest_id_list(dataset_records, provider_type=args.provider, domain_url=domain_url)
+
+	print(json.dumps(result, indent=2))
+
+
 async def main() -> None:
 	"""Discover datasets by provider/domain, dedupe by timestamp, and enqueue heavy jobs to ARQ."""
 	logging.basicConfig(
@@ -482,4 +650,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-	asyncio.run(main())
+	if "--slice" in sys.argv or "--verify-only" in sys.argv:
+		asyncio.run(main_id_list(sys.argv[1:]))
+	else:
+		asyncio.run(main())

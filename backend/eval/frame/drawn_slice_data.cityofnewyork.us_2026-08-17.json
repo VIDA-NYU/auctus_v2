@@ -983,6 +983,7 @@
       "asset_type": "dataset"
     }
   ],
+  "domain": "data.cityofnewyork.us",
   "source_snapshot": "eval/frame/catalog_snapshot_data.cityofnewyork.us_2026-08-17.json",
-  "drawn_at": "2026-08-17T02:02:11Z"
+  "drawn_at": "2026-08-17T02:12:00Z"
 }
