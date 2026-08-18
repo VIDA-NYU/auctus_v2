@@ -39,11 +39,19 @@ of its 5 chunk calls raised) carries ``judge_failed`` instead, never a
 silently empty or partial grade map. These qrels are PROVISIONAL (LLM-only,
 un-calibrated on NYC) — a pipeline shakedown, not benchmark ground truth.
 
+``--model`` is required and has no default: the panel is two models, and the
+old default was the *generator* -- copying an example that omitted it would
+have seated the generator's own lab as judge, which §1g forbids
+unconditionally. ``assert_judge_seat_allowed`` now refuses that before any
+call is made, but the examples name the model anyway.
+
     python -m eval.judge_qrels --queries eval/benchmark/queries.json \
+        --model '@bedrock/deepseek.v3.2' \
         --out eval/benchmark/qrels.json
 
     # Offline, from a pinned capture (no OpenSearch/MinIO call):
     python -m eval.judge_qrels --queries eval/benchmark/queries_n32.json \
+        --model '@vertexai/anthropic.claude-haiku-4-5@20251001' \
         --bundles ../../../useful/2026-07-22/data/bundles_n32.json \
         --out eval/benchmark/qrels_n32.json
 """
@@ -61,6 +69,7 @@ from pathlib import Path
 
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
 from eval.backfill_descriptions import load_full_profile
+from eval.corpus_frame import DEFAULT_CORPUS_FRAME, load_corpus_ids
 from eval.generate_queries import NEUTRAL_SOURCE_FIELDS, build_neutral_bundle
 from eval.provenance import code_version
 from eval.llm_client import (
@@ -164,27 +173,24 @@ def _render_bundle(idx: int, bundle: dict) -> str:
             f"    Sample: {bundle['sample'][:600]}")
 
 
-DEFAULT_CORPUS_FRAME = Path("eval/frame/post_spatial_swap_corpus_2026-08-17.json")
-
-
 def corpus_chunks(chunk_size: int,
                    corpus_path: Path = DEFAULT_CORPUS_FRAME) -> list[list[str]]:
     """Partition the round's authoritative corpus into fixed-membership chunks.
 
-    Reads ``corpus_ids`` from the frame file rather than the live index --
-    trusting "however many documents are in the index right now" is exactly
-    the plan-drift-audit finding-1 bug (144 documents, 44 of them stale
-    legacy, with no code noticing). Chunk membership is a pure function of the
-    sorted id list, so the same 5 groups are used for every query and both
-    judges within a run (judge-exhaustive-chunked/design.md Decisions 1-2).
+    Reads ``corpus_ids`` through ``corpus_frame.load_corpus_ids`` rather than
+    the live index -- trusting "however many documents are in the index right
+    now" is exactly the plan-drift-audit finding-1 bug (144 documents, 44 of
+    them stale legacy, with no code noticing). Chunk membership is a pure
+    function of the sorted id list, so the same groups are used for every
+    query and both judges within a run (judge-exhaustive-chunked/design.md
+    Decisions 1-2).
     """
-    corpus_ids = json.loads(corpus_path.read_text(encoding="utf-8"))["corpus_ids"]
-    if len(corpus_ids) % chunk_size != 0:
+    ordered = load_corpus_ids(corpus_path)
+    if len(ordered) % chunk_size != 0:
         raise ValueError(
             f"chunk_size={chunk_size} does not evenly divide corpus size "
-            f"{len(corpus_ids)} ({corpus_path})"
+            f"{len(ordered)} ({corpus_path})"
         )
-    ordered = sorted(corpus_ids)
     return [ordered[i:i + chunk_size] for i in range(0, len(ordered), chunk_size)]
 
 
@@ -292,6 +298,41 @@ def judge_query(client, query_text: str, items: list[tuple[str, dict]],
     return out, unverified, usage
 
 
+def assert_judge_seat_allowed(judge_model: str, generator_model: str = LLM_MODEL) -> None:
+    """Refuse a judge from the generator's own lab, before anything is spent.
+
+    §1g's constraint -- "the generator's lab may not judge" -- is
+    unconditional, and until now nothing enforced it: `--model` defaulted to
+    the generator, so the docstring's own copy-pasteable example would have
+    seated Google over Google-authored arms (plan-drift-audit finding 6).
+
+    Derived from the configured generator rather than naming a forbidden lab
+    literally: hardcoding "Google" would stop enforcing anything the moment
+    the generator was re-seated, and §1g treats the generator staying put as
+    a decision, not a constant. An unrecorded lineage fails closed -- an
+    unknown lab cannot be *shown* to differ from the generator's, and this
+    guard exists precisely for the case where nobody checked.
+    """
+    generator_lab = MODEL_LAB.get(generator_model)
+    judge_lab = MODEL_LAB.get(judge_model)
+    if judge_lab is None:
+        raise SystemExit(
+            f"Refusing to judge with {judge_model!r}: its originating lab is "
+            f"not recorded in MODEL_LAB, so it cannot be shown to satisfy "
+            f"§1g's generator's-lab-may-not-judge constraint. Add it to "
+            f"MODEL_LAB (lineage follows the originating lab, not the cloud "
+            f"route) before using it as a judge."
+        )
+    if generator_lab is not None and judge_lab == generator_lab:
+        raise SystemExit(
+            f"Refusing to judge with {judge_model!r} (lab: {judge_lab}): the "
+            f"generator {generator_model!r} is from the same lab. §1g's "
+            f"generator's-lab-may-not-judge constraint is unconditional -- a "
+            f"judge that authored the arms under test would systematically "
+            f"favour them and void the evaluation."
+        )
+
+
 _EMPTY_USAGE = {"prompt_tokens": 0, "completion_tokens": 0, "reasoning_tokens": 0}
 
 
@@ -355,8 +396,11 @@ def main(argv: list[str] | None = None) -> int:
                              "omit for a fresh (OS-entropy) seed each run, "
                              "still recorded in the output for reproduction")
     parser.add_argument("--out", default="eval/benchmark/qrels.json")
-    parser.add_argument("--model", default=LLM_MODEL,
-                        help="judge model string on the Portkey gateway")
+    parser.add_argument("--model", required=True,
+                        help="judge model string on the Portkey gateway. "
+                             "REQUIRED, no default: the panel is two models "
+                             "(§1g) so no single default is correct, and the "
+                             "old default was the generator itself")
     parser.add_argument("--seed", type=int, default=None,
                         help="sampling seed, when the provider honours it")
     parser.add_argument("--limit-queries", type=int, default=None,
@@ -375,6 +419,9 @@ def main(argv: list[str] | None = None) -> int:
              "instead. Use for a pinned-capture re-pilot when the live index "
              "has drifted past what the capture recorded.")
     args = parser.parse_args(argv)
+
+    # Before anything is read, fetched or spent: §1g's judge-seat constraint.
+    assert_judge_seat_allowed(args.model)
 
     queries_doc = json.loads(Path(args.queries).read_text(encoding="utf-8"))
     chunks = corpus_chunks(args.chunk_size, Path(args.corpus_frame))

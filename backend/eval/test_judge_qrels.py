@@ -16,8 +16,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from eval.judge_qrels import (
-    DEFAULT_CORPUS_FRAME, _shuffled, corpus_chunks, judge_query_chunked,
+    DEFAULT_CORPUS_FRAME, _shuffled, assert_judge_seat_allowed, corpus_chunks,
+    judge_query_chunked,
 )
+from eval.llm_client import CLAUDE_HAIKU, DEEPSEEK_V3, GEMINI_FLASH
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
@@ -118,6 +120,46 @@ def test_judge_query_chunked_one_failed_chunk_fails_the_whole_query() -> None:
     assert usage["prompt_tokens"] == 200
 
 
+def test_judge_seat_allows_a_cross_lab_judge() -> None:
+    """Both panel seats must pass against the gemini generator."""
+    assert_judge_seat_allowed(CLAUDE_HAIKU, GEMINI_FLASH)
+    assert_judge_seat_allowed(DEEPSEEK_V3, GEMINI_FLASH)
+
+
+def test_judge_seat_refuses_the_generators_own_lab() -> None:
+    """The finding-6 regression: §1g's constraint is unconditional, and the
+    old `--model` default was the generator itself."""
+    try:
+        assert_judge_seat_allowed(GEMINI_FLASH, GEMINI_FLASH)
+    except SystemExit as exc:
+        assert "same lab" in str(exc)
+    else:
+        raise AssertionError("a same-lab judge was allowed")
+
+
+def test_judge_seat_refuses_unknown_lineage() -> None:
+    """Fails closed: an unrecorded lab cannot be shown to differ from the
+    generator's, and this guard exists for the case nobody checked."""
+    try:
+        assert_judge_seat_allowed("@somewhere/never-seen-model", GEMINI_FLASH)
+    except SystemExit as exc:
+        assert "not recorded in MODEL_LAB" in str(exc)
+    else:
+        raise AssertionError("a model of unknown lineage was allowed")
+
+
+def test_judge_seat_guard_follows_the_generator() -> None:
+    """Derived, not hardcoded: re-seat the generator to an Anthropic model and
+    the Anthropic judge becomes the refused one, with no edit to the guard."""
+    assert_judge_seat_allowed(GEMINI_FLASH, CLAUDE_HAIKU)  # now allowed
+    try:
+        assert_judge_seat_allowed(CLAUDE_HAIKU, CLAUDE_HAIKU)
+    except SystemExit:
+        pass
+    else:
+        raise AssertionError("the guard did not follow the generator's lab")
+
+
 def test_judge_query_chunked_default_corpus_frame_resolves_from_backend_cwd() -> None:
     """DEFAULT_CORPUS_FRAME is a relative path; confirm it resolves to the
     real, currently-tracked frame file rather than a stale/renamed one."""
@@ -133,10 +175,15 @@ def main() -> int:
     test_shuffle_never_changes_membership()
     test_judge_query_chunked_merges_all_five_chunks()
     test_judge_query_chunked_one_failed_chunk_fails_the_whole_query()
+    test_judge_seat_allows_a_cross_lab_judge()
+    test_judge_seat_refuses_the_generators_own_lab()
+    test_judge_seat_refuses_unknown_lineage()
+    test_judge_seat_guard_follows_the_generator()
     test_judge_query_chunked_default_corpus_frame_resolves_from_backend_cwd()
     print("OK: corpus chunking (coverage/disjointness/determinism/bad-size), "
           "order randomization (reproducible/varies/membership-preserving), "
-          "chunked judging (full merge, whole-query failure on one bad chunk)")
+          "chunked judging (full merge, whole-query failure on one bad chunk), "
+          "judge-seat guard (cross-lab ok, same-lab/unknown refused, follows generator)")
     return 0
 
 
