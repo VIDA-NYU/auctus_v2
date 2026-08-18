@@ -58,11 +58,32 @@ def test_allowlist_and_arm_fields_are_disjoint() -> None:
 
 def test_neutral_document_builds_a_useful_bundle() -> None:
     """The guard must be satisfied by neutrality, not by an empty bundle."""
-    bundle = build_neutral_bundle(_NEUTRAL_DOC, sample=_SAMPLE)
+    bundle = build_neutral_bundle(_NEUTRAL_DOC, sample=_SAMPLE, include_title=True)
     blob = str(bundle)
     assert "Motor Vehicle Collisions" in blob   # title survives
     assert "borough" in blob                    # profile facts survive
     assert "Brooklyn" in blob                   # sample survives
+
+
+def test_include_title_has_no_default() -> None:
+    """§6a's asymmetry (judge keeps the title, the generator does not) must be
+    stated by every caller, never inherited by omission — the dangerous
+    direction is the generator silently receiving the title."""
+    raised = False
+    try:
+        build_neutral_bundle(_NEUTRAL_DOC, sample=_SAMPLE)  # no include_title
+    except TypeError:
+        raised = True
+    assert raised, "include_title must have no default — omitting it should fail"
+
+
+def test_include_title_false_omits_the_key_entirely() -> None:
+    """Not an empty title — the key itself must be absent, so a caller that
+    reads bundle['title'] fails loudly instead of silently seeing ''."""
+    bundle = build_neutral_bundle(_NEUTRAL_DOC, sample=_SAMPLE, include_title=False)
+    assert "title" not in bundle
+    assert "Motor Vehicle Collisions" not in str(bundle)
+    assert "borough" in str(bundle)   # the rest of the bundle is unaffected
 
 
 def test_bundle_refuses_a_document_carrying_any_arm_field() -> None:
@@ -71,7 +92,7 @@ def test_bundle_refuses_a_document_carrying_any_arm_field() -> None:
         doc = dict(_NEUTRAL_DOC, **{field: "SENTINEL unique arm prose"})
         raised = False
         try:
-            build_neutral_bundle(doc, sample=_SAMPLE)
+            build_neutral_bundle(doc, sample=_SAMPLE, include_title=True)
         except AssertionError as exc:
             raised = True
             assert field in str(exc), (field, str(exc))
@@ -88,7 +109,7 @@ def test_guard_fires_on_a_present_but_empty_arm_field() -> None:
     doc = dict(_NEUTRAL_DOC, autoddg_search_description="")
     raised = False
     try:
-        build_neutral_bundle(doc, sample=_SAMPLE)
+        build_neutral_bundle(doc, sample=_SAMPLE, include_title=True)
     except AssertionError:
         raised = True
     assert raised, "guard ignored a present-but-empty arm field"
@@ -120,11 +141,14 @@ def test_leakage_audit_still_reads_every_arm() -> None:
 def main() -> int:
     test_allowlist_and_arm_fields_are_disjoint()
     test_neutral_document_builds_a_useful_bundle()
+    test_include_title_has_no_default()
+    test_include_title_false_omits_the_key_entirely()
     test_bundle_refuses_a_document_carrying_any_arm_field()
     test_guard_fires_on_a_present_but_empty_arm_field()
     test_call_sites_fetch_the_allowlist()
     test_leakage_audit_still_reads_every_arm()
-    print("OK: neutral fetch allowlist checked; bundle refuses any arm-carrying doc")
+    print("OK: neutral fetch allowlist checked; bundle refuses any arm-carrying doc; "
+          "include_title has no default and gates the title key's presence")
     return 0
 
 
