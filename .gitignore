@@ -17,3 +17,8 @@ dist/
 backend/eval/results/
 # Benchmark-EDA generated artifacts (corpus slices, pools, query sets — regenerable)
 backend/eval/benchmark/
+
+# Tool artifacts (agent/codegraph state, not part of the repo)
+.omc/
+.codegraph/
+.venv.x86_64.bak/
