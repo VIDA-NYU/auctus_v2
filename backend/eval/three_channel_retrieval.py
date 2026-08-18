@@ -42,9 +42,11 @@ below the corpus's actual document count, so no BM25 match is truncated. It
 does NOT mean padding in zero-score entries for documents that matched no
 term on that field -- a document absent from a field's hit list has that
 field's genuine BM25 relevance of 0, not a retrieval artifact. Corpus size is
-read from the index at run time (`_count`), not hardcoded to the planned
-100 -- item 14 (the resample) has not landed yet, so the live index may be a
-different size, and hardcoding would silently truncate.
+read from the frame file's `corpus_ids` (`eval.corpus_frame.load_corpus_ids`),
+not the live index's `_count` -- a live count cannot distinguish "the corpus"
+from "whatever is currently indexed" (plan-drift-audit.md finding 1; same
+reasoning as `run_matrix.py`, see retrieval-depth-and-judge-seat-guard/
+design.md Decision 2).
 
 Usage:
     python -m eval.three_channel_retrieval \
@@ -61,6 +63,7 @@ from pathlib import Path
 from typing import Any
 
 from api.search import build_query_vector
+from eval.corpus_frame import DEFAULT_CORPUS_FRAME, load_corpus_ids
 from eval.provenance import code_version
 from eval.retrieval_eval import metric_ndcg
 from eval.run_matrix import ARMS, QUERY_CLASSES, classify_query, field_scores, parse_qrels
@@ -76,10 +79,6 @@ BM25_OPERATOR = "or"  # see module docstring: matches run_matrix.py's search_arm
 
 
 # --- Channels -------------------------------------------------------------
-
-
-def corpus_size(os_client) -> int:
-    return int(os_client.count(index=AUCTUS_INDEX_NAME).get("count", 0))
 
 
 def bm25_channel(os_client, field: str, text: str, size: int) -> dict[str, float]:
@@ -206,13 +205,14 @@ def run(
     k: int,
     title_weight: float,
     size: int | None = None,
+    corpus_frame: Path = DEFAULT_CORPUS_FRAME,
 ) -> dict[str, Any]:
     """Retrieve all three channels per query, combine locally under both
     rules, and score. Returns aggregates for all three tables (additive,
     max_of_fields, isolated_bm25) plus the full per-query, per-arm record
     (raw channels + ranked lists) so the artifact is self-contained (task 3).
     """
-    size = size or corpus_size(os_client)
+    size = size or len(load_corpus_ids(corpus_frame))
 
     tables = {"additive", "max_of_fields", "isolated_bm25"}
     overall = {t: {a: [] for a in ARMS} for t in tables}
@@ -346,9 +346,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--size", type=int, default=None,
-        help="Result-count cap per channel; default is the live corpus size "
-             "(exhaustive, task 2.3). Only for testing on a smaller slice.",
+        help="Result-count cap per channel; default is the frame file's "
+             "corpus size (exhaustive, task 2.3). Only for testing on a "
+             "smaller slice.",
     )
+    parser.add_argument("--corpus-frame", default=str(DEFAULT_CORPUS_FRAME),
+                        help="frame file whose 'corpus_ids' sets the "
+                             "default --size (never a live index count)")
     args = parser.parse_args(argv)
 
     queries = json.loads(Path(args.queries).read_text(encoding="utf-8"))["queries"]
@@ -356,7 +360,8 @@ def main(argv: list[str] | None = None) -> int:
     qrels, grade_scale = parse_qrels(qrels_doc)
 
     os_client = get_client()
-    result = run(os_client, queries, qrels, args.k, args.title_weight, args.size)
+    result = run(os_client, queries, qrels, args.k, args.title_weight, args.size,
+                 Path(args.corpus_frame))
 
     per_query = result.pop("per_query")
 
