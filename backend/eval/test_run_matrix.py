@@ -18,9 +18,10 @@ Run: python -m eval.test_run_matrix   (or via pytest)
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
 
-from eval.run_matrix import ARMS, classify_query, ndcg_for, parse_qrels, run
+from eval.run_matrix import ARMS, classify_query, main, ndcg_for, parse_qrels, run
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 _QRELS_GRADED_LIVE = _BACKEND_ROOT / "eval/benchmark/qrels_n32_haiku_graded_live.json"
@@ -93,6 +94,101 @@ def test_parse_qrels_grade_scale_undeclared() -> None:
     qrels, grade_scale = parse_qrels(doc)
     assert grade_scale == "undeclared"
     assert len(qrels) == len(doc["queries"])
+
+
+def test_parse_qrels_returns_float_grades_not_truncated() -> None:
+    """mean-aggregation-sensitivity-row: a `mean`-merged qrels stores 1.5 for
+    a 1-vs-2 disagreement (never rounded, see merge_qrels.py). The old
+    `int(v)` would have silently truncated this to 1 -- this is the exact
+    defect the change fixes."""
+    doc = {"grade_scale": "0/1/2", "aggregation": "mean", "queries": [
+        {"query_id": "q1", "relevant": {"d1": 1.5, "d2": 2.0, "d3": 0.5}},
+    ]}
+    qrels, _ = parse_qrels(doc)
+    assert qrels["q1"]["grades"] == {"d1": 1.5, "d2": 2.0, "d3": 0.5}
+    assert isinstance(qrels["q1"]["grades"]["d1"], float)
+
+
+def test_parse_qrels_still_parses_integer_grades_unchanged() -> None:
+    """Existing 0/1/2 (max-merged or single-judge) artifacts are unaffected
+    in value by the int -> float change."""
+    doc = {"grade_scale": "0/1/2", "queries": [
+        {"query_id": "q1", "relevant": {"d1": 2, "d2": 1, "d3": 0}},
+    ]}
+    qrels, _ = parse_qrels(doc)
+    assert qrels["q1"]["grades"] == {"d1": 2.0, "d2": 1.0, "d3": 0.0}
+
+
+def test_ndcg_fractional_grade_is_not_silently_truncated() -> None:
+    """The direct regression for the truncation this change fixes.
+
+    d1=1.5 and d2=1.4 are genuinely different under `mean` aggregation (a
+    real ranking distinction: d1 should rank above d2), but `int(1.5)` and
+    `int(1.4)` both truncate to 1 -- a truncating reader would see them as
+    TIED and stop penalising a ranking that puts d2 first. A suboptimal
+    ranking (d2 before d1) must therefore score differently -- lower -- under
+    the true fractional grades than it does once truncated to equal ints."""
+    ranked = ["d2", "d1", "d3"]  # suboptimal: d1 (1.5) should outrank d2 (1.4)
+    grades_fractional = {"d1": 1.5, "d2": 1.4, "d3": 0.0}
+    grades_truncated = {"d1": 1, "d2": 1, "d3": 0}  # what int(1.5)/int(1.4) would give
+    fractional = ndcg_for(ranked, grades_fractional, k=10)
+    truncated = ndcg_for(ranked, grades_truncated, k=10)
+    assert truncated == 1.0  # tied grades -> any order between them is "ideal"
+    assert fractional < truncated  # the real, non-tied grades penalise this order
+
+
+def test_require_aggregation_refuses_a_mismatched_artifact() -> None:
+    """Decision 4: refusal is on the artifact's declared `aggregation`, not
+    on whether it happens to contain a fractional value."""
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        queries_path = d / "queries.json"
+        queries_path.write_text(json.dumps({"queries": [
+            {"query_id": "q1", "text": "x", "facet": "topic", "query_class": "keyword"},
+        ]}), encoding="utf-8")
+        qrels_path = d / "qrels_mean.json"
+        qrels_path.write_text(json.dumps({
+            "grade_scale": "0/1/2", "aggregation": "mean",
+            "queries": [{"query_id": "q1", "relevant": {"d1": 2, "d2": 2}}],
+        }), encoding="utf-8")
+
+        try:
+            main(["--queries", str(queries_path), "--qrels", str(qrels_path),
+                  "--require-aggregation", "max", "--out", str(d / "out.json")])
+        except SystemExit as exc:
+            assert "aggregation='mean'" in str(exc.code)
+            assert "requires 'max'" in str(exc.code)
+        else:
+            raise AssertionError("expected SystemExit on aggregation mismatch")
+
+
+def test_require_aggregation_allows_a_qrels_with_no_aggregation_field() -> None:
+    """A per-judge qrels (not a merge output at all) has no `aggregation`
+    key -- --require-aggregation must not refuse it, or every item-15 run
+    against a single judge's own qrels would break."""
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        queries_path = d / "queries.json"
+        queries_path.write_text(json.dumps({"queries": [
+            {"query_id": "q1", "text": "x", "facet": "topic", "query_class": "keyword"},
+        ]}), encoding="utf-8")
+        qrels_path = d / "qrels_single_judge.json"
+        qrels_path.write_text(json.dumps({
+            "grade_scale": "0/1/2",
+            "queries": [{"query_id": "q1", "relevant": {"d1": 2}}],
+        }), encoding="utf-8")
+
+        # Would reach get_client() (OpenSearch) if it passed the aggregation
+        # check -- catching that failure (not SystemExit-with-our-message)
+        # is how this test confirms the guard let it through.
+        try:
+            main(["--queries", str(queries_path), "--qrels", str(qrels_path),
+                  "--require-aggregation", "max", "--out", str(d / "out.json")])
+        except SystemExit as exc:
+            assert "aggregation" not in str(exc.code), (
+                f"a qrels with no aggregation field was wrongly refused: {exc.code}")
+        except Exception:
+            pass  # any non-aggregation failure (e.g. no OpenSearch reachable) is fine here
 
 
 def test_dpec_ucu7_4_classifies_as_no_positive_not_failure() -> None:
@@ -220,10 +316,15 @@ def _description_fields() -> list[str]:
     return list(DESCRIPTION_SOURCE_FIELDS.values())
 
 
-def main() -> int:
+def run_tests() -> int:
     test_classify_query_four_states()
     test_parse_qrels_grade_scale_declared()
     test_parse_qrels_grade_scale_undeclared()
+    test_parse_qrels_returns_float_grades_not_truncated()
+    test_parse_qrels_still_parses_integer_grades_unchanged()
+    test_ndcg_fractional_grade_is_not_silently_truncated()
+    test_require_aggregation_refuses_a_mismatched_artifact()
+    test_require_aggregation_allows_a_qrels_with_no_aggregation_field()
     test_dpec_ucu7_4_classifies_as_no_positive_not_failure()
     test_ndcg_separates_grades()
     test_run_reconciliation_and_exclusion_breakdown()
@@ -232,10 +333,12 @@ def main() -> int:
     test_two_cutoffs_cost_one_retrieval_pass()
     test_scores_match_what_separate_per_cutoff_runs_produced()
     print("OK: classify_query's four states, grade_scale declared/undeclared parsing, "
+          "float grade parsing (fractional + integer), fractional-grade NDCG regression, "
+          "require-aggregation refusal/passthrough, "
           "graded NDCG separation, exclusion-reason accounting, per-grade distribution, "
           "retrieval depth decoupled from reporting cutoff (size, one pass, equivalence)")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(run_tests())

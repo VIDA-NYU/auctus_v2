@@ -83,7 +83,7 @@ def search_arm(os_client, arm_field: str, text: str, size: int) -> list[str]:
     return list(field_scores(os_client, arm_field, text, size, operator="or"))
 
 
-def ndcg_for(ranked: list[str], grades: dict[str, int], k: int) -> float:
+def ndcg_for(ranked: list[str], grades: dict[str, float], k: int) -> float:
     retrieved_rel = [grades.get(i, 0) for i in ranked]
     ideal_rel = sorted(grades.values(), reverse=True)
     return metric_ndcg(retrieved_rel, ideal_rel, k)
@@ -114,11 +114,20 @@ def parse_qrels(qrels_doc: dict) -> tuple[dict[str, dict], str]:
     {"grades": ..., "judge_failed": ...}}`` shape ``run()``/``classify_query``
     expect, plus the artifact's declared ``grade_scale`` (``"undeclared"`` if
     the artifact predates that field). Pure and side-effect free so it can be
-    tested without an OpenSearch client."""
+    tested without an OpenSearch client.
+
+    Grades are parsed as ``float``, not ``int``. A ``mean``-aggregated qrels
+    (``merge_qrels.py --aggregation mean``) stores fractional grades on
+    purpose (a 1-vs-2 disagreement is 1.5, never rounded -- see that
+    module's docstring); ``int(v)`` here would silently truncate 1.5 to 1,
+    turning the published sensitivity row into an unstated, different
+    aggregation (mean-aggregation-sensitivity-row/design.md Decision 2).
+    Existing 0/1/2 files are unaffected: 0.0/1.0/2.0 compare, sum and rank
+    identically to their integer forms."""
     grade_scale = qrels_doc.get("grade_scale", "undeclared")
     qrels = {
         q["query_id"]: {
-            "grades": {i: int(v) for i, v in q.get("relevant", {}).items()},
+            "grades": {i: float(v) for i, v in q.get("relevant", {}).items()},
             "judge_failed": bool(q.get("judge_failed")),
         }
         for q in qrels_doc["queries"]
@@ -185,7 +194,11 @@ def run(os_client, queries: list[dict], qrels: dict[str, dict],
         grades = qrels[q["query_id"]]["grades"]
         scored += 1
         n_relevant = sum(1 for v in grades.values() if v > 0)
-        n_relevant_by_grade: dict[int, int] = {}
+        # Keyed by the exact grade value (float): under `max` this is always
+        # 0.0/1.0/2.0, but under `mean` it can be 0.5/1.5 too, and bucketing
+        # those into an integer key would misreport which grade a pair
+        # actually got (mean-aggregation-sensitivity-row/design.md task 2.3).
+        n_relevant_by_grade: dict[float, int] = {}
         for v in grades.values():
             if v > 0:
                 n_relevant_by_grade[v] = n_relevant_by_grade.get(v, 0) + 1
@@ -267,6 +280,15 @@ def main(argv: list[str] | None = None) -> int:
                         help="frame file whose 'corpus_ids' sets the "
                              "retrieval depth (never a live index count)")
     parser.add_argument(
+        "--require-aggregation", choices=("max", "mean"), default=None,
+        help="refuse a merged qrels artifact whose declared 'aggregation' "
+             "does not match this (mean-aggregation-sensitivity-row Decision 4) "
+             "-- e.g. pass 'max' to guard a run that must score the headline "
+             "label set, not the sensitivity row, by accident. A per-judge "
+             "qrels with no 'aggregation' field at all is not a merge output "
+             "and is unaffected by this check.",
+    )
+    parser.add_argument(
         "--per-query-out",
         help="Optional path for the per-(query, arm) NDCG dump at the primary k. "
              "No default on purpose: a default path could resolve onto an "
@@ -277,6 +299,13 @@ def main(argv: list[str] | None = None) -> int:
 
     queries = json.loads(Path(args.queries).read_text(encoding="utf-8"))["queries"]
     qrels_doc = json.loads(Path(args.qrels).read_text(encoding="utf-8"))
+    if args.require_aggregation is not None:
+        found_agg = qrels_doc.get("aggregation")
+        if found_agg is not None and found_agg != args.require_aggregation:
+            raise SystemExit(
+                f"{args.qrels} declares aggregation={found_agg!r}, but this run "
+                f"requires {args.require_aggregation!r} -- refusing to score a "
+                f"mismatched label set")
     qrels, grade_scale = parse_qrels(qrels_doc)
 
     os_client = get_client()

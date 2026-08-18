@@ -1,9 +1,9 @@
-"""Inter-judge agreement over a shared judgment pool.
+"""Inter-judge agreement over the shared corpus.
 
 Reports pairwise quadratic-weighted Cohen's kappa (over grades {0, 1, 2}) plus
 each judge's grade distribution. The distribution is not decoration: kappa
 collapses toward 0 when one class dominates, so a low kappa on a heavily
-imbalanced pool must not be read as "the judges disagree wildly" without
+imbalanced corpus must not be read as "the judges disagree wildly" without
 seeing the marginals. Weighted kappa also means a 0-vs-2 split costs more than
 a 0-vs-1 or 1-vs-2 split (quadratic weights), which plain agreement/disagreement
 counting cannot express.
@@ -19,8 +19,21 @@ Queries a judge failed on carry NO labels (a parse/API failure is not a judgment
 of "nothing relevant"), so such queries are dropped from every pair they touch
 and reported as excluded.
 
-    python -m eval.judge_agreement --pool eval/benchmark/pool_n32.json \
-        eval/benchmark/qrels_n32.json eval/benchmark/qrels_n32_gpt5mini.json
+The candidate set is the corpus id list from the sampling frame
+(``eval.corpus_frame.load_corpus_ids``), not a retrieval pool. Exhaustive
+chunked judging (``judge-exhaustive-chunked``) judges every query against the
+whole corpus, so every (query, corpus dataset) pair a judge succeeded on has a
+grade: a dataset absent from a query's ``relevant`` map was judged 0, not left
+unjudged (the absent-means-zero convention, stated in every such qrels
+artifact's own provenance). That is what makes the grade vectors below
+well-defined without a pool.
+
+No pool-based mode is retained. A pooled qrels artifact predates this design
+and is not comparable to it — see ``judge-agreement-pool-free/design.md``.
+
+    python -m eval.judge_agreement \
+        eval/benchmark/qrels_production_2026-08-18_deepseek.json \
+        eval/benchmark/qrels_production_2026-08-18_haiku.json
 """
 
 from __future__ import annotations
@@ -28,7 +41,10 @@ from __future__ import annotations
 import argparse
 import itertools
 import json
+import math
 from pathlib import Path
+
+from eval.corpus_frame import DEFAULT_CORPUS_FRAME, load_corpus_ids
 
 
 def load_judge(path: Path) -> dict:
@@ -57,6 +73,7 @@ def load_judge(path: Path) -> dict:
         "lab": judge.get("lab", "unknown"),
         "temperature_pinned": judge.get("temperature_pinned",
                                         judge.get("deterministic")),
+        "corpus_frame": judge.get("corpus_frame"),
         "text": text,
         "unverified": unverified,
         # Set on any judge that also authored material under test; such a judge
@@ -71,17 +88,17 @@ def load_judge(path: Path) -> dict:
 GRADES = (0, 1, 2)
 
 
-def vectorise(judge: dict, pool: dict, query_ids: list[str]) -> list[int]:
-    """Flatten to one 0/1/2 grade per pooled (query, dataset) pair.
+def vectorise(judge: dict, corpus_ids: list[str], query_ids: list[str]) -> list[int]:
+    """Flatten to one 0/1/2 grade per (query, corpus dataset) pair.
 
-    Absent-as-0 is the stated qrels convention (D5, judge-graded-qrels
-    design.md): a query that succeeded graded every pooled dataset, so a
-    dataset missing from ``relevant`` was judged 0, not left unjudged.
+    Absent-as-0 is the stated qrels convention: a query that succeeded graded
+    every corpus dataset, so a dataset missing from ``relevant`` was judged 0,
+    not left unjudged.
     """
     out: list[int] = []
     for qid in query_ids:
         relevant = judge["labels"][qid]
-        for dataset_id in pool[qid]:
+        for dataset_id in corpus_ids:
             out.append(int(relevant.get(dataset_id, 0)))
     return out
 
@@ -96,7 +113,8 @@ def weighted_kappa(a: list[int], b: list[int], grades: tuple[int, ...] = GRADES)
     standard choice for ordinal agreement (Cohen 1968).
 
     Degenerate cases (n=0, or expected agreement pe=1 i.e. both judges
-    constant and identical) return NaN, same guard as the binary version.
+    constant and identical) return NaN. The caller is responsible for turning
+    a NaN into a loud failure rather than printing it — see ``main()``.
     """
     n = len(a)
     if n == 0:
@@ -128,7 +146,7 @@ def grade_distribution(v: list[int], grades: tuple[int, ...] = GRADES) -> dict[i
     return {g: v.count(g) for g in grades}
 
 
-def write_agreement_subset(judges: list[dict], pool: dict, query_ids: list[str],
+def write_agreement_subset(judges: list[dict], corpus_ids: list[str], query_ids: list[str],
                            out_path: Path) -> dict:
     """Emit the pairs the clean judges agree on, plus the ones they split on.
 
@@ -155,7 +173,7 @@ def write_agreement_subset(judges: list[dict], pool: dict, query_ids: list[str],
     n_agreed = n_disputed = 0
     for qid in query_ids:
         agreed: dict[str, int] = {}
-        for dataset_id in pool[qid]:
+        for dataset_id in corpus_ids:
             la = int(a["labels"][qid].get(dataset_id, 0))
             lb = int(b["labels"][qid].get(dataset_id, 0))
             # Disputed = grades differ by >=1 (the only kind of difference two
@@ -208,7 +226,9 @@ def write_agreement_subset(judges: list[dict], pool: dict, query_ids: list[str],
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("qrels", nargs="+", help="two or more qrels files")
-    parser.add_argument("--pool", default="eval/benchmark/pool_n32.json")
+    parser.add_argument("--corpus-frame", default=str(DEFAULT_CORPUS_FRAME),
+                        help="frame file whose 'corpus_ids' is the candidate "
+                             "set every grade vector is built over")
     parser.add_argument("--out", default=None, help="optional JSON report path")
     parser.add_argument("--agreement-subset", default=None,
                         help="emit the clean-judge agreement subset (exactly two "
@@ -216,33 +236,55 @@ def main(argv: list[str] | None = None) -> int:
                              "annotation, NOT scorable")
     args = parser.parse_args(argv)
 
-    pool_raw = json.loads(Path(args.pool).read_text(encoding="utf-8"))
-    pool = {q["query_id"]: q["pool"] for q in pool_raw["queries"]}
+    corpus_ids = load_corpus_ids(Path(args.corpus_frame))
 
     judges = [load_judge(Path(p)) for p in args.qrels]
     if len(judges) < 2:
         raise SystemExit("need at least two qrels files to compare")
 
-    # Only queries every judge actually labelled are comparable.
-    shared = set.intersection(*(set(j["labels"]) for j in judges)) & set(pool)
+    # Refuse to compare grades drawn from two different corpora -- a mismatch
+    # here means the numbers below would describe nothing real. Judges whose
+    # qrels predate this field (corpus_frame is None) are not compared against
+    # each other on this axis; only a genuine two-different-frames mismatch
+    # is fatal.
+    frames = {j["corpus_frame"] for j in judges if j["corpus_frame"]}
+    if len(frames) > 1:
+        detail = ", ".join(f"{j['name']}={j['corpus_frame']!r}" for j in judges)
+        raise SystemExit(
+            f"qrels files disagree about their corpus frame, refusing to "
+            f"compare: {detail}")
+
+    # Only queries every judge actually labelled (succeeded on) are
+    # comparable. A query any judge marked judge_failed has no labels in
+    # that judge's "labels" dict, so it drops out of the intersection here
+    # rather than being read as an all-zeros vector.
+    shared = set.intersection(*(set(j["labels"]) for j in judges))
     query_ids = sorted(shared)
-    excluded = sorted(set(pool) - shared)
+    attempted = set.union(*(set(j["labels"]) | j["failed"] for j in judges))
+    excluded = sorted(attempted - shared)
 
     print(f"Comparable queries: {len(query_ids)}  (excluded {len(excluded)})")
     for j in judges:
         if j["failed"]:
             print(f"  {j['name']}: {len(j['failed'])} failed queries -> {sorted(j['failed'])[:5]}")
 
-    vectors = {j["name"]: vectorise(j, pool, query_ids) for j in judges}
-    n_pairs = len(next(iter(vectors.values()))) if vectors else 0
+    if not query_ids:
+        raise SystemExit(
+            f"zero comparable queries across {[j['name'] for j in judges]} — "
+            f"refusing to report an undefined kappa. Excluded: {excluded[:10]}"
+            f"{'...' if len(excluded) > 10 else ''}")
 
-    print(f"\nGrade distribution over {n_pairs} pooled pairs:")
+    vectors = {j["name"]: vectorise(j, corpus_ids, query_ids) for j in judges}
+    n_pairs = len(next(iter(vectors.values())))
+
+    print(f"\nGrade distribution over {n_pairs} corpus pairs "
+          f"({len(query_ids)} queries x {len(corpus_ids)} corpus datasets):")
     distributions = {}
     for j in judges:
         v = vectors[j["name"]]
         dist = grade_distribution(v)
         distributions[j["name"]] = dist
-        shares = "  ".join(f"{g}={dist[g]/len(v):.1%}" if v else f"{g}=n/a" for g in GRADES)
+        shares = "  ".join(f"{g}={dist[g]/len(v):.1%}" for g in GRADES)
         det = "" if j["temperature_pinned"] in (None, True) else "  [temp unpinned]"
         print(f"  {j['name']:52s} {shares}  ({j['lab']}){det}")
 
@@ -250,6 +292,11 @@ def main(argv: list[str] | None = None) -> int:
     pairs = []
     for a, b in itertools.combinations(judges, 2):
         k = weighted_kappa(vectors[a["name"]], vectors[b["name"]])
+        if math.isnan(k):
+            raise SystemExit(
+                f"kappa is undefined for {a['name']} x {b['name']} (both judges "
+                f"used one constant, identical grade over the compared pairs) "
+                f"— refusing to print NaN as a result")
         same_lab = a["lab"] == b["lab"] and a["lab"] != "unknown"
         note = "  (same lab)" if same_lab else ""
         print(f"  {a['name']:40s} x {b['name']:40s}  kappa={k:.3f}{note}")
@@ -265,10 +312,11 @@ def main(argv: list[str] | None = None) -> int:
             "_note": "Inter-judge consistency only; not validated against humans. "
                      "Grade distribution / weighted kappa are not comparable to "
                      "a binary round's positive rate / kappa.",
-            "pool": args.pool,
+            "corpus_frame": args.corpus_frame,
+            "corpus_size": len(corpus_ids),
             "comparable_queries": len(query_ids),
             "excluded_queries": excluded,
-            "pooled_pairs": n_pairs,
+            "corpus_pairs": n_pairs,
             "judges": [{"model": j["name"], "lab": j["lab"],
                         "temperature_pinned": j["temperature_pinned"],
                         "grade_distribution": distributions[j["name"]],
@@ -281,7 +329,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nReport -> {args.out}")
 
     if args.agreement_subset:
-        write_agreement_subset(judges, pool, query_ids, Path(args.agreement_subset))
+        write_agreement_subset(judges, corpus_ids, query_ids, Path(args.agreement_subset))
     return 0
 
 

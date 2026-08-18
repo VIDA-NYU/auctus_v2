@@ -181,7 +181,7 @@ def retrieve_query(os_client, text: str, size: int) -> dict[str, Any]:
     }
 
 
-def ndcg_for(ranked: list[str], grades: dict[str, int], k: int) -> float:
+def ndcg_for(ranked: list[str], grades: dict[str, float], k: int) -> float:
     retrieved_rel = [grades.get(i, 0) for i in ranked]
     ideal_rel = sorted(grades.values(), reverse=True)
     return metric_ndcg(retrieved_rel, ideal_rel, k)
@@ -353,10 +353,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--corpus-frame", default=str(DEFAULT_CORPUS_FRAME),
                         help="frame file whose 'corpus_ids' sets the "
                              "default --size (never a live index count)")
+    parser.add_argument(
+        "--require-aggregation", choices=("max", "mean"), default=None,
+        help="refuse a merged qrels artifact whose declared 'aggregation' "
+             "does not match this (mean-aggregation-sensitivity-row Decision 4). "
+             "A per-judge qrels with no 'aggregation' field is unaffected.",
+    )
     args = parser.parse_args(argv)
 
     queries = json.loads(Path(args.queries).read_text(encoding="utf-8"))["queries"]
     qrels_doc = json.loads(Path(args.qrels).read_text(encoding="utf-8"))
+    if args.require_aggregation is not None:
+        found_agg = qrels_doc.get("aggregation")
+        if found_agg is not None and found_agg != args.require_aggregation:
+            raise SystemExit(
+                f"{args.qrels} declares aggregation={found_agg!r}, but this run "
+                f"requires {args.require_aggregation!r} -- refusing to score a "
+                f"mismatched label set")
     qrels, grade_scale = parse_qrels(qrels_doc)
 
     os_client = get_client()
