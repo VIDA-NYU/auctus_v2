@@ -1,21 +1,29 @@
 """LLM judge -> provisional GRADED (0/1/2) qrels, under the anti-leakage code
 invariant.
 
-For every pooled (query, dataset) pair the judge assigns a graded relevance
-label: 0 = subject does not match; 1 = subject matches but a stated constraint
-fails; 2 = subject matches and every stated constraint holds. See ``JUDGE_PROMPT``
-for the full rule (one constraint-mismatch rule, four constraint types). A
-binary judge cannot express the 1: "subject matches, one constraint fails" is
-neither "relevant" nor "not relevant". The judge sees ONLY the neutral bundle
-(title + profile + data sample) — the description arm under test is PHYSICALLY
-ABSENT from the prompt (report F1b). If the judge saw the arm, NDCG would
-systematically favour the description arms and the whole evaluation would be
-void. The judge is held to the same F1 enforcement as the query generator, by
-construction rather than by repetition: the live-index path fetches with the
-shared ``NEUTRAL_SOURCE_FIELDS`` allowlist and builds its prompt through the
-same ``build_neutral_bundle``, which refuses any document carrying an arm
-field; the ``--bundles`` offline path (which never touches a raw document at
-all) asserts the equivalent key-set restriction at load time instead.
+Every query is judged against the **whole 100-dataset corpus** (no retrieval
+pool), in 5 fixed chunks of 20. For every (query, corpus dataset) pair the
+judge assigns a graded relevance label: 0 = subject does not match; 1 =
+subject matches but a stated constraint fails; 2 = subject matches and every
+stated constraint holds. See ``JUDGE_PROMPT`` for the full rule (one
+constraint-mismatch rule, four constraint types). A binary judge cannot
+express the 1: "subject matches, one constraint fails" is neither "relevant"
+nor "not relevant". The judge sees ONLY the neutral bundle (title + profile +
+data sample) — the description arm under test is PHYSICALLY ABSENT from the
+prompt (report F1b). If the judge saw the arm, NDCG would systematically
+favour the description arms and the whole evaluation would be void. The judge
+is held to the same F1 enforcement as the query generator, by construction
+rather than by repetition: the live-index path fetches with the shared
+``NEUTRAL_SOURCE_FIELDS`` allowlist and builds its prompt through the same
+``build_neutral_bundle``, which refuses any document carrying an arm field;
+the ``--bundles`` offline path (which never touches a raw document at all)
+asserts the equivalent key-set restriction at load time instead.
+
+Chunk *membership* (which 20 corpus ids go in which chunk) is fixed for the
+run, derived once from the sorted corpus id list (``corpus_chunks``). Only the
+*order* candidates are presented in within a chunk call is randomized, per
+call — this cancels position bias directly; it does not change which 20
+datasets are in the chunk. See judge-exhaustive-chunked/design.md.
 
 The judge's response carries a second signal beside the grade: ``unverified``,
 the candidates whose grade relied on a stated constraint the profile carried
@@ -24,18 +32,18 @@ missing field does NOT lower the grade — see ``JUDGE_PROMPT`` — so this flag
 what keeps "constraint genuinely satisfied" and "constraint could not be
 checked" distinguishable in the qrels artifact.
 
-Datasets outside the pool are non-relevant by convention (not judged, grade 0).
-A pooled dataset absent from a *judged* query's ``relevant`` map was graded 0,
-not left unjudged — a query that failed entirely carries ``judge_failed``
-instead, never a silently empty grade map. These qrels are PROVISIONAL
-(LLM-only, un-calibrated on NYC) — a pipeline shakedown, not benchmark ground
-truth.
+A corpus dataset absent from a *judged* query's ``relevant`` map was graded 0,
+not left unjudged — every corpus dataset is judged for every query, so there
+is no "outside the pool" case anymore. A query that failed entirely (any one
+of its 5 chunk calls raised) carries ``judge_failed`` instead, never a
+silently empty or partial grade map. These qrels are PROVISIONAL (LLM-only,
+un-calibrated on NYC) — a pipeline shakedown, not benchmark ground truth.
 
-    python -m eval.judge_qrels --pool eval/benchmark/pool.json \
+    python -m eval.judge_qrels --queries eval/benchmark/queries.json \
         --out eval/benchmark/qrels.json
 
     # Offline, from a pinned capture (no OpenSearch/MinIO call):
-    python -m eval.judge_qrels --pool eval/benchmark/pool_n32.json \
+    python -m eval.judge_qrels --queries eval/benchmark/queries_n32.json \
         --bundles ../../../useful/2026-07-22/data/bundles_n32.json \
         --out eval/benchmark/qrels_n32.json
 """
@@ -45,7 +53,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import random
 import re
+import secrets
 import time
 from pathlib import Path
 
@@ -154,6 +164,43 @@ def _render_bundle(idx: int, bundle: dict) -> str:
             f"    Sample: {bundle['sample'][:600]}")
 
 
+DEFAULT_CORPUS_FRAME = Path("eval/frame/post_spatial_swap_corpus_2026-08-17.json")
+
+
+def corpus_chunks(chunk_size: int,
+                   corpus_path: Path = DEFAULT_CORPUS_FRAME) -> list[list[str]]:
+    """Partition the round's authoritative corpus into fixed-membership chunks.
+
+    Reads ``corpus_ids`` from the frame file rather than the live index --
+    trusting "however many documents are in the index right now" is exactly
+    the plan-drift-audit finding-1 bug (144 documents, 44 of them stale
+    legacy, with no code noticing). Chunk membership is a pure function of the
+    sorted id list, so the same 5 groups are used for every query and both
+    judges within a run (judge-exhaustive-chunked/design.md Decisions 1-2).
+    """
+    corpus_ids = json.loads(corpus_path.read_text(encoding="utf-8"))["corpus_ids"]
+    if len(corpus_ids) % chunk_size != 0:
+        raise ValueError(
+            f"chunk_size={chunk_size} does not evenly divide corpus size "
+            f"{len(corpus_ids)} ({corpus_path})"
+        )
+    ordered = sorted(corpus_ids)
+    return [ordered[i:i + chunk_size] for i in range(0, len(ordered), chunk_size)]
+
+
+def _shuffled(items: list, order_seed: str, query_id: str, chunk_index: int) -> list:
+    """Return ``items`` reordered, independently per (order_seed, query_id,
+    chunk_index) -- cancels position bias within a chunk call without
+    touching chunk membership (judge-exhaustive-chunked/design.md Decision 3).
+    Deterministic given the same three inputs, so a pinned --order-seed
+    reproduces a prior run's per-call orderings exactly.
+    """
+    rng = random.Random(f"{order_seed}:{query_id}:{chunk_index}")
+    shuffled = list(items)
+    rng.shuffle(shuffled)
+    return shuffled
+
+
 def _extract_json_object(raw: str) -> dict:
     """Recover a JSON object from a model response, tolerant of fencing/prose.
 
@@ -245,10 +292,68 @@ def judge_query(client, query_text: str, items: list[tuple[str, dict]],
     return out, unverified, usage
 
 
+_EMPTY_USAGE = {"prompt_tokens": 0, "completion_tokens": 0, "reasoning_tokens": 0}
+
+
+def judge_query_chunked(client, query_id: str, query_text: str,
+                         chunks: list[list[str]], load, model: str,
+                         order_seed: str, seed: int | None = None,
+                         no_cache: bool = False,
+                         judge_query_fn=judge_query
+                         ) -> tuple[dict, set, dict, str | None]:
+    """Judge one query across all of ``chunks``, merging the per-chunk results.
+
+    ``load(dataset_id) -> bundle`` builds/caches the neutral bundle for one
+    id. ``judge_query_fn`` defaults to :func:`judge_query`; overridable for
+    testing without an LLM client.
+
+    Returns ``(grades, unverified, usage, failure)``. On any chunk raising,
+    the whole query fails (judge-exhaustive-chunked/design.md Decision 4):
+    ``grades`` and ``unverified`` come back empty, ``usage`` still reflects
+    whatever chunks completed before the failure (so cost accounting stays
+    accurate), and ``failure`` names which chunk broke. Chunk membership is
+    disjoint by construction (corpus_chunks), so merging grade maps across
+    chunks can never collide on a key.
+    """
+    merged_grades: dict[str, int] = {}
+    merged_unverified: set[str] = set()
+    usage_totals = dict(_EMPTY_USAGE)
+    for chunk_index, chunk_ids in enumerate(chunks):
+        chunk_items = [(dataset_id, load(dataset_id)) for dataset_id in chunk_ids]
+        call_items = _shuffled(chunk_items, order_seed, query_id, chunk_index)
+        try:
+            grades, unverified_ids, usage = judge_query_fn(
+                client, query_text, call_items,
+                model=model, seed=seed, no_cache=no_cache,
+            )
+        except Exception as exc:
+            failure = (f"chunk {chunk_index}/{len(chunks)}: "
+                       f"{type(exc).__name__}: {exc}")
+            return {}, set(), usage_totals, failure
+        for key in usage_totals:
+            usage_totals[key] += usage.get(key) or 0
+        merged_grades.update(grades)
+        merged_unverified |= unverified_ids
+    return merged_grades, merged_unverified, usage_totals, None
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--pool", default="eval/benchmark/pool.json")
+    parser.add_argument("--queries", default="eval/benchmark/queries.json",
+                        help="raw queries file (generate_queries.py output) -- "
+                             "NOT a pool.json; the candidate set per query is "
+                             "now the whole corpus, not a retrieval pool")
+    parser.add_argument("--corpus-frame", default=str(DEFAULT_CORPUS_FRAME),
+                        help="frame file whose 'corpus_ids' defines the "
+                             "judged corpus and its fixed chunk membership")
+    parser.add_argument("--chunk-size", type=int, default=20,
+                        help="datasets per LLM call; must evenly divide the "
+                             "corpus size (100 / 20 = 5 chunks)")
+    parser.add_argument("--order-seed", default=None,
+                        help="seeds per-call candidate-order randomization; "
+                             "omit for a fresh (OS-entropy) seed each run, "
+                             "still recorded in the output for reproduction")
     parser.add_argument("--out", default="eval/benchmark/qrels.json")
     parser.add_argument("--model", default=LLM_MODEL,
                         help="judge model string on the Portkey gateway")
@@ -271,7 +376,9 @@ def main(argv: list[str] | None = None) -> int:
              "has drifted past what the capture recorded.")
     args = parser.parse_args(argv)
 
-    pool = json.loads(Path(args.pool).read_text(encoding="utf-8"))
+    queries_doc = json.loads(Path(args.queries).read_text(encoding="utf-8"))
+    chunks = corpus_chunks(args.chunk_size, Path(args.corpus_frame))
+    order_seed = args.order_seed if args.order_seed is not None else secrets.token_hex(8)
     client = get_llm_client()
     if client is None:
         raise SystemExit("No LLM client (PORTKEY_API_KEY set? on NYU VPN?).")
@@ -311,8 +418,8 @@ def main(argv: list[str] | None = None) -> int:
                 if dataset_id not in bundles_by_id:
                     raise KeyError(
                         f"dataset {dataset_id!r} not present in {args.bundles} "
-                        f"-- the pool references an id the pinned capture "
-                        f"doesn't carry; never substitute or silently skip"
+                        f"-- the corpus frame references an id the pinned "
+                        f"capture doesn't carry; never substitute or silently skip"
                     )
                 bundle_cache[dataset_id] = bundles_by_id[dataset_id]
             return bundle_cache[dataset_id]
@@ -331,11 +438,12 @@ def main(argv: list[str] | None = None) -> int:
                 ).get("_source") or {}
                 rec = load_full_profile(storage_client, dataset_id) if storage_client else None
                 sample = rec.get("sample") if isinstance(rec, dict) else None
-                # F1b invariant: refuses a doc carrying any arm field.
-                bundle_cache[dataset_id] = build_neutral_bundle(doc, sample)
+                # F1b invariant: refuses a doc carrying any arm field. The judge
+                # keeps the title (§6a) — the generator does not (generate_queries.py).
+                bundle_cache[dataset_id] = build_neutral_bundle(doc, sample, include_title=True)
             return bundle_cache[dataset_id]
 
-    queries = pool["queries"]
+    queries = queries_doc["queries"]
     if args.query_ids:
         wanted = {qid.strip() for qid in args.query_ids.split(",") if qid.strip()}
         queries = [q for q in queries if q["query_id"] in wanted]
@@ -347,30 +455,24 @@ def main(argv: list[str] | None = None) -> int:
     failures: list[dict] = []
     usage_totals = {"prompt_tokens": 0, "completion_tokens": 0, "reasoning_tokens": 0}
     started = time.monotonic()
+    corpus_size = sum(len(c) for c in chunks)
     for i, q in enumerate(queries, 1):
-        items = [(dataset_id, load(dataset_id)) for dataset_id in q["pool"]]
-        failed = None
-        unverified_ids: set[str] = set()
-        try:
-            grades, unverified_ids, usage = judge_query(
-                client, q["text"], items,
-                model=args.model, seed=args.seed, no_cache=args.no_cache,
-            )
-            for key in usage_totals:
-                usage_totals[key] += usage.get(key) or 0
-        except Exception as exc:
-            # A failed batch is NOT the same as "nothing is relevant" — record it
-            # so a parse/API failure can never masquerade as a judgment of 0.
-            LOGGER.warning("Judge failed for %s: %s", q["query_id"], exc)
-            failed = f"{type(exc).__name__}: {exc}"
+        grades, unverified_ids, usage, failed = judge_query_chunked(
+            client, q["query_id"], q["text"], chunks, load,
+            model=args.model, order_seed=order_seed,
+            seed=args.seed, no_cache=args.no_cache,
+        )
+        for key in usage_totals:
+            usage_totals[key] += usage.get(key) or 0
+        if failed:
+            LOGGER.warning("Judge failed for %s: %s", q["query_id"], failed)
             failures.append({"query_id": q["query_id"], "error": failed,
-                             "pool_size": len(items)})
-            grades = {}
+                             "chunk_size": args.chunk_size})
         # Keep only positives in the qrels file. Absence means judged-0, per
         # the file's own provenance statement below -- NOT "left unjudged"
         # (that's what judge_failed on the whole entry is for).
-        relevant = {k: v for k, v in grades.items() if v > 0}
-        total_pairs += len(items)
+        relevant = {} if failed else {k: v for k, v in grades.items() if v > 0}
+        total_pairs += corpus_size
         entry = {
             "query_id": q["query_id"],
             "text": q["text"],
@@ -381,7 +483,7 @@ def main(argv: list[str] | None = None) -> int:
             entry["judge_failed"] = failed
         out_queries.append(entry)
         print(f"  [{i}/{len(queries)}] {q['query_id']}: "
-              f"{'FAILED' if failed else f'{len(relevant)}/{len(items)} relevant'}"
+              f"{'FAILED' if failed else f'{len(relevant)}/{corpus_size} relevant'}"
               f"{f', {len(unverified_ids)} unverified' if unverified_ids else ''}")
 
     pinned = temperature_pinned(args.model)
@@ -391,10 +493,13 @@ def main(argv: list[str] | None = None) -> int:
         "code_version": code_version(),
         "_provenance": "PROVISIONAL LLM-judge GRADED (0/1/2) qrels (un-calibrated "
                        "on NYC); anti-leakage guard: judge saw title+profile+sample "
-                       "only, never any description arm. A pooled dataset absent "
-                       "from a judged query's 'relevant' map was judged 0, not "
-                       "left unjudged -- a query that failed entirely carries "
-                       "'judge_failed' instead, never a silently empty grade map."
+                       "only, never any description arm. Every query is judged "
+                       "against the whole corpus (no retrieval pool), in fixed "
+                       "chunks -- a corpus dataset absent from a judged query's "
+                       "'relevant' map was judged 0, not left unjudged -- a query "
+                       "that failed entirely (any one chunk call raised) carries "
+                       "'judge_failed' instead, never a silently empty or partial "
+                       "grade map."
                        + (f" Bundles read from a pinned offline capture ({args.bundles}), "
                           "not the live index." if args.bundles else ""),
         "grade_scale": "0/1/2",
@@ -403,6 +508,10 @@ def main(argv: list[str] | None = None) -> int:
             "lab": MODEL_LAB.get(args.model, "unknown"),
             "temperature": 0.0 if supports_temperature(args.model) else "provider default",
             "seed": args.seed,
+            "chunk_size": args.chunk_size,
+            "num_chunks": len(chunks),
+            "order_seed": order_seed,
+            "corpus_frame": args.corpus_frame,
             # INTENT ONLY: whether temperature 0 was actually set. This is NOT
             # a stability claim — gpt-5-mini cannot pin temperature yet returned
             # identical labels across fresh runs. Stability evidence is the
@@ -419,7 +528,7 @@ def main(argv: list[str] | None = None) -> int:
             },
         },
         "run": {
-            "pool": args.pool,
+            "queries_file": args.queries,
             "queries_judged": len(out_queries),
             "pairs_judged": total_pairs,
             "failed_queries": len(failures),
@@ -429,7 +538,7 @@ def main(argv: list[str] | None = None) -> int:
         },
         "queries": out_queries,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\nJudged {total_pairs} pooled pairs across {len(out_queries)} queries -> {out}")
+    print(f"\nJudged {total_pairs} corpus pairs across {len(out_queries)} queries -> {out}")
     print(f"  judge={args.model} temperature_pinned={pinned} "
           f"failures={len(failures)} usage={usage_totals}")
     if failures:
