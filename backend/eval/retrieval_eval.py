@@ -122,7 +122,12 @@ SOURCE_FIELDS = {
 
 
 def metric_ndcg(retrieved_rel: list[float], ideal_rel: list[float], k: int) -> float:
-    return compute_ndcg(retrieved_rel, ideal_rel, k)
+    # float() cast is required, not cosmetic: callers pass int grades (0/1/2),
+    # and the installed autoddg build's compute_ndcg enforces Iterable[float]
+    # via beartype at runtime, rejecting int elements outright. Cast once at
+    # this shared boundary rather than in every caller -- both run_matrix.py
+    # and three_channel_retrieval.py go through this one function.
+    return compute_ndcg([float(r) for r in retrieved_rel], [float(r) for r in ideal_rel], k)
 
 
 def metric_mrr(retrieved_rel: list[float], ideal_rel: list[float], k: int) -> float:

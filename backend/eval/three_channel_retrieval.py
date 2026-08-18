@@ -63,7 +63,7 @@ from typing import Any
 from api.search import build_query_vector
 from eval.provenance import code_version
 from eval.retrieval_eval import metric_ndcg
-from eval.run_matrix import ARMS, QUERY_CLASSES, field_scores
+from eval.run_matrix import ARMS, QUERY_CLASSES, classify_query, field_scores, parse_qrels
 from storage.opensearch_client import (
     AUCTUS_INDEX_NAME,
     DEFAULT_TITLE_BOOST,
@@ -220,13 +220,27 @@ def run(
     by_facet: dict[str, dict[str, dict[str, list]]] = {t: {a: {} for a in ARMS} for t in tables}
     title_shares: list[float] = []
     per_query: list[dict[str, Any]] = []
-    scored = skipped = 0
+    scored = 0
+    skipped_judge_failed = 0
+    skipped_no_positive = 0
+    skipped_absent_from_qrels = 0
 
     for q in queries:
-        grades = qrels.get(q["query_id"], {})
-        if not any(grades.values()):
-            skipped += 1
+        # classify_query is shared with run_matrix.run() (graded-qrels-
+        # downstream-contract D2/D3) so the two readers' exclusion accounting
+        # cannot drift apart the way the BM25 query body once did before
+        # field_scores was extracted for the same reason.
+        status = classify_query(qrels, q["query_id"])
+        if status == "absent_from_qrels":
+            skipped_absent_from_qrels += 1
             continue
+        if status == "judge_failed":
+            skipped_judge_failed += 1
+            continue
+        if status == "no_positive":
+            skipped_no_positive += 1
+            continue
+        grades = qrels[q["query_id"]]["grades"]
         scored += 1
 
         shared = retrieve_query(os_client, q["text"], size)
@@ -273,9 +287,18 @@ def run(
 
         per_query.append(record)
 
+    total_excluded = skipped_judge_failed + skipped_no_positive + skipped_absent_from_qrels
+    assert scored + total_excluded == len(queries), (
+        f"reconciliation failed: scored={scored} + skipped_judge_failed="
+        f"{skipped_judge_failed} + skipped_no_positive={skipped_no_positive} + "
+        f"skipped_absent_from_qrels={skipped_absent_from_qrels} = "
+        f"{scored + total_excluded}, but {len(queries)} queries were supplied"
+    )
     return {
         "scored_queries": scored,
-        "skipped_no_positive": skipped,
+        "skipped_judge_failed": skipped_judge_failed,
+        "skipped_no_positive": skipped_no_positive,
+        "skipped_absent_from_qrels": skipped_absent_from_qrels,
         "corpus_size": size,
         "combination": {"title_weight": title_weight, "bm25_operator": BM25_OPERATOR},
         "tables": {
@@ -309,8 +332,11 @@ def _print_table(name: str, table: dict[str, Any]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--queries", default="eval/benchmark/queries.json")
-    parser.add_argument("--qrels", default="eval/benchmark/qrels.json")
+    # No defaults on --queries/--qrels (graded-qrels-downstream-contract D5,
+    # same reasoning as run_matrix.py): a stale default silently scores one
+    # round's queries against a different round's qrels with no error.
+    parser.add_argument("--queries", required=True)
+    parser.add_argument("--qrels", required=True)
     parser.add_argument("--out", default="eval/benchmark/three_channel.json")
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument(
@@ -326,8 +352,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     queries = json.loads(Path(args.queries).read_text(encoding="utf-8"))["queries"]
-    qrels_raw = json.loads(Path(args.qrels).read_text(encoding="utf-8"))["queries"]
-    qrels = {q["query_id"]: {i: int(v) for i, v in q["relevant"].items()} for q in qrels_raw}
+    qrels_doc = json.loads(Path(args.qrels).read_text(encoding="utf-8"))
+    qrels, grade_scale = parse_qrels(qrels_doc)
 
     os_client = get_client()
     result = run(os_client, queries, qrels, args.k, args.title_weight, args.size)
@@ -338,6 +364,7 @@ def main(argv: list[str] | None = None) -> int:
         "code_version": code_version(),
         "index": AUCTUS_INDEX_NAME,
         "k": args.k,
+        "grade_scale": grade_scale,
         **result,
     }
 
@@ -352,6 +379,7 @@ def main(argv: list[str] | None = None) -> int:
                 "code_version": report["code_version"],
                 "index": AUCTUS_INDEX_NAME,
                 "k": args.k,
+                "grade_scale": grade_scale,
                 "combination": report["combination"],
                 "records": per_query,
             },
