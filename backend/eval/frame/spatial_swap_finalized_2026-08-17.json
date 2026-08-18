@@ -1,0 +1,121 @@
+{
+  "purpose": "corpus-swap-spatial-coverage — finalized 18:18 swap (targeted swap, not a fresh stratified draw)",
+  "finalized_at": "2026-08-17T15:20:23Z",
+  "source_frame": "eval/frame/drawn_slice_data.cityofnewyork.us_2026-08-17.json",
+  "removal": {
+    "pool": "datasets carrying neither grounded spatial_coverage nor grounded temporal_coverage in the rendered profile",
+    "pool_size": 45,
+    "pool_short_description_share": 0.2,
+    "seed_first_14": 20260817,
+    "seed_topup_4": 20261817,
+    "tolerance": 0.05,
+    "removed_ids": [
+      "43qn-d6r8",
+      "47g8-ngxw",
+      "5mad-ntua",
+      "75e9-fg2t",
+      "7fnf-kyf4",
+      "7qdz-u9hr",
+      "a2pm-dj2w",
+      "dxru-eun8",
+      "e6ph-9uv7",
+      "e7yp-wx55",
+      "irna-apch",
+      "k66c-pzws",
+      "m6ag-gfcb",
+      "nfz9-tzba",
+      "qx6a-vcwx",
+      "tncb-agv4",
+      "vn74-s6rt",
+      "xmiz-qy72"
+    ],
+    "removed_count": 18,
+    "removed_short_description_count": 3,
+    "removed_short_description_share": 0.16666666666666666,
+    "removed_titles": {
+      "43qn-d6r8": "2017- 2018 Class Size Report City Middle School And High School Core Average Class Size",
+      "47g8-ngxw": "2018 - 2019 Average Class Size City K8",
+      "5mad-ntua": "VZV Speed Limits",
+      "75e9-fg2t": "DYCD Contractors",
+      "7fnf-kyf4": "DOF: Summary of Neighborhood Sales in Queens for Class 1-, 2- and 3-Family homes - 2005",
+      "7qdz-u9hr": "Citywide Mobility Survey - Person 2022",
+      "a2pm-dj2w": "2018 Local Law 163 TASC Report",
+      "dxru-eun8": "Storefront Registration Class 2 and 4 Statistics",
+      "e6ph-9uv7": "Brooklyn Borough President's Office Legislation - Passed",
+      "e7yp-wx55": "Parking Meters - ParkNYC Block Faces",
+      "irna-apch": "2024 Survey of Volunteerism",
+      "k66c-pzws": "Walk to a Park Service Area for CEQR Open Space Assessment",
+      "m6ag-gfcb": "2021 - 2022 Class Size Distribution by Borough",
+      "nfz9-tzba": "Pre-K Projects By School",
+      "qx6a-vcwx": "Youth Count",
+      "tncb-agv4": "2015-2016 Demographic Data - Diversity Efforts",
+      "vn74-s6rt": "2018-2019 Average Class Size Borough - Middle & High School",
+      "xmiz-qy72": "Parks Inspection Program – Public Restroom Feature Ratings"
+    },
+    "note_profiler_errored": "All 9 profiler-errored datasets in the corpus sit in this pool by construction (a failed profile yields no grounded coverage). 3 of the 18 removals are errored (17%), proportional to the pool's own 20% — the draw does not preferentially remove broken profiles. 6 errored datasets remain in the corpus."
+  },
+  "swap_in": {
+    "candidate_pool": "fresh catalog pull 2026-08-17, filtered to geometry/lat-long-bearing datasets, excluding all 144 already-indexed ids",
+    "seed": 20260817,
+    "candidates_drawn": 35,
+    "verified_ids": [
+      "2juy-aj8e",
+      "2n4x-d97d",
+      "3m3d-zzwn",
+      "3q66-h7aj",
+      "4dx7-axux",
+      "83z6-smyr",
+      "8z5h-tzdr",
+      "bsin-59hv",
+      "d6zx-ckhd",
+      "hcir-3275",
+      "i7jb-7jku",
+      "mhyv-6iza",
+      "sbnd-xujn",
+      "ssq6-fkht",
+      "tzsf-n2j8",
+      "ufzp-rrqu",
+      "w6yt-hctp",
+      "yunp-vs8g"
+    ],
+    "verified_count": 18,
+    "verification": "post-ingestion: build_profile_text() renders spatial_coverage/bbox AND arm generation did not fail",
+    "verified_titles": {
+      "2juy-aj8e": "Queens Air Quality Sensor Pilot (February - November 2024)",
+      "2n4x-d97d": "NYC Taxi and Limousine Commission authorized Dispatch Service Providers (DSP)",
+      "3m3d-zzwn": "Language Access Secret Shopper (LASS) Ratings",
+      "3q66-h7aj": "AIRPORT_POINT",
+      "4dx7-axux": "Open Restaurants Inspections (Historical)",
+      "83z6-smyr": "Capital Grant Awards 2016",
+      "8z5h-tzdr": "Queens Community Board District Managers and Chairs",
+      "bsin-59hv": "Building Elevation and Subgrade (BES)",
+      "d6zx-ckhd": "NYPD Calls for Service (Historic)",
+      "hcir-3275": "Buildings Selected for the Alternative Enforcement Program (AEP)",
+      "i7jb-7jku": "Public Restrooms",
+      "mhyv-6iza": "Legal Defense Trust Expenditures",
+      "sbnd-xujn": "Handyman Work Order (HWO) Charges",
+      "ssq6-fkht": "Bureau of Fire Prevention - Inspections (Historical)",
+      "tzsf-n2j8": "Local Law 161 - Escorts at Benefits Access Centers and SNAP Centers",
+      "ufzp-rrqu": "Pedestrian Ramp Locations",
+      "w6yt-hctp": "DOF: Condominium Comparable Rental Income – Brooklyn – FY 2009/2010",
+      "yunp-vs8g": "2019 Volunteers Count Report - Boroughs"
+    },
+    "rejected_preflight": [
+      "gthc-hcne",
+      "qyh3-ddat"
+    ],
+    "rejected_preflight_reason": "all three LLM-backed arms failed at ingestion — oversized WKT geometry field (~2.04M tokens) exceeded the model's 1,048,576-token limit; the same failure shape as c5vm-g2dk. Root cause is an unguarded sample passed to attach_autoddg_description (storage/arq_worker.py); a separate change addresses it.",
+    "not_ingested": [
+      "nst5-iqiu"
+    ],
+    "not_ingested_reason": "profiling exceeded the ARQ worker's 300s job timeout; not retried"
+  },
+  "projected_spatial_support": {
+    "before": 21,
+    "after": 39,
+    "target_range": [
+      30,
+      40
+    ]
+  }
+}

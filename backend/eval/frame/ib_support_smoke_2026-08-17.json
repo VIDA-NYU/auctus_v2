@@ -1,0 +1,32 @@
+{
+  "46g3-savk": {
+    "keyword_ib_exists": true,
+    "describing_ib_exists": true,
+    "supported": true,
+    "consistent": true
+  },
+  "5ery-qagt": {
+    "keyword_ib_exists": false,
+    "describing_ib_exists": false,
+    "supported": false,
+    "consistent": true
+  },
+  "5uac-w243": {
+    "keyword_ib_exists": false,
+    "describing_ib_exists": false,
+    "supported": false,
+    "consistent": true
+  },
+  "ffaf-8mrv": {
+    "keyword_ib_exists": false,
+    "describing_ib_exists": false,
+    "supported": false,
+    "consistent": true
+  },
+  "mhyv-6iza": {
+    "keyword_ib_exists": true,
+    "describing_ib_exists": true,
+    "supported": true,
+    "consistent": true
+  }
+}

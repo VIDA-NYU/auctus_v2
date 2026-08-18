@@ -1,0 +1,145 @@
+{
+  "domain": "data.cityofnewyork.us",
+  "datasets": [
+    {
+      "id": "mhyv-6iza",
+      "agency": "Conflicts of Interest Board (COIB)"
+    },
+    {
+      "id": "csut-3wpr",
+      "agency": "Department of Health and Mental Hygiene"
+    },
+    {
+      "id": "g3xg-qtbc",
+      "agency": "Department of Parks and Recreation (DPR)"
+    },
+    {
+      "id": "gthc-hcne",
+      "agency": "Department of City Planning (DCP)"
+    },
+    {
+      "id": "nst5-iqiu",
+      "agency": null
+    },
+    {
+      "id": "i7jb-7jku",
+      "agency": "Department of Parks and Recreation (DPR), Department of Transportation (DOT), Department of City Planning (DCP), Department of Citywide Administrative Services (DCAS), Mayor's Office of Operations (Ops),  New York Public Library (NYPL), Brooklyn Public Library (BPL), Queens Public Library (QPL), Metropolitan Transportation Authority (MTA)"
+    },
+    {
+      "id": "bhci-bpwh",
+      "agency": "Department of Finance (DOF)"
+    },
+    {
+      "id": "2n4x-d97d",
+      "agency": "Taxi and Limousine Commission (TLC)"
+    },
+    {
+      "id": "83z6-smyr",
+      "agency": null
+    },
+    {
+      "id": "ufzp-rrqu",
+      "agency": "Department of Transportation (DOT)"
+    },
+    {
+      "id": "k5k6-6jex",
+      "agency": "Department of Transportation (DOT)"
+    },
+    {
+      "id": "2juy-aj8e",
+      "agency": "Office of Technology and Innovation (OTI)"
+    },
+    {
+      "id": "qyh3-ddat",
+      "agency": "Mayor's Office of Climate and Environmental Justice (MOCEJ)"
+    },
+    {
+      "id": "i6mn-amj2",
+      "agency": "Department of Sanitation"
+    },
+    {
+      "id": "sbnd-xujn",
+      "agency": "Department of Housing Preservation and Development (HPD)"
+    },
+    {
+      "id": "6yyb-pb25",
+      "agency": "Department of Transportation (DOT)"
+    },
+    {
+      "id": "3m3d-zzwn",
+      "agency": "Mayor's Office of Operations (OPS)"
+    },
+    {
+      "id": "ptd9-4c6m",
+      "agency": "Department of City Planning (DCP)"
+    },
+    {
+      "id": "w6yt-hctp",
+      "agency": "Department of Finance (DOF)"
+    },
+    {
+      "id": "6ztr-wgff",
+      "agency": "Department of City Planning (DCP)"
+    },
+    {
+      "id": "4dx7-axux",
+      "agency": "Department of Transportation (DOT)"
+    },
+    {
+      "id": "3q66-h7aj",
+      "agency": "Metropolitan Transit Authority (MTA)"
+    },
+    {
+      "id": "xhvt-s4va",
+      "agency": "Department of Parks and Recreation (DPR)"
+    },
+    {
+      "id": "8z5h-tzdr",
+      "agency": "Queens Borough President (QBP)"
+    },
+    {
+      "id": "4iha-m5jk",
+      "agency": "Department of Parks and Recreation (DPR)"
+    },
+    {
+      "id": "bsin-59hv",
+      "agency": "Department of City Planning (DCP)"
+    },
+    {
+      "id": "ssq6-fkht",
+      "agency": "Fire Department New York City"
+    },
+    {
+      "id": "tzsf-n2j8",
+      "agency": "Human Resources Administration (HRA)"
+    },
+    {
+      "id": "buk3-3qpr",
+      "agency": "Department of Parks and Recreation (DPR)"
+    },
+    {
+      "id": "hcir-3275",
+      "agency": "NYC Department of Housing Preservation and Development (HPD)"
+    },
+    {
+      "id": "enfh-gkve",
+      "agency": "Department of Parks and Recreation (DPR)"
+    },
+    {
+      "id": "uh2s-ftgh",
+      "agency": "Department of Transportation (DOT)"
+    },
+    {
+      "id": "8vwk-6iz2",
+      "agency": "Department of Health and Mental Hygiene (DOHMH)"
+    },
+    {
+      "id": "d6zx-ckhd",
+      "agency": "Police Department (NYPD)"
+    },
+    {
+      "id": "yunp-vs8g",
+      "agency": "NYC Service"
+    }
+  ]
+}
