@@ -141,6 +141,23 @@ def get_autoddg():
 # so the indexed copy and the rendered profile cannot drift out of step.
 MAX_COLUMNS_IN_PROFILE = 80        # cap how many columns we emit at all, any width
 
+# guard-sample-size-before-llm: a bound on the CSV sample text reaching any LLM call
+# in attach_autoddg_description. max_sample_bytes (2,100,000, see
+# process_dataset_task's settings) bounds what the crawler FETCHES; it is a byte
+# budget, not a token budget, and one pathological field (a WKT MULTIPOLYGON,
+# thousands of coordinate pairs) can fill it alone — that field alone then blows
+# the model's 1,048,576-token context ("input token count (2,04x,xxx) exceeds the
+# maximum"), and it fails identically on all four LLM-bound consumers of `sample`.
+#
+# 200,000 chars (~50k tokens at ~4 chars/token) is not a quality/cost tuning
+# knob — it is set from the corpus's own measured sample-size distribution
+# (n=100, 2026-08-17), which is sharply bimodal with an empty gap between the two
+# populations: p50 2,467 · p90 13,796 · p95 31,415 · largest legitimate sample
+# 83,874 · the pathological one, 2,100,006. The threshold sits in the middle of
+# that gap — 2.4x the largest legitimate sample — so it separates the two
+# populations rather than trading one off against the other.
+MAX_SAMPLE_CHARS_FOR_LLM = 200_000
+
 
 def _temporal_interval(temporal_coverage: Any) -> dict[str, str] | None:
     """Flatten the profiler's temporal coverage to one ``{start, end}`` interval.
@@ -300,6 +317,30 @@ def generate_llm_direct_description(autoddg: Any, sample: str) -> str | None:
     return response.choices[0].message.content
 
 
+def _bound_sample_for_llm(sample: str, dataset_id: Any, limit: int = MAX_SAMPLE_CHARS_FOR_LLM) -> str:
+    """Truncate ``sample`` to at most ``limit`` chars, on a line boundary.
+
+    Cutting mid-line would sever the trailing row — and `sample` is parsed with
+    ``pd.read_csv`` downstream (attach_autoddg_description), so a severed row
+    (especially inside a quoted field) reproduces ``EOF inside string``, the same
+    parse failure this pipeline already suffers from malformed upstream data.
+    Truncating at the source, once, protects every LLM-bound consumer of
+    ``sample`` — including ones added after this guard was written.
+    """
+    if len(sample) <= limit:
+        return sample
+
+    head = sample[:limit]
+    last_newline = head.rfind("\n")
+    truncated = head[:last_newline] if last_newline > 0 else head
+    LOGGER.warning(
+        "Sample for dataset %s exceeds %d chars (%d); truncated to %d chars "
+        "on a line boundary before any LLM call",
+        dataset_id, limit, len(sample), len(truncated),
+    )
+    return truncated
+
+
 def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
     """Generate AutoDDG descriptions from the CSV sample and store them on the record.
 
@@ -327,6 +368,7 @@ def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
     if not sample:
         LOGGER.warning("No CSV sample for dataset %s; skipping AutoDDG", record.get("id"))
         return record
+    sample = _bound_sample_for_llm(sample, record.get("id"))
 
     dataset_id = record.get("id")
     profile_text = build_profile_text(record)
