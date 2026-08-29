@@ -297,17 +297,51 @@ def _parse_json(text: str) -> dict:
 # --- Support predicates (design.md D3, tasks.md 5.1/5.1a) --------------------
 #
 # Keyed on what build_profile_text() RENDERS, not on raw metadata field
-# presence — the generator only ever sees the rendered text, and raw presence
-# over-predicts support (spatial: 54/100 have spatial-typed columns, but only
-# 21/100 render a computed spatial_coverage; the 33-dataset gap would order
-# cells the generator cannot ground, which come back as refusals or invented
-# geography). Every predicate here is a pure function of a document's rendered
-# profile — no LLM call, so the allocator can run before any generation call.
+# presence, wherever that holds — presence-only checks over-predict support
+# for facets whose text doesn't ground the query (temporal: the presence of a
+# column that merely looks temporal is insufficient, because the renderer
+# emits only the computed field; a wider check would order cells the
+# generator cannot ground, which come back as refusals or invented dates).
+#
+# `spatial_supported` is the one exception (see openspec change
+# spatial-supported-semantic-gate, 2026-08-29): the model draws the place
+# names it writes into spatial query text from the data sample, not from the
+# rendered spatial_coverage/bbox block, so a column the profiler's geo
+# classifier tags ADMIN or ADDRESS grounds the facet even with no computed
+# coverage. Root cause (`next-steps-five-questions.md` Q2): auctus_v2 calls
+# the profiler without `nominatim=`/`datamart_geo_data=`, so the two coverage
+# paths those columns would otherwise resolve through never run — the gap is
+# a dead wiring path, not a sign the data can't ground the facet.
+#
+# Every predicate here is a pure function of a document's OpenSearch _source
+# (rendered profile text plus, for spatial, profiler_metadata.columns) — no
+# LLM call, no extra fetch, so the allocator can run before any generation
+# call.
+
+# Semantic types atlas-profiler's geo classifier assigns based on a column's
+# actual values (mirrors profiler.types.ADMIN / .ADDRESS; not imported to
+# avoid a live dependency on atlas-profiler's package for two constants).
+_ADMIN_SEMANTIC_TYPE = "http://schema.org/AdministrativeArea"
+_ADDRESS_SEMANTIC_TYPE = "http://schema.org/address"
+
 
 def spatial_supported(doc: dict) -> bool:
-    """⇔ the rendered profile carries a computed spatial_coverage/bbox block."""
+    """⇔ the rendered profile carries a computed spatial_coverage/bbox block,
+    OR profiler_metadata.columns includes a column semantically typed ADMIN
+    (borough/city/state/country) or ADDRESS (street address/ZIP). Does NOT
+    treat a bare GEO_POLYGON structural type, or an unresolved lat/long pair,
+    as sufficient — see design.md's D1/Non-Goals for why polygon geometry is
+    a separate gap this doesn't cover.
+    """
     text = build_profile_text(doc) or ""
-    return "spatial_coverage" in text or '"bbox"' in text
+    if "spatial_coverage" in text or '"bbox"' in text:
+        return True
+    columns = (doc.get("profiler_metadata") or {}).get("columns") or []
+    return any(
+        _ADMIN_SEMANTIC_TYPE in (col.get("semantic_types") or [])
+        or _ADDRESS_SEMANTIC_TYPE in (col.get("semantic_types") or [])
+        for col in columns
+    )
 
 
 def temporal_supported(doc: dict) -> bool:

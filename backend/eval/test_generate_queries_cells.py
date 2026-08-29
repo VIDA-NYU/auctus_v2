@@ -275,6 +275,60 @@ def test_resolve_ib_judgement_missing_class_is_not_silently_true():
     assert resolved["d"]["consistent"] is False
 
 
+def test_spatial_supported_true_on_computed_coverage():
+    """Existing path, regression-guarded explicitly (openspec change
+    spatial-supported-semantic-gate task 2.2): a dataset with a real,
+    profiler-computed spatial_coverage counts as supported even with no
+    ADMIN/ADDRESS column."""
+    doc = {
+        "title": "t",
+        "spatial_coverage": {"bbox": {"type": "envelope", "coordinates": [[0, 1], [1, 0]]}},
+        "profiler_metadata": {"spatial_coverage": {"bbox": {}}, "columns": []},
+    }
+    assert gq.spatial_supported(doc) is True
+
+
+def test_spatial_supported_false_with_no_coverage_and_no_spatial_column():
+    doc = {"title": "t", "profiler_metadata": {"columns": []}}
+    assert gq.spatial_supported(doc) is False
+
+
+def test_spatial_supported_true_on_admin_semantic_column_alone():
+    """openspec change spatial-supported-semantic-gate: an ADMIN-typed column
+    (borough/city/state) grounds the facet even with no computed coverage."""
+    doc = {
+        "title": "t",
+        "profiler_metadata": {
+            "columns": [{"name": "borough", "semantic_types": ["http://schema.org/AdministrativeArea"]}],
+        },
+    }
+    assert gq.spatial_supported(doc) is True
+
+
+def test_spatial_supported_true_on_address_semantic_column_alone():
+    doc = {
+        "title": "t",
+        "profiler_metadata": {
+            "columns": [{"name": "addr", "semantic_types": ["http://schema.org/address"]}],
+        },
+    }
+    assert gq.spatial_supported(doc) is True
+
+
+def test_spatial_supported_false_on_geo_polygon_alone():
+    """The polygon gap is deliberately not covered by this change (design.md
+    D1/Non-Goals) — a bare GEO_POLYGON structural type, with no ADMIN/ADDRESS
+    semantic type and no computed coverage, stays unsupported."""
+    doc = {
+        "title": "t",
+        "profiler_metadata": {
+            "columns": [{"name": "shape", "structural_type": "http://schema.org/GeoShape",
+                         "semantic_types": []}],
+        },
+    }
+    assert gq.spatial_supported(doc) is False
+
+
 def test_composite_supported_reads_ib_judgement_not_a_lexical_predicate():
     """task 5.3: composite's third qualifier comes from the persisted
     judgement dict, and its exact >=2 count is otherwise unchanged."""
