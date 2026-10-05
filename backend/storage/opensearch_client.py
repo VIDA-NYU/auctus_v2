@@ -34,6 +34,12 @@ DESCRIPTION_SOURCE_FIELDS = {
     # AutoDDG arms can be compared against ungrounded/un-synthesised baselines.
     "profile_only": "profile_only_description",
     "t_od_s": "tods_description",
+    # Semantic-profile arms (deterministic, no LLM call at build time): the
+    # stored AutoDDG semantic profile verbatim, and the structural profile text
+    # followed by it. They isolate what the profiles retrieve on their own,
+    # before UFD/SFD synthesis (add-semantic-profile-arms).
+    "semantic_profile_only": "semantic_profile_description",
+    "semantic_structural": "semantic_structural_description",
 }
 
 # The evaluation-arm description fields, defined once so the index mapping, the
@@ -50,6 +56,8 @@ GENERATED_DESCRIPTION_FIELD_MAPPINGS = {
     # skewed by an analyzer mismatch (see DESCRIPTION_SOURCE_FIELDS).
     "profile_only_description": {"type": "text", "analyzer": "text_analyzer"},
     "tods_description": {"type": "text", "analyzer": "text_analyzer"},
+    "semantic_profile_description": {"type": "text", "analyzer": "text_analyzer"},
+    "semantic_structural_description": {"type": "text", "analyzer": "text_analyzer"},
 }
 
 

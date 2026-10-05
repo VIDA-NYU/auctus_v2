@@ -16,12 +16,23 @@ Both arms complete the 6-column matrix so the AutoDDG arms can be compared
 against un-synthesised baselines. This script only touches these two fields; it
 never regenerates or clears the LLM arms or the original portal description.
 
+``--arms semantic`` builds the two semantic-profile arms instead, and writes
+only those two fields (it never rewrites ``profile_only`` / ``t_od_s``):
+
+  * ``semantic_profile_description`` — the ``autoddg_semantic_profile`` string
+    stored in the MinIO full profile, verbatim. This is the text UFD/SFD were
+    generated from; nothing is regenerated and no LLM is called.
+  * ``semantic_structural_description`` — the structural profile text
+    (``build_profile_text``, i.e. the ``profile_only`` arm), a blank line, then
+    the semantic profile. Built only when both parts exist.
+
 Run inside the worker environment (needs opensearch; MinIO only for the T+OD+S
 arm):
 
     docker compose exec arq-worker python -m eval.backfill_static_arms --all
     docker compose exec arq-worker python -m eval.backfill_static_arms --ids abcd-1234
     python -m eval.backfill_static_arms --all --dry-run   # report only, no writes
+    python -m eval.backfill_static_arms --all --arms semantic --dry-run
 """
 
 from __future__ import annotations
@@ -47,12 +58,22 @@ PROFILE_ONLY_FIELD = "profile_only_description"
 TODS_FIELD = "tods_description"
 STATIC_ARM_FIELDS = (PROFILE_ONLY_FIELD, TODS_FIELD)
 
+SEMANTIC_PROFILE_FIELD = "semantic_profile_description"
+SEMANTIC_STRUCTURAL_FIELD = "semantic_structural_description"
+SEMANTIC_ARM_FIELDS = (SEMANTIC_PROFILE_FIELD, SEMANTIC_STRUCTURAL_FIELD)
+# Where the stored semantic profile lives in the MinIO full profile.
+SEMANTIC_PROFILE_SOURCE_KEY = "autoddg_semantic_profile"
+
 # Fields we need off the OpenSearch document to build the arms.
 _OS_SOURCE_FIELDS = ["title", "description", "profiler_metadata", "spatial_coverage"]
 
 
-def ensure_arm_field_mappings(os_client, index: str = AUCTUS_INDEX_NAME) -> None:
-    """Explicitly map the two arm fields before any document carries them.
+def ensure_arm_field_mappings(
+    os_client,
+    index: str = AUCTUS_INDEX_NAME,
+    fields: tuple[str, ...] = STATIC_ARM_FIELDS,
+) -> None:
+    """Explicitly map the arm fields in ``fields`` before any document carries them.
 
     If they were left to dynamic mapping they'd get the standard analyzer
     (no English stopwords) while ``description`` uses ``text_analyzer`` (with
@@ -60,11 +81,7 @@ def ensure_arm_field_mappings(os_client, index: str = AUCTUS_INDEX_NAME) -> None
     guards against. put_mapping is idempotent and safe on an existing index as
     long as no document has already dynamic-mapped the field (none has yet).
     """
-    props = {
-        f: GENERATED_DESCRIPTION_FIELD_MAPPINGS[f]
-        for f in STATIC_ARM_FIELDS
-        if f in GENERATED_DESCRIPTION_FIELD_MAPPINGS
-    }
+    props = {f: GENERATED_DESCRIPTION_FIELD_MAPPINGS[f] for f in fields}
     os_client.indices.put_mapping(index=index, body={"properties": props})
     LOGGER.info("Ensured mappings for %s on %s", list(props), index)
 
@@ -93,6 +110,65 @@ def build_static_arms(os_source: dict, sample: str | None) -> dict[str, str]:
             arms[TODS_FIELD] = tods
 
     return arms
+
+
+def build_semantic_arms(os_source: dict, semantic_profile: str | None) -> dict[str, str]:
+    """Return the semantic-profile arm fields buildable from the given inputs.
+
+    ``semantic_profile`` is written verbatim. A missing or blank one yields no
+    fields at all: the arm is never filled from another source, and never
+    written as an empty string. The combined arm additionally needs the
+    structural profile text and is omitted when that is missing.
+    """
+    if not isinstance(semantic_profile, str) or not semantic_profile.strip():
+        return {}
+    arms = {SEMANTIC_PROFILE_FIELD: semantic_profile}
+    profile_text = build_profile_text(os_source)
+    if profile_text:
+        arms[SEMANTIC_STRUCTURAL_FIELD] = profile_text + "\n\n" + semantic_profile
+    return arms
+
+
+def backfill_semantic_one(os_client, storage_client, dataset_id: str, dry_run: bool) -> str:
+    """Build and write the two semantic-profile arms for one dataset.
+
+    Returns a status whose first word is the bucket counted in the summary:
+    ``missing-semantic-profile`` when the full profile holds none (nothing is
+    written), ``would`` / ``updated`` otherwise. The status carries the
+    character length of each part so a thin semantic profile is visible.
+    """
+    try:
+        doc = os_client.get(
+            index=AUCTUS_INDEX_NAME, id=dataset_id, _source=_OS_SOURCE_FIELDS
+        )
+    except Exception as exc:  # missing doc / transport error
+        LOGGER.warning("No OpenSearch doc for %s: %s", dataset_id, exc)
+        return "no-doc"
+    os_source = doc.get("_source") or {}
+
+    record = load_full_profile(storage_client, dataset_id) if storage_client else None
+    semantic = record.get(SEMANTIC_PROFILE_SOURCE_KEY) if isinstance(record, dict) else None
+
+    arms = build_semantic_arms(os_source, semantic)
+    if not arms:
+        return "missing-semantic-profile"
+
+    detail = f"semantic={len(arms[SEMANTIC_PROFILE_FIELD])} chars"
+    if SEMANTIC_STRUCTURAL_FIELD in arms:
+        detail += f", combined={len(arms[SEMANTIC_STRUCTURAL_FIELD])} chars"
+    else:
+        detail += f", no structural profile -> {SEMANTIC_STRUCTURAL_FIELD} skipped"
+
+    if dry_run:
+        return f"would set {', '.join(sorted(arms))} ({detail})"
+
+    os_client.update(
+        index=AUCTUS_INDEX_NAME,
+        id=dataset_id,
+        body={"doc": arms},
+        refresh=True,
+    )
+    return f"updated {', '.join(sorted(arms))} ({detail})"
 
 
 def backfill_one(os_client, storage_client, dataset_id: str, dry_run: bool) -> str:
@@ -141,7 +217,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Report what would be written; no mapping change, no writes",
     )
+    parser.add_argument(
+        "--arms",
+        choices=("static", "semantic"),
+        default="static",
+        help="static: profile_only + t_od_s (default). semantic: the two "
+             "semantic-profile arms only, read from the stored MinIO full profile",
+    )
     args = parser.parse_args(argv)
+    semantic = args.arms == "semantic"
 
     os_client = get_client()
     # MinIO is only needed for the T+OD+S sample; degrade gracefully without it
@@ -149,30 +233,42 @@ def main(argv: list[str] | None = None) -> int:
     try:
         storage_client = get_storage_client()
     except Exception as exc:
+        if semantic:
+            # The semantic profile lives only in MinIO; without it every dataset
+            # would be reported as missing one, which would be a false report.
+            raise SystemExit(f"--arms semantic needs MinIO, which is unavailable: {exc}")
         LOGGER.warning("No MinIO client (%s); T+OD+S arm will be skipped", exc)
         storage_client = None
 
     if not args.dry_run:
-        ensure_arm_field_mappings(os_client)
+        ensure_arm_field_mappings(
+            os_client, fields=SEMANTIC_ARM_FIELDS if semantic else STATIC_ARM_FIELDS
+        )
 
     ids = args.ids or list_all_ids(os_client, AUCTUS_INDEX_NAME)
-    print(f"Backfilling static arms for {len(ids)} dataset(s)"
+    print(f"Backfilling {args.arms} arms for {len(ids)} dataset(s)"
           f"{' [dry-run]' if args.dry_run else ''}")
 
+    one = backfill_semantic_one if semantic else backfill_one
     counts: dict[str, int] = {}
     failures = 0
+    missing_semantic: list[str] = []
     for i, dataset_id in enumerate(ids, 1):
         try:
-            status = backfill_one(os_client, storage_client, dataset_id, args.dry_run)
+            status = one(os_client, storage_client, dataset_id, args.dry_run)
         except Exception as exc:
             LOGGER.exception("Backfill failed for %s: %s", dataset_id, exc)
             status = "error"
         if status in ("no-doc", "error"):
             failures += 1
+        if status == "missing-semantic-profile":
+            missing_semantic.append(dataset_id)
         counts[status.split(" ")[0]] = counts.get(status.split(" ")[0], 0) + 1
         print(f"  [{i}/{len(ids)}] {dataset_id}: {status}")
 
     print(f"\nDone. Status counts: {counts}")
+    if semantic:
+        print(f"Missing semantic profile: {len(missing_semantic)} {missing_semantic}")
     return 1 if failures else 0
 
 

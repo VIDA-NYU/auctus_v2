@@ -111,6 +111,8 @@ SOURCE_FIELDS = {
     # storage.opensearch_client.DESCRIPTION_SOURCE_FIELDS.
     "profile_only": "profile_only_description",
     "t_od_s": "tods_description",
+    "semantic_profile_only": "semantic_profile_description",
+    "semantic_structural": "semantic_structural_description",
 }
 
 

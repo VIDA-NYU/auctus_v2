@@ -359,6 +359,12 @@ def main(argv: list[str] | None = None) -> int:
              "does not match this (mean-aggregation-sensitivity-row Decision 4). "
              "A per-judge qrels with no 'aggregation' field is unaffected.",
     )
+    parser.add_argument(
+        "--note", default=None,
+        help="free-text caveat written verbatim into the aggregate artifact's "
+             "'note' field, so a condition the numbers depend on (e.g. which "
+             "arms' text the query generator saw) travels with them",
+    )
     args = parser.parse_args(argv)
 
     queries = json.loads(Path(args.queries).read_text(encoding="utf-8"))["queries"]
@@ -385,6 +391,8 @@ def main(argv: list[str] | None = None) -> int:
         "grade_scale": grade_scale,
         **result,
     }
+    if args.note:
+        report["note"] = args.note
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

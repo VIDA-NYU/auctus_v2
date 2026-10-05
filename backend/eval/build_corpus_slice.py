@@ -38,6 +38,8 @@ ARM_FIELDS = {
     "sfd": "autoddg_search_description",
     "profile_only": "profile_only_description",
     "t_od_s": "tods_description",
+    "semantic_profile_only": "semantic_profile_description",
+    "semantic_structural": "semantic_structural_description",
 }
 SHORT_DESCRIPTION_CHARS = 80  # below this the in-the-wild description is "thin"
 UNNAMED_COL_RE = re.compile(r"^(col|column|unnamed|field)[_ ]?\d+$", re.IGNORECASE)

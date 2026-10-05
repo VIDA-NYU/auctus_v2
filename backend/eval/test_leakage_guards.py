@@ -53,7 +53,7 @@ def test_allowlist_and_arm_fields_are_disjoint() -> None:
     assert not (set(NEUTRAL_SOURCE_FIELDS) & FORBIDDEN_ARM_FIELDS)
     # And the forbidden set really covers every arm, so a new arm is not missed.
     assert FORBIDDEN_ARM_FIELDS == frozenset(DESCRIPTION_SOURCE_FIELDS.values())
-    assert len(FORBIDDEN_ARM_FIELDS) == 6, sorted(FORBIDDEN_ARM_FIELDS)
+    assert len(FORBIDDEN_ARM_FIELDS) == 8, sorted(FORBIDDEN_ARM_FIELDS)
 
 
 def test_neutral_document_builds_a_useful_bundle() -> None:
