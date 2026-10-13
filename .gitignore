@@ -21,3 +21,6 @@ backend/eval/results/
 
 # Local eval working data (LLM cache, collected outputs, results); gold/ is committed once verified
 backend/eval/description_eval/data/
+
+# Regenerated review pages for the README gold (review_gold.py sheet)
+backend/eval/profiler_benchmark/gold/review/
