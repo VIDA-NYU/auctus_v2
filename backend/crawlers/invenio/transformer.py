@@ -66,7 +66,7 @@ async def fetch_spreadsheet_sample(client, file_url: str, extension: str, max_ro
         raise ValueError(f"spreadsheet is {size} bytes, above the {MAX_SPREADSHEET_BYTES}-byte limit")
     response = await client.get(file_url, headers={"Accept": "*/*"})
     response.raise_for_status()
-    engine = "openpyxl" if extension == "xlsx" else None
+    engine = "openpyxl" if extension == "xlsx" else "xlrd"
     frame = pd.read_excel(io.BytesIO(response.content), nrows=max_rows, engine=engine)
     tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv", encoding="utf-8", newline="")
     with tmp:
@@ -81,9 +81,21 @@ async def fetch_spreadsheet_sample(client, file_url: str, extension: str, max_ro
     )
 
 
+def detect_separator(path: Path, extension: str) -> str:
+    """Sniff the delimiter: repository CSVs are not always comma-separated (e.g. `;`
+    from European locales). Falls back to the extension's default."""
+    default = "\t" if extension == "tsv" else ","
+    with open(path, mode="r", encoding="utf-8", errors="replace", newline="") as fh:
+        head = fh.read(64 * 1024)
+    try:
+        return csv.Sniffer().sniff(head, delimiters=",;\t|").delimiter
+    except csv.Error:
+        return default
+
+
 def read_sample(path: Path, extension: str, truncated: bool) -> tuple[list[str], list[dict[str, str]], pd.DataFrame]:
     """Parse a CSV/TSV sample leniently (bad bytes replaced, a cut-off last line dropped)."""
-    separator = "\t" if extension == "tsv" else ","
+    separator = detect_separator(path, extension)
     with open(path, mode="r", encoding="utf-8", errors="replace", newline="") as fh:
         reader = csv.DictReader(fh, delimiter=separator)
         headers = reader.fieldnames or []
