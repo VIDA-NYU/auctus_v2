@@ -1,0 +1,106 @@
+{
+  "_comment": "SMOKE TEST ONLY, not a benchmark. Author-picked known-item queries over NYU UltraViolet, written while knowing the target records, so they are biased toward success. Every file of a target record is graded 1. Replace with queries from UltraViolet's search logs and librarian relevance judgments for a real evaluation.",
+  "queries": [
+    {
+      "query_id": "uv1",
+      "text": "camera_name",
+      "relevant": {
+        "ultraviolet.library.nyu.edu:1vs56-e3h85:87af92ad-cbc2-4b47-a78d-c715f8967494": 1
+      }
+    },
+    {
+      "query_id": "uv2",
+      "text": "judgment_source",
+      "relevant": {
+        "ultraviolet.library.nyu.edu:jyn8d-n9f12:7e801fd9-3424-4b6c-b3ce-9dd58f1a80a7": 1
+      }
+    },
+    {
+      "query_id": "uv3",
+      "text": "uniqueid",
+      "relevant": {
+        "ultraviolet.library.nyu.edu:bp0pk-te632:252b0fd8-4f94-412e-97c2-0d205c51fd80": 1
+      }
+    },
+    {
+      "query_id": "uv4",
+      "text": "subway construction costs",
+      "relevant": {
+        "ultraviolet.library.nyu.edu:9wnjp-kez15:86a4a539-d3df-4b44-94ac-fdb897dc22bc": 1
+      }
+    },
+    {
+      "query_id": "uv5",
+      "text": "buildings",
+      "relevant": {
+        "ultraviolet.library.nyu.edu:mrt3g-htt34:20976e76-41d0-4b0b-a66e-7ea5e1127ac1": 1,
+        "ultraviolet.library.nyu.edu:mrt3g-htt34:dd2a95cd-5cd8-4a52-849b-7774b93fd016": 1,
+        "ultraviolet.library.nyu.edu:mrt3g-htt34:4558bc0a-e4a9-4c7c-8646-7a7423be3e42": 1,
+        "ultraviolet.library.nyu.edu:mrt3g-htt34:0009d1a9-fb80-44b2-99e2-5bf757f6eaea": 1
+      }
+    },
+    {
+      "query_id": "uv6",
+      "text": "illegal parking",
+      "relevant": {
+        "ultraviolet.library.nyu.edu:1vs56-e3h85:87af92ad-cbc2-4b47-a78d-c715f8967494": 1
+      }
+    },
+    {
+      "query_id": "uv7",
+      "text": "household survey ethiopia",
+      "relevant": {
+        "ultraviolet.library.nyu.edu:xwvc0-mse16:740141ed-e7a5-4182-90f5-f831feb3f8f9": 1,
+        "ultraviolet.library.nyu.edu:xwvc0-mse16:5c965a0c-c167-4fb0-91ee-9fb9abe87517": 1,
+        "ultraviolet.library.nyu.edu:xwvc0-mse16:a5b1620b-d778-48e5-9634-2e8292c06d9b": 1,
+        "ultraviolet.library.nyu.edu:xwvc0-mse16:f41adf7a-2b35-4f55-948a-4e098b142c19": 1,
+        "ultraviolet.library.nyu.edu:xwvc0-mse16:13b39c22-56fa-49b1-a919-8cd3e8490188": 1,
+        "ultraviolet.library.nyu.edu:xwvc0-mse16:cb1971c1-ef14-40f1-9cb0-2a3c348d2eb9": 1
+      }
+    },
+    {
+      "query_id": "uv8",
+      "text": "country globalization scores",
+      "relevant": {
+        "ultraviolet.library.nyu.edu:ztrqs-yd018:996d811b-0878-43bd-aa0c-586e793cd348": 1,
+        "ultraviolet.library.nyu.edu:ztrqs-yd018:a1b12ace-6853-4416-a772-b164c7cacdc1": 1,
+        "ultraviolet.library.nyu.edu:x1xmj-5nq11:b8591e29-866e-45cc-96f7-5c0076eab494": 1,
+        "ultraviolet.library.nyu.edu:x1xmj-5nq11:d7cfdb25-1994-4231-8ce5-1468d40cb614": 1,
+        "ultraviolet.library.nyu.edu:2ynm3-snr05:fbe20913-c046-4ab4-a297-b78db53098de": 1,
+        "ultraviolet.library.nyu.edu:wwjkw-vjs44:5f58d1d2-78e4-429a-aabe-bfac9aa512aa": 1,
+        "ultraviolet.library.nyu.edu:wwjkw-vjs44:95f094b6-f474-4e96-b3fe-e621f6dedd04": 1,
+        "ultraviolet.library.nyu.edu:zw1dd-9xk53:7ae84f18-ce5e-4cef-8759-6d9a841c0fd7": 1,
+        "ultraviolet.library.nyu.edu:rm518-hve77:37e3f903-7dc8-49a7-923a-9480f81a2b85": 1,
+        "ultraviolet.library.nyu.edu:rm518-hve77:10f8745d-68bc-4c59-be57-ed8ba9ea43de": 1,
+        "ultraviolet.library.nyu.edu:7jt4h-p0738:c28dfe78-2a08-4f90-bfb4-40aa83d22b24": 1,
+        "ultraviolet.library.nyu.edu:7jt4h-p0738:906a3b41-9ff5-4bd4-9070-6ed1214dda33": 1
+      }
+    },
+    {
+      "query_id": "uv9",
+      "text": "metro rail tunnel cost per kilometer",
+      "relevant": {
+        "ultraviolet.library.nyu.edu:9wnjp-kez15:86a4a539-d3df-4b44-94ac-fdb897dc22bc": 1
+      }
+    },
+    {
+      "query_id": "uv10",
+      "text": "oral health literacy spanish",
+      "relevant": {
+        "ultraviolet.library.nyu.edu:frv59-hzf81:7f24083b-efbc-4168-8e29-38ef212daea3": 1,
+        "ultraviolet.library.nyu.edu:frv59-hzf81:5e7d0a8f-cdb5-4668-97ef-214df488a750": 1,
+        "ultraviolet.library.nyu.edu:frv59-hzf81:899e842e-a172-4e2e-9834-7c78ee7c8537": 1,
+        "ultraviolet.library.nyu.edu:frv59-hzf81:f5ae18b0-cec9-41e2-a660-e3b691972b60": 1,
+        "ultraviolet.library.nyu.edu:frv59-hzf81:293b5193-8fd0-43c6-a003-b8294d2b6f16": 1,
+        "ultraviolet.library.nyu.edu:frv59-hzf81:c4d57a31-10c6-43bf-959e-45aa3891772e": 1,
+        "ultraviolet.library.nyu.edu:frv59-hzf81:56ec6bcc-eb88-4ac2-a2e7-4e9a99b22fa2": 1,
+        "ultraviolet.library.nyu.edu:frv59-hzf81:d9943820-21f8-4719-8239-2932771ba3ad": 1,
+        "ultraviolet.library.nyu.edu:frv59-hzf81:e4c86b4b-88dd-4b41-b911-fe0fe966814a": 1,
+        "ultraviolet.library.nyu.edu:frv59-hzf81:a0128f5e-14b1-479e-a676-43a5ae31fb57": 1,
+        "ultraviolet.library.nyu.edu:frv59-hzf81:22e8d0f5-b817-4388-ad7d-684e344625bd": 1,
+        "ultraviolet.library.nyu.edu:frv59-hzf81:a664c721-c950-4736-b8cd-33cd0d5d5b70": 1,
+        "ultraviolet.library.nyu.edu:frv59-hzf81:75349760-209c-4919-a988-e093cc09978c": 1
+      }
+    }
+  ]
+}

@@ -15,3 +15,6 @@ dist/
 
 # MkDocs build output
 site/
+
+# Retrieval-eval run artifacts
+backend/eval/results/
