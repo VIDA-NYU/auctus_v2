@@ -113,6 +113,30 @@ def temporal_from_profiler(profiler_output: dict[str, Any],
     return _to_date(min(lows)), _to_date(max(highs))
 
 
+_YEAR_COLUMN_RE = re.compile(r"(^|[^a-z])(year|yr)s?([^a-z]|$)", re.IGNORECASE)
+
+
+def temporal_from_year_columns(headers: list[str], rows: list[dict[str, str]]) -> tuple[str | None, str | None]:
+    """(start, end) from columns named like "year" whose values are mostly 4-digit years.
+
+    The profiler doesn't always type plain integer year columns as temporal
+    (seen on UltraViolet: a `Year` column of 2000, 2001, ...), and these are common
+    in research tables.
+    """
+    years = []
+    for header in headers:
+        if not _YEAR_COLUMN_RE.search(str(header)):
+            continue
+        values = [str(r.get(header, "")).strip() for r in rows]
+        values = [v[:-2] if v.endswith(".0") else v for v in values if v]
+        found = [int(v) for v in values if _YEAR_RE.fullmatch(v)]
+        if values and len(found) >= 0.8 * len(values):
+            years.extend(found)
+    if not years:
+        return None, None
+    return f"{min(years)}-01-01", f"{max(years)}-12-31"
+
+
 def admin_bbox(profiler_output: dict[str, Any], rows: list[dict[str, str]]) -> list[float] | None:
     """Bounding box of place-name columns, resolved with datamart-geo.
 

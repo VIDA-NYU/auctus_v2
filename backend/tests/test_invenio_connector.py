@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from crawlers.coverage import admin_bbox, bbox_from_profiler, geo_data, temporal_from_profiler
+from crawlers.coverage import admin_bbox, bbox_from_profiler, geo_data, temporal_from_profiler, temporal_from_year_columns
 import zipfile
 
 from crawlers.invenio.archives import member_dataset_id, select_archive_members
@@ -134,6 +134,13 @@ class ArchiveTests(unittest.TestCase):
 
 
 class CoverageTests(unittest.TestCase):
+    def test_year_columns_give_a_time_range(self):  # UltraViolet: profiler missed a plain `Year` column
+        rows = [{"Year": str(y), "Title": "x"} for y in range(2000, 2006)] + [{"Year": "2003.0", "Title": "y"}]
+        self.assertEqual(temporal_from_year_columns(["Year", "Title"], rows), ("2000-01-01", "2005-12-31"))
+        self.assertEqual(temporal_from_year_columns(["Count"], [{"Count": "2001"}]), (None, None))
+        not_years = [{"year_code": v} for v in ["A1", "B2", "C3"]]
+        self.assertEqual(temporal_from_year_columns(["year_code"], not_years), (None, None))
+
     def test_profiler_ranges_to_dates_and_bbox(self):
         output = {
             "temporal_coverage": [{"ranges": [{"range": {"gte": 0, "lte": 86400 * 366}}]}],

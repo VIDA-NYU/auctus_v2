@@ -30,7 +30,7 @@ from typing import Any
 import pandas as pd
 from atlas_profiler import process_dataset
 
-from crawlers.coverage import admin_bbox, bbox_from_profiler, geo_data, temporal_from_profiler
+from crawlers.coverage import admin_bbox, bbox_from_profiler, geo_data, temporal_from_profiler, temporal_from_year_columns
 from crawlers.invenio.archives import (
     SMALL_ARCHIVE_BYTES,
     member_dataset_id,
@@ -258,6 +258,8 @@ def assemble_record(dataset_meta: dict[str, Any], sample_stats: SampleStats, hea
     source_record = dataset_meta.get("record") or {}
     # The profiler's own coverage first; column-name heuristics only as a fallback.
     temporal_start, temporal_end = temporal_from_profiler(profiler_output, rows)
+    if not temporal_start:
+        temporal_start, temporal_end = temporal_from_year_columns(headers, rows)
     if not temporal_start:
         temporal_start, temporal_end = infer_temporal_range(headers, rows)
     inferred_bbox = infer_spatial_bbox(headers, rows)
