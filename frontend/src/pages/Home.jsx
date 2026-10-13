@@ -28,6 +28,8 @@ function Home() {
     bbox: null,
   })
   const [portalOptions, setPortalOptions] = useState([])
+  // domain -> display label from /api/v1/portals (filtering still uses the domain)
+  const [portalLabels, setPortalLabels] = useState({})
   const [openDropdown, setOpenDropdown] = useState(null)
 
   useEffect(() => {
@@ -45,8 +47,13 @@ function Home() {
           ? payload.portals.map((portal) => portal?.domain).filter((domain) => typeof domain === 'string' && domain.trim())
           : []
 
+        const labels = Array.isArray(payload?.portals)
+          ? Object.fromEntries(payload.portals.filter((p) => p?.domain).map((p) => [p.domain, p.display_label || p.domain]))
+          : {}
+
         if (!cancelled) {
           setPortalOptions(domains.length > 0 ? domains : DEFAULT_PORTAL_OPTIONS)
+          setPortalLabels(labels)
         }
       } catch (error) {
         if (!cancelled) {
@@ -194,7 +201,7 @@ function Home() {
                           }}
                           className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                         />
-                        <span className="text-slate-700">{opt}</span>
+                        <span className="text-slate-700">{portalLabels[opt] || opt}</span>
                       </label>
                     ))}
                   </div>
