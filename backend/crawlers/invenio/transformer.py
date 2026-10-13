@@ -23,6 +23,7 @@ import logging
 import os
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,13 @@ import pandas as pd
 from atlas_profiler import process_dataset
 
 from crawlers.coverage import admin_bbox, bbox_from_profiler, geo_data, temporal_from_profiler
+from crawlers.invenio.archives import (
+    SMALL_ARCHIVE_BYTES,
+    member_dataset_id,
+    member_extension,
+    open_remote_zip,
+    select_archive_members,
+)
 from crawlers.invenio.http import async_client
 from crawlers.socrata.transformer import (
     SampleStats,
@@ -47,6 +55,7 @@ DEFAULT_MAX_SAMPLE_BYTES = 2 * 1024 * 1024
 SPREADSHEET_EXTENSIONS = {"xlsx", "xls"}
 # Spreadsheets are loaded into memory whole, and pandas inflates them several-fold.
 MAX_SPREADSHEET_BYTES = 25 * 1024 * 1024
+
 
 # Downloads run concurrently across worker jobs, but each profiler run holds the
 # sample, the profiler's models and intermediate frames in memory. Unbounded, the
@@ -96,19 +105,15 @@ async def fetch_spreadsheet_sample(client, file_url: str, extension: str, max_ro
     return spreadsheet_to_sample(response.content, extension, max_rows)
 
 
-def sample_local_file(path: Path, extension: str, max_rows: int = DEFAULT_MAX_SAMPLE_ROWS,
-                      max_bytes: int = DEFAULT_MAX_SAMPLE_BYTES) -> SampleStats:
-    """Sample a local file with the same limits as the HTTP path (tests, benchmarks).
+def _sample_stream(source, max_rows: int, max_bytes: int) -> SampleStats:
+    """Copy a binary stream into a temp CSV until the byte cap or max_rows+1 newlines.
 
-    Mirrors stream_csv_sample: copy bytes until the byte cap or until max_rows+1
-    newlines have been seen, checking after each 64 KiB chunk.
+    Mirrors stream_csv_sample, checking the limits after each 64 KiB chunk.
     """
-    if extension in SPREADSHEET_EXTENSIONS:
-        return spreadsheet_to_sample(Path(path), extension, max_rows)
     tmp = tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".csv")
     written = newlines = 0
     truncated_by_rows = truncated_by_bytes = False
-    with open(path, "rb") as source, tmp:
+    with tmp:
         while chunk := source.read(64 * 1024):
             remaining = max_bytes - written
             if remaining <= 0:
@@ -124,6 +129,15 @@ def sample_local_file(path: Path, extension: str, max_rows: int = DEFAULT_MAX_SA
                 break
     return SampleStats(sample_path=Path(tmp.name), bytes_written=written, newline_count=newlines,
                        truncated_by_rows=truncated_by_rows, truncated_by_bytes=truncated_by_bytes)
+
+
+def sample_local_file(path: Path, extension: str, max_rows: int = DEFAULT_MAX_SAMPLE_ROWS,
+                      max_bytes: int = DEFAULT_MAX_SAMPLE_BYTES) -> SampleStats:
+    """Sample a local file with the same limits as the HTTP path (tests, benchmarks)."""
+    if extension in SPREADSHEET_EXTENSIONS:
+        return spreadsheet_to_sample(Path(path), extension, max_rows)
+    with open(path, "rb") as source:
+        return _sample_stream(source, max_rows, max_bytes)
 
 
 def detect_separator(path: Path, extension: str) -> str:
@@ -179,6 +193,10 @@ async def build_invenio_record(
     max_bytes = int(max_sample_bytes or DEFAULT_MAX_SAMPLE_BYTES)
     extension = dataset_meta.get("file_extension") or ""
     file_url = dataset_meta["file_url"]
+
+    if dataset_meta.get("zip_member"):
+        async with PROFILER_SLOTS:
+            return await asyncio.to_thread(profile_remote_member, dataset_meta, max_rows, max_bytes)
 
     async with async_client(http_timeout_seconds) as client:
         if extension in SPREADSHEET_EXTENSIONS:
@@ -275,6 +293,77 @@ def assemble_record(dataset_meta: dict[str, Any], sample_stats: SampleStats, hea
             },
         }
     return record
+
+
+def sample_zip_member(archive: zipfile.ZipFile, info: zipfile.ZipInfo, max_rows: int,
+                      max_bytes: int) -> tuple[SampleStats, str]:
+    """Sample one member: CSV/TSV streamed up to the limits, spreadsheets read whole."""
+    ext = member_extension(info.filename)
+    if ext in SPREADSHEET_EXTENSIONS:
+        return spreadsheet_to_sample(archive.read(info), ext, max_rows), ext
+    with archive.open(info) as source:
+        return _sample_stream(source, max_rows, max_bytes), ext
+
+
+def member_record(dataset_meta: dict[str, Any], archive_id: str, archive_key: str, info: zipfile.ZipInfo,
+                  sample_stats: SampleStats, ext: str, totals: dict[str, int]) -> dict[str, Any]:
+    """Profile a sampled member and build its catalog record, linked to its archive."""
+    headers, rows, output, errors = profile_sample(sample_stats, ext)
+    meta = {**dataset_meta, "dataset_id": member_dataset_id(archive_id, info.filename),
+            "file_key": f"{archive_key}/{info.filename}", "file_extension": ext, "file_size": info.file_size}
+    record = assemble_record(meta, sample_stats, headers, rows, output, errors)
+    record["archive_dataset_id"] = archive_id
+    record["source_record"]["archive"] = {"file_key": archive_key, "member": info.filename, **totals}
+    sample_stats.sample_path.unlink(missing_ok=True)
+    return record
+
+
+def profile_archive(path: Path, dataset_meta: dict[str, Any], max_rows: int = DEFAULT_MAX_SAMPLE_ROWS,
+                    max_bytes: int = DEFAULT_MAX_SAMPLE_BYTES) -> list[dict[str, Any]]:
+    """Profile the tabular members of a local zip; one catalog record per member."""
+    archive_id = dataset_meta["dataset_id"]
+    archive_key = dataset_meta.get("file_key", Path(path).name)
+    with zipfile.ZipFile(path) as archive:
+        members, total = select_archive_members(archive)
+        totals = {"tabular_members": total, "profiled_members": len(members)}
+        return [member_record(dataset_meta, archive_id, archive_key, info,
+                              *sample_zip_member(archive, info, max_rows, max_bytes), totals)
+                for info in members]
+
+
+def profile_remote_member(dataset_meta: dict[str, Any], max_rows: int, max_bytes: int) -> dict[str, Any]:
+    """Profile one member of a remote zip, reading only that member's bytes."""
+    archive = dataset_meta["archive"]
+    with open_remote_zip(archive["url"], archive["size"]) as zf:
+        info = zf.getinfo(dataset_meta["zip_member"])
+        sample_stats, ext = sample_zip_member(zf, info, max_rows, max_bytes)
+    totals = {"tabular_members": archive["tabular_members"], "profiled_members": archive["profiled_members"]}
+    return member_record(dataset_meta, archive["dataset_id"], archive["file_key"], info, sample_stats, ext, totals)
+
+
+async def build_archive_records(dataset_meta: dict[str, Any], max_sample_rows: int | None = None,
+                                max_sample_bytes: int | None = None,
+                                http_timeout_seconds: float = 30.0) -> list[dict[str, Any]]:
+    """Download a small zip (up to SMALL_ARCHIVE_BYTES) and profile its tabular members."""
+    max_rows = int(max_sample_rows or DEFAULT_MAX_SAMPLE_ROWS)
+    max_bytes = int(max_sample_bytes or DEFAULT_MAX_SAMPLE_BYTES)
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+    path = Path(tmp.name)
+    try:
+        with tmp:
+            async with async_client(max(http_timeout_seconds, 120.0)) as client:
+                async with client.stream("GET", dataset_meta["file_url"], headers={"Accept": "*/*"}) as response:
+                    response.raise_for_status()
+                    downloaded = 0
+                    async for chunk in response.aiter_bytes():
+                        downloaded += len(chunk)
+                        if downloaded > SMALL_ARCHIVE_BYTES:
+                            raise ValueError(f"archive is larger than the {SMALL_ARCHIVE_BYTES}-byte download limit")
+                        tmp.write(chunk)
+        async with PROFILER_SLOTS:
+            return await asyncio.to_thread(profile_archive, path, dataset_meta, max_rows, max_bytes)
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def profile_local_file(path: Path, dataset_meta: dict[str, Any] | None = None) -> dict[str, Any]:

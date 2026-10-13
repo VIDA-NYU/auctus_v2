@@ -493,7 +493,13 @@ async def main() -> None:
 							LOGGER.warning("Deduplication check failed for %s: %s. Proceeding with ingestion.", dataset_id, exc)
 					elif discovered_meta.get("source_updated_at") and not reingest:
 						try:
-							existing_doc = os_client.get(index=AUCTUS_INDEX_NAME, id=dataset_id, ignore=[404])
+							if discovered_meta.get("file_extension") == "zip":
+								# Archives aren't indexed themselves; their members carry archive_dataset_id.
+								found = os_client.search(index=AUCTUS_INDEX_NAME, size=1, body={
+									"query": {"term": {"archive_dataset_id": dataset_id}}})["hits"]["hits"]
+								existing_doc = found[0] if found else None
+							else:
+								existing_doc = os_client.get(index=AUCTUS_INDEX_NAME, id=dataset_id, ignore=[404])
 							indexed_updated_at = extract_indexed_update_timestamp((existing_doc or {}).get("_source"))
 							if indexed_updated_at and indexed_updated_at == normalize_timestamp_value(discovered_meta["source_updated_at"]):
 								LOGGER.info("⏭️ Dataset %s is up-to-date in OpenSearch. Skipping processing.", dataset_id)

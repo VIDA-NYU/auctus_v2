@@ -19,9 +19,12 @@ import numpy as np
 import pandas as pd
 
 from crawlers.coverage import admin_bbox, bbox_from_profiler, geo_data, temporal_from_profiler
-from crawlers.invenio.crawler import file_entries, html_to_text, summarize_record
+import zipfile
+
+from crawlers.invenio.archives import member_dataset_id, select_archive_members
+from crawlers.invenio.crawler import archive_member_entries, file_entries, html_to_text, summarize_record
 from crawlers.socrata.transformer import _safe_datetime
-from crawlers.invenio.transformer import MAX_PROFILED_COLUMNS, profile_local_file
+from crawlers.invenio.transformer import MAX_PROFILED_COLUMNS, profile_archive, profile_local_file
 
 DOMAIN = "repo.example.edu"
 
@@ -70,6 +73,64 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(summary["creators"], ["Doe, Jane"])
         self.assertEqual(summary["landing_url"], f"https://{DOMAIN}/records/abcde-12345")
         self.assertEqual(html_to_text(None), "")
+
+
+class ArchiveTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.zip_path = Path(cls.tmp.name) / "data.zip"
+        frame = pd.DataFrame({"year": range(2000, 2020), "value": range(20), "label": ["a", "b"] * 10})
+        sheet = Path(cls.tmp.name) / "sheet.xlsx"
+        frame.to_excel(sheet, index=False)
+        with zipfile.ZipFile(cls.zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("data/b_table.csv", frame.to_csv(index=False))
+            archive.writestr("data/a_table.tsv", frame.to_csv(index=False, sep="\t"))
+            archive.write(sheet, "data/sheet.xlsx")
+            archive.writestr("__MACOSX/data/._b_table.csv", "resource fork")
+            archive.writestr("data/.hidden.csv", "x,y\n1,2\n")
+            archive.writestr("data/~$lock.xlsx", "lock")
+            archive.writestr("data/readme.txt", "not tabular")
+            archive.writestr("data/empty_dir/", "")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_member_selection_skips_junk_and_caps(self):
+        with zipfile.ZipFile(self.zip_path) as archive:
+            members, total = select_archive_members(archive)
+            self.assertEqual([m.filename for m in members], ["data/a_table.tsv", "data/b_table.csv", "data/sheet.xlsx"])
+            self.assertEqual(total, 3)
+            capped, total = select_archive_members(archive, limit=2)
+            self.assertEqual((len(capped), total), (2, 3))
+
+    def test_small_archive_profiles_each_member(self):
+        meta = {"dataset_id": f"{DOMAIN}:abcde-12345:zip-id", "file_key": "data.zip"}
+        records = profile_archive(self.zip_path, meta)
+        self.assertEqual(len(records), 3)
+        for record in records:
+            self.assertEqual(record["errors"], [])
+            self.assertEqual([c["name"] for c in record["profiler_metadata"]["columns"]], ["year", "value", "label"])
+            self.assertEqual(record["archive_dataset_id"], meta["dataset_id"])
+            self.assertEqual(record["source_record"]["archive"]["tabular_members"], 3)
+        self.assertEqual(records[1]["id"], member_dataset_id(meta["dataset_id"], "data/b_table.csv"))
+        self.assertEqual(records[1]["temporal_coverage"], {"start": "2000-01-01", "end": "2019-12-31"})
+
+    def test_large_archive_becomes_one_job_per_member(self):
+        entry = {"dataset_id": f"{DOMAIN}:abcde-12345:zip-id", "file_key": "data.zip", "file_extension": "zip",
+                 "file_size": 10**10, "file_url": "https://repo.example.edu/files/data.zip/content", "record": {}}
+        with zipfile.ZipFile(self.zip_path) as archive:
+            jobs = archive_member_entries(entry, archive)
+        self.assertEqual([j["zip_member"] for j in jobs], ["data/a_table.tsv", "data/b_table.csv", "data/sheet.xlsx"])
+        self.assertEqual([j["file_extension"] for j in jobs], ["tsv", "csv", "xlsx"])
+        # Crawler and transformer must derive the same id for a member.
+        self.assertEqual(jobs[1]["dataset_id"], member_dataset_id(entry["dataset_id"], "data/b_table.csv"))
+        self.assertEqual(jobs[0]["archive"]["url"], entry["file_url"])
+
+    def test_discovery_keeps_zips(self):
+        keys = [e["file_key"] for e in file_entries(invenio_record({"a.zip": 10**11, "b.csv": 10}), DOMAIN, 10**6)]
+        self.assertEqual(keys, ["a.zip", "b.csv"])  # zips have no size cap: they're read in place
 
 
 class CoverageTests(unittest.TestCase):

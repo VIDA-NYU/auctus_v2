@@ -66,6 +66,8 @@ def description_fields_for(
 # documents keep their record context so they can be grouped into compendia later.
 SOURCE_RECORD_MAPPING = {
     "landing_url": {"type": "keyword", "index": False},
+    # Set on documents for files inside a zip: the zip's discovery id.
+    "archive_dataset_id": {"type": "keyword"},
     "source_record": {
         "type": "object",
         "properties": {
@@ -84,6 +86,15 @@ SOURCE_RECORD_MAPPING = {
             "updated": {"type": "date", "format": "strict_date_optional_time"},
             "file_key": {"type": "keyword"},
             "file_size": {"type": "long"},
+            "archive": {
+                "type": "object",
+                "properties": {
+                    "file_key": {"type": "keyword"},
+                    "member": {"type": "keyword"},
+                    "tabular_members": {"type": "integer"},
+                    "profiled_members": {"type": "integer"},
+                },
+            },
         },
     },
 }

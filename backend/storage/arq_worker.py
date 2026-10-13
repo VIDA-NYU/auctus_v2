@@ -15,7 +15,7 @@ from typing import Any
 import pandas as pd
 from arq.connections import RedisSettings
 
-from crawlers.invenio.transformer import build_invenio_record
+from crawlers.invenio.transformer import build_archive_records, build_invenio_record
 from crawlers.socrata.transformer import build_validation_record
 from storage.minio_client import get_storage_client, upload_heavy_profile
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
@@ -333,11 +333,63 @@ async def build_full_record(dataset_meta: dict[str, Any], **settings: Any) -> di
     return await build_validation_record(dataset_meta["dataset_id"], **settings)
 
 
+async def persist_and_index(record: dict[str, Any], os_client, storage_client, embedding_model,
+                            provider_type: str, domain_url: str, socrata_updated_at: str | None,
+                            source_updated_at: str | None) -> None:
+    """Store the full profile in MinIO and index the trimmed search document."""
+    routing_key = record.get("id")
+    apply_socrata_timestamp(record, socrata_updated_at)
+    apply_source_timestamp(record, source_updated_at)
+
+    # AutoDDG: generate the LLM description BEFORE persisting/indexing so it
+    # is stored in MinIO and propagates into the trimmed search document.
+    # Run in a thread: this makes several sequential blocking LLM calls, which
+    # would otherwise stall every other task on the worker's event loop.
+    record = await asyncio.to_thread(attach_autoddg_description, record)
+
+    LOGGER.info("Uploading full profile to MinIO for dataset %s", routing_key)
+    upload_heavy_profile(storage_client, routing_key, record)
+
+    search_payload = isolate_search_payload(record)
+    search_payload = attach_embedding(search_payload, model=embedding_model)
+    apply_socrata_timestamp(search_payload, socrata_updated_at)
+    apply_source_timestamp(search_payload, source_updated_at)
+    search_payload["domain"] = domain_url
+    search_payload["provider"] = provider_type
+
+    LOGGER.info("Indexing trimmed search document into OpenSearch for dataset %s", routing_key)
+    os_client.index(index=AUCTUS_INDEX_NAME, id=routing_key, body=search_payload, refresh=True)
+
+
+async def process_archive_task(ctx: dict[str, Any], dataset_meta: dict[str, Any], settings: dict[str, Any]) -> str:
+    """Profile the tabular members of a zip and index one document per member."""
+    dataset_id = dataset_meta["dataset_id"]
+    os_client = ctx.get("os_client") or get_client()
+    storage_client = ctx.get("storage_client") or get_storage_client()
+    embedding_model = ctx.get("embedding_model") or get_embedding_model()
+    records = await build_archive_records(dataset_meta, **settings)
+    LOGGER.info("Archive %s: %d tabular member(s) profiled", dataset_id, len(records))
+    domain_url = str(dataset_meta.get("domain") or "")
+    for record in records:
+        await persist_and_index(record, os_client, storage_client, embedding_model, "invenio", domain_url,
+                                None, dataset_meta.get("source_updated_at"))
+    if records:
+        await sync_portal_metadata(domain_url=domain_url, provider_type="invenio")
+    return dataset_id
+
+
 async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]) -> str:
     """Run the heavy ingestion workflow for one dataset."""
     dataset_id = dataset_meta.get("dataset_id") or dataset_meta.get("id")
     if not dataset_id:
         raise ValueError("dataset_meta missing required dataset_id")
+    if dataset_meta.get("file_extension") == "zip":
+        pipeline_settings = load_runtime_config().get("pipeline_settings", {})
+        return await process_archive_task(ctx, dataset_meta, {
+            "max_sample_rows": int(dataset_meta.get("max_sample_rows") or pipeline_settings.get("max_sample_rows", 500)),
+            "max_sample_bytes": int(dataset_meta.get("max_sample_bytes") or pipeline_settings.get("max_sample_bytes", 2_100_000)),
+            "http_timeout_seconds": float(dataset_meta.get("http_timeout_seconds") or pipeline_settings.get("http_timeout_seconds", 30.0)),
+        })
 
     # load_runtime_config() returns the whole config dict; per-portal values arrive in
     # dataset_meta from the dispatcher, so only pipeline_settings is read from it here.
@@ -393,43 +445,14 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
                     "landing_url": source_record.get("landing_url"),
                     "source_record": {**source_record, "file_key": dataset_meta.get("file_key")},
                 })
-        routing_key = full_metadata_record.get("id") or dataset_id
         # Leave failed profiles unstamped so the next pipeline run retries them instead
         # of treating them as up to date.
         source_updated_at = (socrata_updated_at or dataset_meta.get("source_updated_at")) if profiled else None
-        apply_socrata_timestamp(full_metadata_record, socrata_updated_at)
-        apply_source_timestamp(full_metadata_record, source_updated_at)
-
-        # AutoDDG: generate the LLM description BEFORE persisting/indexing so it
-        # is stored in MinIO and propagates into the trimmed search document.
-        # Run in a thread: this makes several sequential blocking LLM calls, which
-        # would otherwise stall every other task on the worker's event loop.
-        full_metadata_record = await asyncio.to_thread(
-            attach_autoddg_description, full_metadata_record
-        )
-
-        LOGGER.info("Uploading full profile to MinIO for dataset %s", routing_key)
-        upload_heavy_profile(storage_client, routing_key, full_metadata_record)
-
-        # 1. Resolve provider and domain details from dataset_meta
         provider_type = str(dataset_meta.get("provider") or "socrata")
         domain_url = str(dataset_meta.get("domain") or base_url.replace("https://", "").replace("http://", ""))
-
-        search_payload = isolate_search_payload(full_metadata_record)
-        search_payload = attach_embedding(search_payload, model=embedding_model)
-        apply_socrata_timestamp(search_payload, socrata_updated_at)
-        apply_source_timestamp(search_payload, source_updated_at)
-
-        # 2. Assign fields manually so they match the updated auctus_catalog_master mapping! 👈
-        search_payload["domain"] = domain_url
-        search_payload["provider"] = provider_type
-
-        LOGGER.info("Indexing trimmed search document into OpenSearch for dataset %s", routing_key)
-        os_client.index(
-            index=AUCTUS_INDEX_NAME,
-            id=routing_key,
-            body=search_payload,
-            refresh=True,
+        await persist_and_index(
+            full_metadata_record, os_client, storage_client, embedding_model,
+            provider_type, domain_url, socrata_updated_at, source_updated_at,
         )
 
         # provider_type = str(dataset_meta.get("provider") or "socrata")
