@@ -40,6 +40,9 @@ EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 # l2 space (score = 1 / (1 + distance^2)): unrelated neighbours score ~0.38, real
 # matches 0.45-0.62; keyword (BM25) matches score far above this.
 SEARCH_MIN_SCORE = float(os.getenv("SEARCH_MIN_SCORE", "0.42"))
+# Searched alongside title + description: column names from the profiler and
+# subjects from the repository record (InvenioRDM). No generated text.
+METADATA_FIELDS = ["profiler_metadata.attribute_keywords", "source_record.subjects"]
 
 
 @lru_cache(maxsize=1)
@@ -186,7 +189,7 @@ async def search(req: SearchQueryRequest):
             {
                 "multi_match": {
                     "query": req.keywords,
-                    "fields": description_fields,
+                    "fields": description_fields + METADATA_FIELDS,
                 }
             }
         )

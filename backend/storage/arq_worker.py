@@ -56,16 +56,27 @@ def get_embedding_model():
     return _embedding_model
 
 
-def embedding_text(document: dict[str, Any]) -> str:
-    """Title + original description; the AutoDDG description when there is no original.
+MAX_EMBEDDED_COLUMNS = 60  # beyond this, column names dilute the embedding
 
-    Many repository records have no description (CaltechDATA often leaves it empty),
-    and a vector built from the title alone is little more than a filename, which
-    makes semantic search return near-random neighbours.
+
+def embedding_text(document: dict[str, Any]) -> str:
+    """Text the dataset vector is built from: title, original description, subjects
+    and column names, i.e. the repository metadata plus the profiler's output.
+
+    Many repository records have no description (CaltechDATA often leaves it empty);
+    subjects and column names keep their vectors from being little more than a
+    filename. Generated (AutoDDG) text is deliberately not used.
     """
-    title = document.get("title", "") or ""
-    description = document.get("description", "") or document.get("autoddg_description", "") or ""
-    return f"{title}\n\n{description}"
+    source_record = document.get("source_record") or {}
+    profile = document.get("profiler_metadata") or {}
+    columns = [str(c.get("name")) for c in profile.get("columns") or [] if isinstance(c, dict) and c.get("name")]
+    parts = [
+        document.get("title", "") or "",
+        document.get("description", "") or "",
+        ", ".join(source_record.get("subjects") or []),
+        ", ".join(columns[:MAX_EMBEDDED_COLUMNS]),
+    ]
+    return "\n\n".join(part for part in parts if part)
 
 
 def attach_embedding(document: dict[str, Any], model: Any | None = None) -> dict[str, Any]:
@@ -104,6 +115,9 @@ def get_autoddg():
     if _autoddg is None:
         if AutoDDG is None or Portkey is None:
             LOGGER.warning("autoddg/portkey not installed; AutoDDG description will be skipped")
+            return None
+        if os.getenv("AUTODDG_ENABLED", "1") == "0":
+            LOGGER.info("AUTODDG_ENABLED=0; AutoDDG description will be skipped")
             return None
         api_key = os.getenv("PORTKEY_API_KEY")
         if not api_key:

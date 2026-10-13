@@ -13,7 +13,7 @@ from opensearchpy import helpers
 from storage.arq_worker import embedding_text, get_embedding_model
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
 
-FIELDS = ["title", "description", "autoddg_description"]
+FIELDS = ["title", "description", "source_record.subjects", "profiler_metadata.columns.name"]
 
 
 def main() -> None:
