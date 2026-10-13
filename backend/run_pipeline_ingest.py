@@ -291,6 +291,17 @@ def build_dataset_meta(
 	}
 
 
+def portal_display_label(domain_url: str, provider_type: str) -> str:
+	"""A configured label (providers.<type>.domain_settings.<domain>.label), else one derived from the domain."""
+	try:
+		settings = load_runtime_config()["providers"][provider_type]["domain_settings"][domain_url]
+		if settings.get("label"):
+			return str(settings["label"])
+	except (KeyError, TypeError, OSError, ValueError):
+		pass
+	return domain_url.replace("data.", "").replace(".gov", "").replace(".org", "").title()
+
+
 async def sync_portal_metadata(domain_url: str, provider_type: str) -> None:
 	"""Sync a small per-portal summary document into the portals metadata index."""
 	if not domain_url:
@@ -306,7 +317,7 @@ async def sync_portal_metadata(domain_url: str, provider_type: str) -> None:
 	summary_document = {
 		"domain": domain_url,
 		"provider": provider_type,
-		"display_label": domain_url.replace("data.", "").replace(".gov", "").replace(".org", "").title(),
+		"display_label": portal_display_label(domain_url, provider_type),
 		"dataset_count": total_counted,
 		"last_indexed_at": current_utc_timestamp,
 	}
@@ -341,6 +352,10 @@ async def main() -> None:
 	# e.g. AUCTUS_PROVIDERS=invenio to run one provider without editing config.json
 	if os.getenv("AUCTUS_PROVIDERS"):
 		active_providers = [p.strip() for p in os.environ["AUCTUS_PROVIDERS"].split(",") if p.strip()]
+	# e.g. AUCTUS_DOMAINS=ultraviolet.library.nyu.edu to run selected instances only
+	only_domains = {d.strip() for d in os.getenv("AUCTUS_DOMAINS", "").split(",") if d.strip()}
+	# AUCTUS_REINGEST=1 re-processes datasets even when unchanged upstream (after a pipeline change)
+	reingest = os.getenv("AUCTUS_REINGEST") == "1"
 
 	if not isinstance(active_providers, list):
 		LOGGER.warning("active_providers is not a list. Falling back to ['socrata']")
@@ -377,6 +392,8 @@ async def main() -> None:
 				continue
 
 			domain_pool = resolve_provider_domains(provider_key, provider_cfg)
+			if only_domains:
+				domain_pool = [d for d in domain_pool if d in only_domains]
 			if safeguards_enabled and max_domains_per_provider > 0:
 				domain_pool = domain_pool[:max_domains_per_provider]
 
@@ -474,7 +491,7 @@ async def main() -> None:
 								)
 						except Exception as exc:
 							LOGGER.warning("Deduplication check failed for %s: %s. Proceeding with ingestion.", dataset_id, exc)
-					elif discovered_meta.get("source_updated_at"):
+					elif discovered_meta.get("source_updated_at") and not reingest:
 						try:
 							existing_doc = os_client.get(index=AUCTUS_INDEX_NAME, id=dataset_id, ignore=[404])
 							indexed_updated_at = extract_indexed_update_timestamp((existing_doc or {}).get("_source"))

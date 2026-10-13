@@ -21,10 +21,15 @@
         "zenodo.org": {
           "page_size": 25,
           "query": "metadata.resource_type.id:dataset AND \"new york city\"",
-          "max_datasets": 10
+          "max_datasets": 10,
+          "label": "Zenodo"
         },
         "data.caltech.edu": {
-          "max_datasets": 5000
+          "max_datasets": 5000,
+          "label": "CaltechDATA"
+        },
+        "ultraviolet.library.nyu.edu": {
+          "label": "NYU UltraViolet"
         }
       }
     }
