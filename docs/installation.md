@@ -24,6 +24,18 @@ cp backend/.env_sample backend/.env
 
 `backend/.env` is git-ignored and must never be committed. Without the key, ingestion still runs — the description step is simply skipped.
 
+The Portkey gateway only resolves on NYU's network, so connect to the NYU VPN before ingesting.
+
+### Place-name geocoding (datamart-geo)
+
+To turn place-name columns (countries, states, cities, boroughs) into spatial coverage, the profiler uses the **datamart-geo** admin-area database (~1.5 GB). Download it once into the `datamart-geo` Docker volume after starting the stack:
+
+```bash
+docker exec auctus-arq-worker python -c "from datamart_geo import GeoData; GeoData.download(update=False)"
+```
+
+Without it, ingestion still runs; place-name columns just get no bounding box. Set `DATAMART_GEO=0` to disable it explicitly.
+
 ---
 
 ## 🐳 Step 1: Start Core Infrastructure
