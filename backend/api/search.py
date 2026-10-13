@@ -34,6 +34,12 @@ except Exception:  # pragma: no cover - runtime
 
 router = APIRouter()
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+# The kNN clause always returns its k nearest neighbours, related or not, and the
+# bool query accepts a document matching either clause. A minimum score drops
+# vector-only matches that aren't similar. Calibrated for all-MiniLM-L6-v2 on the
+# l2 space (score = 1 / (1 + distance^2)): unrelated neighbours score ~0.38, real
+# matches 0.45-0.62; keyword (BM25) matches score far above this.
+SEARCH_MIN_SCORE = float(os.getenv("SEARCH_MIN_SCORE", "0.42"))
 
 
 @lru_cache(maxsize=1)
@@ -202,6 +208,7 @@ async def search(req: SearchQueryRequest):
 
     payload = {
         "query": {"bool": query_bool},
+        **({"min_score": SEARCH_MIN_SCORE} if req.keywords and SEARCH_MIN_SCORE > 0 else {}),
         "aggs": {
             "sources_count": {"terms": {"field": "domain"}},
             "types_count": {"terms": {"field": "types"}},

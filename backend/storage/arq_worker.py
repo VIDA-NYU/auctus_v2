@@ -56,6 +56,18 @@ def get_embedding_model():
     return _embedding_model
 
 
+def embedding_text(document: dict[str, Any]) -> str:
+    """Title + original description; the AutoDDG description when there is no original.
+
+    Many repository records have no description (CaltechDATA often leaves it empty),
+    and a vector built from the title alone is little more than a filename, which
+    makes semantic search return near-random neighbours.
+    """
+    title = document.get("title", "") or ""
+    description = document.get("description", "") or document.get("autoddg_description", "") or ""
+    return f"{title}\n\n{description}"
+
+
 def attach_embedding(document: dict[str, Any], model: Any | None = None) -> dict[str, Any]:
     """Generate and attach a k-NN embedding vector to the document."""
     model = model or get_embedding_model()
@@ -63,9 +75,7 @@ def attach_embedding(document: dict[str, Any], model: Any | None = None) -> dict
         return document
 
     try:
-        title = document.get("title", "") or ""
-        description = document.get("description", "") or ""
-        text = f"{title}\n\n{description}"
+        text = embedding_text(document)
 
         embedding_array = model.encode([text], convert_to_numpy=True)[0]
         try:
