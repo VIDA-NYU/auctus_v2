@@ -29,6 +29,7 @@ from typing import Any
 import pandas as pd
 from atlas_profiler import process_dataset
 
+from crawlers.coverage import admin_bbox, bbox_from_profiler, geo_data, temporal_from_profiler
 from crawlers.invenio.http import async_client
 from crawlers.socrata.transformer import (
     SampleStats,
@@ -198,6 +199,7 @@ def profile_sample(sample_stats: SampleStats, extension: str) -> tuple[list[str]
             frame = frame.iloc[:, :MAX_PROFILED_COLUMNS]
         profiler_output = process_dataset(
             frame,
+            datamart_geo_data=geo_data(),
             geo_classifier=True,
             geo_classifier_threshold=0.5,
             coverage=True,
@@ -227,11 +229,14 @@ def assemble_record(dataset_meta: dict[str, Any], sample_stats: SampleStats, hea
                     rows: list[dict[str, str]], profiler_output: dict[str, Any], errors: list[str]) -> dict[str, Any]:
     """Build the catalog record from a profiled sample."""
     source_record = dataset_meta.get("record") or {}
+    # The profiler's own coverage first; column-name heuristics only as a fallback.
+    temporal_start, temporal_end = temporal_from_profiler(profiler_output, rows)
+    if not temporal_start:
+        temporal_start, temporal_end = infer_temporal_range(headers, rows)
     inferred_bbox = infer_spatial_bbox(headers, rows)
-    temporal_start, temporal_end = infer_temporal_range(headers, rows)
 
     profiler_metadata = _merge_profiler_output(profiler_output, sample_stats, inferred_bbox, fallback_bbox=None)
-    candidate_bbox = profiler_output.get("spatial_bbox") or profiler_output.get("bbox") or inferred_bbox
+    candidate_bbox = bbox_from_profiler(profiler_output) or admin_bbox(profiler_output, rows) or inferred_bbox
     real_bbox = [float(v) for v in candidate_bbox] if _valid_bbox(candidate_bbox) else None
     # _merge_profiler_output always fills a bbox (worst case the whole world); keep only a real one.
     profiler_metadata["spatial_bbox"] = real_bbox

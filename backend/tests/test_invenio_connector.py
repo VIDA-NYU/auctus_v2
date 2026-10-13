@@ -18,7 +18,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from crawlers.coverage import admin_bbox, bbox_from_profiler, geo_data, temporal_from_profiler
 from crawlers.invenio.crawler import file_entries, html_to_text, summarize_record
+from crawlers.socrata.transformer import _safe_datetime
 from crawlers.invenio.transformer import MAX_PROFILED_COLUMNS, profile_local_file
 
 DOMAIN = "repo.example.edu"
@@ -68,6 +70,18 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(summary["creators"], ["Doe, Jane"])
         self.assertEqual(summary["landing_url"], f"https://{DOMAIN}/records/abcde-12345")
         self.assertEqual(html_to_text(None), "")
+
+
+class CoverageTests(unittest.TestCase):
+    def test_profiler_ranges_to_dates_and_bbox(self):
+        output = {
+            "temporal_coverage": [{"ranges": [{"range": {"gte": 0, "lte": 86400 * 366}}]}],
+            "spatial_coverage": [{"ranges": [{"range": {"type": "envelope", "coordinates": [[-74.2, 40.9], [-73.7, 40.5]]}}]}],
+        }
+        self.assertEqual(temporal_from_profiler(output), ("1970-01-01", "1971-01-02"))
+        self.assertEqual(bbox_from_profiler(output), [-74.2, 40.5, -73.7, 40.9])
+        self.assertEqual(temporal_from_profiler({}), (None, None))
+        self.assertIsNone(bbox_from_profiler({}))
 
 
 class TransformerTests(unittest.TestCase):
@@ -147,6 +161,42 @@ class TransformerTests(unittest.TestCase):
         points = pd.DataFrame({"latitude": rng.uniform(40.5, 40.9, 50), "longitude": rng.uniform(-74.2, -73.7, 50)})
         record = self.profile("points.csv", lambda p: points.to_csv(p, index=False))
         self.assertIn("spatial_coverage", record)
+
+    def test_temporal_coverage_comes_from_the_profiler(self):
+        record = self.profile("dates.csv", lambda p: self.frame.to_csv(p, index=False))
+        self.assertEqual(record["temporal_coverage"]["start"], "2020-01-01")
+        self.assertEqual(record["temporal_coverage"]["end"], str((pd.Timestamp("2020-01-01") + pd.Timedelta(days=len(self.frame) - 1)).date()))
+
+    def test_bare_years_do_not_get_todays_month_and_day(self):  # dateutil filled "1975" with today's date
+        years = pd.DataFrame({"start_year": range(1975, 2000), "value": range(25)})
+        record = self.profile("years.csv", lambda p: years.to_csv(p, index=False))
+        start, end = record["temporal_coverage"]["start"], record["temporal_coverage"]["end"]
+        self.assertTrue(start.startswith("1975"), start)
+        self.assertTrue(end.startswith("1999"), end)
+        self.assertEqual(_safe_datetime("1975").date().isoformat(), "1975-01-01")
+        self.assertIsNone(_safe_datetime("12"))
+
+    def test_lat_lon_bbox_matches_the_points(self):
+        points = pd.DataFrame({"latitude": [40.5, 40.9, 40.7], "longitude": [-74.2, -73.7, -74.0], "v": [1, 2, 3]})
+        record = self.profile("three_points.csv", lambda p: points.to_csv(p, index=False))
+        west, south, east, north = record["profiler_metadata"]["spatial_bbox"]
+        self.assertLessEqual(west, -74.2)
+        self.assertGreaterEqual(east, -73.7)
+        self.assertLessEqual(south, 40.5)
+        self.assertGreaterEqual(north, 40.9)
+
+    @unittest.skipUnless(geo_data(), "datamart-geo data not downloaded")
+    def test_place_names_give_a_bounding_box(self):  # needs datamart-geo
+        places = pd.DataFrame({"country": ["Kenya", "Uganda", "Tanzania", "Rwanda"] * 10, "value": range(40)})
+        record = self.profile("countries.csv", lambda p: places.to_csv(p, index=False))
+        west, south, east, north = record["profiler_metadata"]["spatial_bbox"]
+        self.assertTrue(28 <= west <= 30 and 40 <= east <= 42 and -12 <= south <= -11 and 4 <= north <= 6, (west, south, east, north))
+
+    @unittest.skipUnless(geo_data(), "datamart-geo data not downloaded")
+    def test_numeric_columns_are_never_geocoded(self):  # UltraViolet: rates resolved to a province of Iran
+        output = {"columns": [{"name": "rate", "semantic_types": ["http://schema.org/AdministrativeArea"]}]}
+        rows = [{"rate": v} for v in ["7", "10.5", "5.7", "6.2", "13", "21.1"]]
+        self.assertIsNone(admin_bbox(output, rows))
 
     @unittest.expectedFailure
     def test_title_rows_above_header(self):  # known gap: header is assumed to be on row 1

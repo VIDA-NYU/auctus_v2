@@ -26,6 +26,8 @@ from atlas_profiler import process_dataset
 from dateutil.parser import parse as parse_datetime
 import httpx
 
+from crawlers.coverage import admin_bbox, bbox_from_profiler, geo_data, temporal_from_profiler
+
 LOGGER = logging.getLogger("crawlers.socrata.transformer")
 
 # Configuration defaults (can be overridden from backend/config/config.json)
@@ -213,12 +215,22 @@ def _safe_float(value: Any) -> float | None:
         return None
 
 
+# Bare numbers are not dates, except a plausible four-digit year.
+_BARE_NUMBER_RE = re.compile(r"[-+]?\d+(\.\d+)?")
+_YEAR_RE = re.compile(r"(1[0-9]|20|21)\d\d")
+# dateutil fills missing fields from this default; without it a bare "1975" would
+# get today's month and day, inventing precise dates.
+_DATE_DEFAULT = datetime(2000, 1, 1)
+
+
 def _safe_datetime(value: Any) -> datetime | None:
     if value in (None, ""):
         return None
     text = str(value).strip()
+    if _BARE_NUMBER_RE.fullmatch(text) and not _YEAR_RE.fullmatch(text):
+        return None
     try:
-        dt = parse_datetime(text)
+        dt = parse_datetime(text, default=_DATE_DEFAULT)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
@@ -305,7 +317,7 @@ def _safe_bbox_from_profiler_or_sample(
     fallback_bbox: list[float],
 ) -> list[float]:
     """Return an explicit WGS84 bounding box or fallback cleanly for State Plane numbers."""
-    candidate = profiler_output.get("spatial_bbox") or profiler_output.get("bbox") or inferred_bbox
+    candidate = bbox_from_profiler(profiler_output) or inferred_bbox
     if _valid_bbox(candidate):
         return [float(v) for v in candidate]
 
@@ -431,6 +443,7 @@ async def build_validation_record(
         df = pd.read_csv(sample_stats.sample_path)
         profiler_output = process_dataset(
             df,
+            datamart_geo_data=geo_data(),
             geo_classifier=True,
             geo_classifier_threshold=0.5,
             coverage=True,
@@ -449,6 +462,11 @@ async def build_validation_record(
             "error": str(exc),
         }
         errors.append(f"profiler_error: {exc}")
+
+    spatial_bbox = admin_bbox(profiler_output, rows) or spatial_bbox
+    profiler_start, profiler_end = temporal_from_profiler(profiler_output, rows)
+    if profiler_start:
+        temporal_start, temporal_end = profiler_start, profiler_end
 
     profiler_metadata = _merge_profiler_output(
         profiler_output,

@@ -27,6 +27,7 @@ python-dateutil>=2.9.0.post0
 atlas-profiler>=0.0.2b1
 openpyxl>=3.1.0  # XLSX samples for InvenioRDM files
 xlrd>=2.0.1  # legacy XLS samples for InvenioRDM files
+datamart-geo>=0.3.1  # place names -> bounding boxes in atlas-profiler (data: see docs/installation.md)
 arq>=0.26.0
 
 # Storage & Object Management
