@@ -58,16 +58,10 @@ PROFILER_SLOTS = asyncio.Semaphore(int(os.getenv("PROFILER_CONCURRENCY", "2")))
 MAX_PROFILED_COLUMNS = int(os.getenv("MAX_PROFILED_COLUMNS", "300"))
 
 
-async def fetch_spreadsheet_sample(client, file_url: str, extension: str, max_rows: int) -> SampleStats:
-    """Download a spreadsheet and write its first sheet's first rows as a CSV sample."""
-    head = await client.head(file_url, headers={"Accept": "*/*"})
-    size = int(head.headers.get("content-length") or 0)
-    if size > MAX_SPREADSHEET_BYTES:
-        raise ValueError(f"spreadsheet is {size} bytes, above the {MAX_SPREADSHEET_BYTES}-byte limit")
-    response = await client.get(file_url, headers={"Accept": "*/*"})
-    response.raise_for_status()
+def spreadsheet_to_sample(source, extension: str, max_rows: int) -> SampleStats:
+    """Write a spreadsheet's first sheet's first rows as a CSV sample (path or bytes in)."""
     engine = "openpyxl" if extension == "xlsx" else "xlrd"
-    frame = pd.read_excel(io.BytesIO(response.content), nrows=max_rows, engine=engine)
+    frame = pd.read_excel(io.BytesIO(source) if isinstance(source, bytes) else source, nrows=max_rows, engine=engine)
     tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv", encoding="utf-8", newline="")
     with tmp:
         frame.to_csv(tmp, index=False)
@@ -79,6 +73,47 @@ async def fetch_spreadsheet_sample(client, file_url: str, extension: str, max_ro
         truncated_by_rows=len(frame) >= max_rows,
         truncated_by_bytes=False,
     )
+
+
+async def fetch_spreadsheet_sample(client, file_url: str, extension: str, max_rows: int) -> SampleStats:
+    """Download a spreadsheet and turn it into a CSV sample."""
+    head = await client.head(file_url, headers={"Accept": "*/*"})
+    size = int(head.headers.get("content-length") or 0)
+    if size > MAX_SPREADSHEET_BYTES:
+        raise ValueError(f"spreadsheet is {size} bytes, above the {MAX_SPREADSHEET_BYTES}-byte limit")
+    response = await client.get(file_url, headers={"Accept": "*/*"})
+    response.raise_for_status()
+    return spreadsheet_to_sample(response.content, extension, max_rows)
+
+
+def sample_local_file(path: Path, extension: str, max_rows: int = DEFAULT_MAX_SAMPLE_ROWS,
+                      max_bytes: int = DEFAULT_MAX_SAMPLE_BYTES) -> SampleStats:
+    """Sample a local file with the same limits as the HTTP path (tests, benchmarks).
+
+    Mirrors stream_csv_sample: copy bytes until the byte cap or until max_rows+1
+    newlines have been seen, checking after each 64 KiB chunk.
+    """
+    if extension in SPREADSHEET_EXTENSIONS:
+        return spreadsheet_to_sample(Path(path), extension, max_rows)
+    tmp = tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".csv")
+    written = newlines = 0
+    truncated_by_rows = truncated_by_bytes = False
+    with open(path, "rb") as source, tmp:
+        while chunk := source.read(64 * 1024):
+            remaining = max_bytes - written
+            if remaining <= 0:
+                truncated_by_bytes = True
+                break
+            if len(chunk) > remaining:
+                chunk, truncated_by_bytes = chunk[:remaining], True
+            tmp.write(chunk)
+            written += len(chunk)
+            newlines += chunk.count(b"\n")
+            if newlines >= max_rows + 1:
+                truncated_by_rows = True
+                break
+    return SampleStats(sample_path=Path(tmp.name), bytes_written=written, newline_count=newlines,
+                       truncated_by_rows=truncated_by_rows, truncated_by_bytes=truncated_by_bytes)
 
 
 def detect_separator(path: Path, extension: str) -> str:
@@ -134,8 +169,6 @@ async def build_invenio_record(
     max_bytes = int(max_sample_bytes or DEFAULT_MAX_SAMPLE_BYTES)
     extension = dataset_meta.get("file_extension") or ""
     file_url = dataset_meta["file_url"]
-    source_record = dataset_meta.get("record") or {}
-    errors: list[str] = []
 
     async with async_client(http_timeout_seconds) as client:
         if extension in SPREADSHEET_EXTENSIONS:
@@ -144,26 +177,33 @@ async def build_invenio_record(
             client.headers["Accept"] = "*/*"
             sample_stats = await stream_csv_sample(client, file_url, max_rows=max_rows, max_bytes=max_bytes)
 
+    # atlas-profiler is CPU-bound and synchronous; run it off the event loop so the
+    # worker's other concurrent jobs keep streaming their downloads instead of timing out.
+    async with PROFILER_SLOTS:
+        headers, rows, profiler_output, errors = await asyncio.to_thread(profile_sample, sample_stats, extension)
+    return assemble_record(dataset_meta, sample_stats, headers, rows, profiler_output, errors)
+
+
+def profile_sample(sample_stats: SampleStats, extension: str) -> tuple[list[str], list[dict[str, str]], dict[str, Any], list[str]]:
+    """Parse a sample and run atlas-profiler on it. Never raises: failures become a
+    minimal profile plus an entry in the returned errors list."""
     headers: list[str] = []
     rows: list[dict[str, str]] = []
+    errors: list[str] = []
     try:
         truncated = sample_stats.truncated_by_rows or sample_stats.truncated_by_bytes
         headers, rows, frame = read_sample(sample_stats.sample_path, extension, truncated)
-        # atlas-profiler is CPU-bound and synchronous; run it off the event loop so the
-        # worker's other concurrent jobs keep streaming their downloads instead of timing out.
         total_columns = frame.shape[1]
         if total_columns > MAX_PROFILED_COLUMNS:
             frame = frame.iloc[:, :MAX_PROFILED_COLUMNS]
-        async with PROFILER_SLOTS:
-            profiler_output = await asyncio.to_thread(
-                process_dataset,
-                frame,
-                geo_classifier=True,
-                geo_classifier_threshold=0.5,
-                coverage=True,
-                plots=False,
-                include_sample=True,
-            )
+        profiler_output = process_dataset(
+            frame,
+            geo_classifier=True,
+            geo_classifier_threshold=0.5,
+            coverage=True,
+            plots=False,
+            include_sample=True,
+        )
         if not isinstance(profiler_output, dict):
             profiler_output = dict(profiler_output)
         if total_columns > MAX_PROFILED_COLUMNS:
@@ -180,7 +220,13 @@ async def build_invenio_record(
             "error": str(exc),
         }
         errors.append(f"profiler_error: {exc}")
+    return headers, rows, profiler_output, errors
 
+
+def assemble_record(dataset_meta: dict[str, Any], sample_stats: SampleStats, headers: list[str],
+                    rows: list[dict[str, str]], profiler_output: dict[str, Any], errors: list[str]) -> dict[str, Any]:
+    """Build the catalog record from a profiled sample."""
+    source_record = dataset_meta.get("record") or {}
     inferred_bbox = infer_spatial_bbox(headers, rows)
     temporal_start, temporal_end = infer_temporal_range(headers, rows)
 
@@ -197,7 +243,7 @@ async def build_invenio_record(
         "description": source_record.get("description", ""),
         "source": "InvenioRDM",
         "publisher": source_record.get("publisher", ""),
-        "download_url": file_url,
+        "download_url": dataset_meta.get("file_url"),
         "landing_url": source_record.get("landing_url"),
         "source_record": {**source_record, "file_key": file_key, "file_size": dataset_meta.get("file_size")},
         "sample": build_sample_csv(headers, rows),
@@ -215,6 +261,16 @@ async def build_invenio_record(
             },
         }
     return record
+
+
+def profile_local_file(path: Path, dataset_meta: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Run the whole transformer on a local file, without network (tests, benchmarks)."""
+    path = Path(path)
+    extension = path.name.rsplit(".", 1)[-1].lower() if "." in path.name else ""
+    meta = {"dataset_id": f"local:{path.name}", "file_key": path.name, **(dataset_meta or {})}
+    sample_stats = sample_local_file(path, extension)
+    headers, rows, profiler_output, errors = profile_sample(sample_stats, extension)
+    return assemble_record(meta, sample_stats, headers, rows, profiler_output, errors)
 
 
 async def main() -> None:
