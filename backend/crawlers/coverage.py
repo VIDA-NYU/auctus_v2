@@ -141,9 +141,11 @@ def admin_bbox(profiler_output: dict[str, Any], rows: list[dict[str, str]]) -> l
         # never place names here, and most distinct names must actually resolve.
         if sum(bool(_BARE_NUMBER_RE.fullmatch(v)) for v in distinct) > len(distinct) / 2:
             continue
-        if sum(1 for r in geo.resolve_names_all(distinct) if r) < MIN_RESOLVED_SHARE * len(distinct):
+        # Resolve each distinct name once: the box is the same, and per-row lookups
+        # made whole-file profiling of large tables very slow.
+        resolved = [r for r in geo.resolve_names_all(distinct) if r]
+        if len(resolved) < MIN_RESOLVED_SHARE * len(distinct):
             continue
-        resolved = [r for r in geo.resolve_names_all(values) if r]
         disambiguated = disambiguate_admin_areas(resolved) if resolved else None
         # Returns (level, areas), one area per name, all at the same admin level.
         areas = disambiguated[1] if isinstance(disambiguated, tuple) else disambiguated
