@@ -60,9 +60,18 @@ MAX_PROFILED_COLUMNS = int(os.getenv("MAX_PROFILED_COLUMNS", "300"))
 
 
 def spreadsheet_to_sample(source, extension: str, max_rows: int) -> SampleStats:
-    """Write a spreadsheet's first sheet's first rows as a CSV sample (path or bytes in)."""
+    """Write the first non-empty sheet's first rows as a CSV sample (path or bytes in).
+
+    Workbooks often start with a title or notes sheet and keep the data on a later
+    one (CaltechDATA), so empty sheets are skipped.
+    """
     engine = "openpyxl" if extension == "xlsx" else "xlrd"
-    frame = pd.read_excel(io.BytesIO(source) if isinstance(source, bytes) else source, nrows=max_rows, engine=engine)
+    workbook = pd.ExcelFile(io.BytesIO(source) if isinstance(source, bytes) else source, engine=engine)
+    frame = pd.DataFrame()
+    for sheet in workbook.sheet_names:
+        frame = workbook.parse(sheet, nrows=max_rows)
+        if not frame.empty or len(frame.columns):
+            break
     tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv", encoding="utf-8", newline="")
     with tmp:
         frame.to_csv(tmp, index=False)

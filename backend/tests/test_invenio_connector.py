@@ -135,6 +135,13 @@ class TransformerTests(unittest.TestCase):
     def test_xlsx(self):
         self.assert_profiled(self.profile("sheet.xlsx", lambda p: self.frame.to_excel(p, index=False)))
 
+    def test_xlsx_with_empty_first_sheet(self):  # CaltechDATA: data on a later sheet
+        def write(path):
+            with pd.ExcelWriter(path) as writer:
+                pd.DataFrame().to_excel(writer, sheet_name="About", index=False)
+                self.frame.to_excel(writer, sheet_name="Data", index=False)
+        self.assert_profiled(self.profile("two_sheets.xlsx", write))
+
     def test_byte_cap_inside_quoted_multiline_field(self):  # found on UltraViolet: "EOF inside string"
         long_cell = '"' + ("line of text\n" * 40) + '"'
         body = "id,text\n" + "".join(f"{i},{long_cell}\n" for i in range(6000))  # > 2 MB
