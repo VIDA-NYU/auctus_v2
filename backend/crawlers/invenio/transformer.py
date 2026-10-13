@@ -52,6 +52,11 @@ MAX_SPREADSHEET_BYTES = 25 * 1024 * 1024
 # worker's 10 concurrent jobs get it OOM-killed inside Docker's default memory.
 PROFILER_SLOTS = asyncio.Semaphore(int(os.getenv("PROFILER_CONCURRENCY", "2")))
 
+# Research tables can be extremely wide (CaltechDATA has CSVs with 38k columns, e.g.
+# gene-by-sample matrices). Per-column profiling of those exhausts memory, so only the
+# first columns are profiled; every column name stays searchable via attribute_keywords.
+MAX_PROFILED_COLUMNS = int(os.getenv("MAX_PROFILED_COLUMNS", "300"))
+
 
 async def fetch_spreadsheet_sample(client, file_url: str, extension: str, max_rows: int) -> SampleStats:
     """Download a spreadsheet and write its first sheet's first rows as a CSV sample."""
@@ -134,6 +139,9 @@ async def build_invenio_record(
         headers, rows, frame = read_sample(sample_stats.sample_path, extension, truncated)
         # atlas-profiler is CPU-bound and synchronous; run it off the event loop so the
         # worker's other concurrent jobs keep streaming their downloads instead of timing out.
+        total_columns = frame.shape[1]
+        if total_columns > MAX_PROFILED_COLUMNS:
+            frame = frame.iloc[:, :MAX_PROFILED_COLUMNS]
         async with PROFILER_SLOTS:
             profiler_output = await asyncio.to_thread(
                 process_dataset,
@@ -146,6 +154,10 @@ async def build_invenio_record(
             )
         if not isinstance(profiler_output, dict):
             profiler_output = dict(profiler_output)
+        if total_columns > MAX_PROFILED_COLUMNS:
+            profiler_output["nb_columns"] = total_columns
+            profiler_output["attribute_keywords"] = [str(h) for h in headers]
+            profiler_output["columns_truncated"] = {"profiled": MAX_PROFILED_COLUMNS, "total": total_columns}
     except Exception as exc:
         LOGGER.exception("atlas-profiler execution failed")
         profiler_output = {
