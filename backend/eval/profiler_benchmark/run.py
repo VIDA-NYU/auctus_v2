@@ -25,6 +25,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 BACKEND = HERE.parents[1]
+# Hand-verified dictionaries (review_gold.py verify) take precedence over raw extractions.
+VERIFIED_GOLD_DIR = HERE / "gold" / "ultraviolet"
 GOLD_DIR = HERE.parent / "description_eval" / "data" / "gold"
 PERF_SHAPES = [(1_000, 10), (1_000, 100), (1_000, 1_000), (10_000, 10), (10_000, 100), (100_000, 10), (100_000, 100)]
 
@@ -78,8 +80,9 @@ def types(jobs: int, timeout: int, tmp: Path) -> tuple[list[dict], list[dict]]:
                               "correct": got in gold["acceptable"], "status": result.get("status")})
 
     readme = []
-    gold_files = sorted(GOLD_DIR.glob("*.json")) if GOLD_DIR.exists() else []
-    for gold_path in gold_files:
+    gold_files = {p.stem: p for p in (sorted(GOLD_DIR.glob("*.json")) if GOLD_DIR.exists() else [])}
+    gold_files.update({p.stem: p for p in VERIFIED_GOLD_DIR.glob("*.json")} if VERIFIED_GOLD_DIR.exists() else {})
+    for gold_path in [gold_files[k] for k in sorted(gold_files)]:
         gold = json.loads(gold_path.read_text())
         for file_key, columns in (gold.get("dictionary") or {}).items():
             targets = [f["file_key"] for f in gold["files"]] if file_key == "*" else [file_key]
