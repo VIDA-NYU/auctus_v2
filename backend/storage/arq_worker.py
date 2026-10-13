@@ -1,4 +1,4 @@
-"""ARQ background worker for heavy Socrata ingestion jobs."""
+"""ARQ background worker for heavy dataset ingestion jobs (Socrata, InvenioRDM)."""
 
 from __future__ import annotations
 
@@ -15,10 +15,11 @@ from typing import Any
 import pandas as pd
 from arq.connections import RedisSettings
 
+from crawlers.invenio.transformer import build_invenio_record
 from crawlers.socrata.transformer import build_validation_record
 from storage.minio_client import get_storage_client, upload_heavy_profile
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
-from run_pipeline_ingest import apply_socrata_timestamp, isolate_search_payload, load_runtime_config, sync_portal_metadata
+from run_pipeline_ingest import apply_socrata_timestamp, apply_source_timestamp, isolate_search_payload, load_runtime_config, sync_portal_metadata
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -296,18 +297,30 @@ async def startup(ctx: dict[str, Any]) -> None:
     ctx["autoddg"] = get_autoddg()
 
 
+async def build_full_record(dataset_meta: dict[str, Any], **settings: Any) -> dict[str, Any]:
+    """Profile one dataset with the transformer that matches its provider."""
+    if str(dataset_meta.get("provider") or "socrata").lower() == "invenio":
+        return await build_invenio_record(
+            dataset_meta,
+            max_sample_rows=settings["max_sample_rows"],
+            max_sample_bytes=settings["max_sample_bytes"],
+            http_timeout_seconds=settings["http_timeout_seconds"],
+        )
+    return await build_validation_record(dataset_meta["dataset_id"], **settings)
+
+
 async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]) -> str:
-    """Run the heavy ingestion workflow for one Socrata dataset."""
+    """Run the heavy ingestion workflow for one dataset."""
     dataset_id = dataset_meta.get("dataset_id") or dataset_meta.get("id")
     if not dataset_id:
         raise ValueError("dataset_meta missing required dataset_id")
 
-    active_domain, portal_cfg, pipeline_settings = load_runtime_config()
-    base_url = dataset_meta.get("base_url") or portal_cfg.get("base_url", f"https://{active_domain}")
-    fallback_bbox = dataset_meta.get("fallback_bbox") or portal_cfg.get("fallback_bbox", [-74.259, 40.477, -73.7, 40.917])
-    spatial_label = dataset_meta.get("spatial_label")
-    if spatial_label is None:
-        spatial_label = portal_cfg.get("label", "")
+    # load_runtime_config() returns the whole config dict; per-portal values arrive in
+    # dataset_meta from the dispatcher, so only pipeline_settings is read from it here.
+    pipeline_settings = load_runtime_config().get("pipeline_settings", {})
+    base_url = dataset_meta.get("base_url") or f"https://{dataset_meta.get('domain', '')}"
+    fallback_bbox = dataset_meta.get("fallback_bbox") or [-74.259, 40.477, -73.7, 40.917]
+    spatial_label = dataset_meta.get("spatial_label") or ""
     max_sample_rows = int(dataset_meta.get("max_sample_rows") or pipeline_settings.get("max_sample_rows", 500))
     max_sample_bytes = int(dataset_meta.get("max_sample_bytes") or pipeline_settings.get("max_sample_bytes", 2_100_000))
     http_timeout_seconds = float(dataset_meta.get("http_timeout_seconds") or pipeline_settings.get("http_timeout_seconds", 30.0))
@@ -321,9 +334,10 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
         ctx["embedding_model"] = embedding_model
 
     try:
+        profiled = True
         try:
-            full_metadata_record = await build_validation_record(
-                dataset_id,
+            full_metadata_record = await build_full_record(
+                dataset_meta,
                 base_url=base_url,
                 max_sample_rows=max_sample_rows,
                 max_sample_bytes=max_sample_bytes,
@@ -332,21 +346,35 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
                 spatial_label=spatial_label,
             )
         except Exception as exc:
+            profiled = False
             LOGGER.warning(
-                "⚠️ Profiler mathematical edge-case failed for dataset %s. Skipping profiling metrics. Error: %s",
+                "⚠️ Profiler mathematical edge-case failed for dataset %s. Skipping profiling metrics. Error: %r",
                 dataset_id,
                 exc,
             )
             # Create a minimal fallback profile so the rest of the pipeline can continue.
+            source_record = dataset_meta.get("record") or {}
             full_metadata_record = {
                 "id": dataset_id,
-                "title": dataset_meta.get("title", "") or "",
-                "description": dataset_meta.get("description", "") or "",
+                "title": dataset_meta.get("title") or source_record.get("title", "") or "",
+                "description": dataset_meta.get("description") or source_record.get("description", "") or "",
                 "profiling": None,
                 "metrics": {},
             }
+            if source_record:
+                # Unprofilable InvenioRDM files stay findable through their record metadata.
+                full_metadata_record.update({
+                    "source": "InvenioRDM",
+                    "download_url": dataset_meta.get("file_url"),
+                    "landing_url": source_record.get("landing_url"),
+                    "source_record": {**source_record, "file_key": dataset_meta.get("file_key")},
+                })
         routing_key = full_metadata_record.get("id") or dataset_id
+        # Leave failed profiles unstamped so the next pipeline run retries them instead
+        # of treating them as up to date.
+        source_updated_at = (socrata_updated_at or dataset_meta.get("source_updated_at")) if profiled else None
         apply_socrata_timestamp(full_metadata_record, socrata_updated_at)
+        apply_source_timestamp(full_metadata_record, source_updated_at)
 
         # AutoDDG: generate the LLM description BEFORE persisting/indexing so it
         # is stored in MinIO and propagates into the trimmed search document.
@@ -366,6 +394,7 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
         search_payload = isolate_search_payload(full_metadata_record)
         search_payload = attach_embedding(search_payload, model=embedding_model)
         apply_socrata_timestamp(search_payload, socrata_updated_at)
+        apply_source_timestamp(search_payload, source_updated_at)
 
         # 2. Assign fields manually so they match the updated auctus_catalog_master mapping! 👈
         search_payload["domain"] = domain_url

@@ -62,6 +62,32 @@ def description_fields_for(
         fields.append(f"title^{title_boost:g}")
     fields.append(DESCRIPTION_SOURCE_FIELDS[key])
     return fields
+# Parent-record metadata for files from repositories (InvenioRDM). File-level
+# documents keep their record context so they can be grouped into compendia later.
+SOURCE_RECORD_MAPPING = {
+    "landing_url": {"type": "keyword", "index": False},
+    "source_record": {
+        "type": "object",
+        "properties": {
+            "record_id": {"type": "keyword"},
+            "title": {"type": "text", "analyzer": "text_analyzer"},
+            "description": {"type": "text", "analyzer": "text_analyzer"},
+            "doi": {"type": "keyword"},
+            "landing_url": {"type": "keyword", "index": False},
+            "publication_date": {"type": "keyword"},
+            "resource_type": {"type": "keyword"},
+            "creators": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+            "subjects": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+            "license": {"type": "keyword"},
+            "publisher": {"type": "keyword"},
+            "access": {"type": "keyword"},
+            "updated": {"type": "date", "format": "strict_date_optional_time"},
+            "file_key": {"type": "keyword"},
+            "file_size": {"type": "long"},
+        },
+    },
+}
+
 # The single source of truth for the auctus_catalog_master index mapping.
 # Every index-creation path (init_db here, storage/initialize_os.py) MUST use
 # this dict rather than keeping its own copy: the codebase used to carry two
@@ -105,6 +131,7 @@ DATASETS_MAPPING = {
             # AutoDDG-generated descriptions (UFD = readable, SFD = search-optimised).
             # Indexed so /search can rank on them as alternatives to the original.
             **GENERATED_DESCRIPTION_FIELD_MAPPINGS,
+            **SOURCE_RECORD_MAPPING,
             "source": {"type": "keyword"},
             "download_url": {"type": "keyword", "index": False},
             "socrata_updated_at": {
@@ -336,7 +363,7 @@ def init_db():
             try:
                 client.indices.put_mapping(
                     index=AUCTUS_INDEX_NAME,
-                    body={"properties": {"domain": {"type": "keyword"}, "provider": {"type": "keyword"}}},
+                    body={"properties": {"domain": {"type": "keyword"}, "provider": {"type": "keyword"}, **SOURCE_RECORD_MAPPING}},
                 )
             except Exception as exc:
                 logger.debug("Could not update dataset index mapping with portal fields: %s", exc)

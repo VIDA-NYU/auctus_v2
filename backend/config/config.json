@@ -8,6 +8,25 @@
     "ckan": {
       "strategy": "EXPLICIT",
       "domains": []
+    },
+    "invenio": {
+      "strategy": "EXPLICIT",
+      "domains": [
+        "ultraviolet.library.nyu.edu",
+        "zenodo.org",
+        "data.caltech.edu"
+      ],
+      "max_datasets_per_domain": 100,
+      "domain_settings": {
+        "zenodo.org": {
+          "page_size": 25,
+          "query": "metadata.resource_type.id:dataset AND \"new york city\"",
+          "max_datasets": 10
+        },
+        "data.caltech.edu": {
+          "max_datasets": 5000
+        }
+      }
     }
   },
   "pipeline_settings": {

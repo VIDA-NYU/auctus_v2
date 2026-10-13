@@ -17,6 +17,7 @@ from arq.connections import RedisSettings, create_pool
 from dateutil.parser import parse as parse_datetime
 
 from crawlers.ckan.crawler import discover_ckan_datasets
+from crawlers.invenio.crawler import discover_invenio_datasets
 from crawlers.socrata.crawler import discover_socrata_datasets
 from storage.opensearch_client import AUCTUS_INDEX_NAME, AUCTUS_PORTALS_INDEX_NAME, get_client, init_db
 
@@ -103,9 +104,27 @@ def resolve_provider_domains(provider_type: str, provider_cfg: dict[str, Any]) -
 	return []
 
 
-async def discover_datasets_for_provider(provider_type: str, domain_url: str, max_datasets: int) -> list[str]:
-	"""Provider discovery factory: dispatch domain crawl to the matching engine."""
+async def discover_datasets_for_provider(
+	provider_type: str,
+	domain_url: str,
+	max_datasets: int,
+	provider_cfg: dict[str, Any] | None = None,
+) -> list[str] | list[dict[str, Any]]:
+	"""Provider discovery factory: dispatch domain crawl to the matching engine.
+
+	Socrata/CKAN return dataset IDs; InvenioRDM returns dicts that already carry the
+	file URL and parent-record metadata (merged into the job payload as-is).
+	"""
 	provider = provider_type.lower()
+	if provider == "invenio":
+		domain_settings = ((provider_cfg or {}).get("domain_settings") or {}).get(domain_url, {})
+		return await discover_invenio_datasets(
+			domain=domain_url,
+			# A per-domain cap replaces the provider-wide one (it can raise or lower it).
+			limit=int(domain_settings.get("max_datasets", max_datasets)),
+			query=str(domain_settings.get("query", "")),
+			page_size=int(domain_settings.get("page_size", 100)),
+		)
 	if provider == "socrata":
 		return await discover_socrata_datasets(domain=domain_url, limit=max_datasets)
 	if provider == "ckan":
@@ -223,6 +242,17 @@ def apply_socrata_timestamp(document: dict[str, Any], socrata_updated_at: str | 
 	return document
 
 
+def apply_source_timestamp(document: dict[str, Any], source_updated_at: str | None) -> dict[str, Any]:
+	"""Persist a non-Socrata provider's update timestamp for dedupe checks."""
+	normalized = normalize_timestamp_value(source_updated_at)
+	if not normalized:
+		return document
+
+	document["source_updated_at"] = normalized
+	document["last_update_date"] = normalized.split("T", 1)[0]
+	return document
+
+
 async def fetch_socrata_update_timestamp(
 	base_url: str,
 	dataset_id: str,
@@ -308,6 +338,9 @@ async def main() -> None:
 	pipeline_settings = runtime_cfg.get("pipeline_settings", {})
 	providers_cfg = runtime_cfg.get("providers", {})
 	active_providers = runtime_cfg.get("active_providers", ["socrata"])
+	# e.g. AUCTUS_PROVIDERS=invenio to run one provider without editing config.json
+	if os.getenv("AUCTUS_PROVIDERS"):
+		active_providers = [p.strip() for p in os.environ["AUCTUS_PROVIDERS"].split(",") if p.strip()]
 
 	if not isinstance(active_providers, list):
 		LOGGER.warning("active_providers is not a list. Falling back to ['socrata']")
@@ -356,7 +389,7 @@ async def main() -> None:
 			for domain_index, domain_url in enumerate(domain_pool, start=1):
 				domain_dataset_limit = LIMIT
 				if safeguards_enabled and max_datasets_per_domain > 0:
-					domain_dataset_limit = max_datasets_per_domain
+					domain_dataset_limit = int(provider_cfg.get("max_datasets_per_domain", max_datasets_per_domain))
 
 				LOGGER.info(
 					"Provider %s domain %d/%d: %s (dataset limit=%d)",
@@ -371,6 +404,7 @@ async def main() -> None:
 					provider_type=provider_key,
 					domain_url=domain_url,
 					max_datasets=domain_dataset_limit,
+					provider_cfg=provider_cfg,
 				)
 				if not dataset_ids:
 					continue
@@ -388,7 +422,9 @@ async def main() -> None:
 					len(dataset_ids),
 				)
 
-				for index, dataset_id in enumerate(dataset_ids, start=1):
+				for index, discovered in enumerate(dataset_ids, start=1):
+					discovered_meta = discovered if isinstance(discovered, dict) else {}
+					dataset_id = discovered_meta.get("dataset_id") or discovered
 					LOGGER.info(
 						"Processing dataset %d of %d (provider=%s, domain=%s, id=%s)...",
 						index,
@@ -438,6 +474,15 @@ async def main() -> None:
 								)
 						except Exception as exc:
 							LOGGER.warning("Deduplication check failed for %s: %s. Proceeding with ingestion.", dataset_id, exc)
+					elif discovered_meta.get("source_updated_at"):
+						try:
+							existing_doc = os_client.get(index=AUCTUS_INDEX_NAME, id=dataset_id, ignore=[404])
+							indexed_updated_at = extract_indexed_update_timestamp((existing_doc or {}).get("_source"))
+							if indexed_updated_at and indexed_updated_at == normalize_timestamp_value(discovered_meta["source_updated_at"]):
+								LOGGER.info("⏭️ Dataset %s is up-to-date in OpenSearch. Skipping processing.", dataset_id)
+								continue
+						except Exception as exc:
+							LOGGER.warning("Deduplication check failed for %s: %s. Proceeding with ingestion.", dataset_id, exc)
 
 					dataset_meta = build_dataset_meta(
 						dataset_id=dataset_id,
@@ -449,6 +494,7 @@ async def main() -> None:
 						http_timeout_seconds=http_timeout_seconds,
 						socrata_updated_at=socrata_updated_at,
 					)
+					dataset_meta.update(discovered_meta)
 					dataset_meta["provider"] = provider_key
 					dataset_meta["domain"] = domain_url
 
