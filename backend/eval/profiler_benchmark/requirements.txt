@@ -1,0 +1,10 @@
+# Standalone requirements for the profiler benchmark (plus a backend checkout).
+atlas-profiler==0.0.2b1
+pandas
+numpy
+openpyxl
+xlrd
+httpx
+python-dateutil
+certifi
+datamart-geo>=0.3.1

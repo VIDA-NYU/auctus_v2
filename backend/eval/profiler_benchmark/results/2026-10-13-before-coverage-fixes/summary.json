@@ -1,0 +1,659 @@
+{
+  "run": {
+    "harvest": [
+      "../../data/ultraviolet",
+      "../../data/caltech"
+    ],
+    "per_instance": 0,
+    "seed": 0,
+    "stage": "all",
+    "commit": "a54189f",
+    "atlas_profiler": "0.0.2b1",
+    "pandas": "3.0.6",
+    "at": "2026-10-13T05:26:34+00:00"
+  },
+  "robustness": {
+    "files": 1807,
+    "usable": 1713,
+    "usable_rate": 0.948,
+    "median_seconds": 3.8,
+    "max_peak_rss_mb": 1510.1,
+    "by_instance_format": {
+      "caltech/csv": {
+        "files": 1343,
+        "usable": 1271,
+        "ok": 1343,
+        "one_column": 72,
+        "profiler_temporal": 129,
+        "pipeline_temporal": 339,
+        "profiler_spatial": 25,
+        "pipeline_bbox": 27
+      },
+      "caltech/tsv": {
+        "files": 7,
+        "usable": 7,
+        "ok": 7,
+        "one_column": 0,
+        "profiler_temporal": 1,
+        "pipeline_temporal": 1,
+        "profiler_spatial": 0,
+        "pipeline_bbox": 0
+      },
+      "caltech/xls": {
+        "files": 16,
+        "usable": 14,
+        "ok": 14,
+        "one_column": 0,
+        "profiler_temporal": 0,
+        "pipeline_temporal": 0,
+        "profiler_spatial": 0,
+        "pipeline_bbox": 0,
+        "profiler_error": 2
+      },
+      "caltech/xlsx": {
+        "files": 375,
+        "usable": 355,
+        "ok": 369,
+        "one_column": 14,
+        "profiler_temporal": 11,
+        "pipeline_temporal": 44,
+        "profiler_spatial": 5,
+        "pipeline_bbox": 5,
+        "profiler_error": 5,
+        "crash": 1
+      },
+      "ultraviolet/csv": {
+        "files": 59,
+        "usable": 59,
+        "ok": 59,
+        "one_column": 0,
+        "profiler_temporal": 17,
+        "pipeline_temporal": 3,
+        "profiler_spatial": 1,
+        "pipeline_bbox": 1
+      },
+      "ultraviolet/xlsx": {
+        "files": 7,
+        "usable": 7,
+        "ok": 7,
+        "one_column": 0,
+        "profiler_temporal": 0,
+        "pipeline_temporal": 0,
+        "profiler_spatial": 0,
+        "pipeline_bbox": 0
+      }
+    },
+    "failures": [
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/3e51h-09526/Chapter3_SupplementalTableS2.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/tgjp4-4y719/RawDataForFigures_v3.xlsx",
+        "status": "profiler_error",
+        "detail": "profiler_error: No columns to parse from file"
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/yvf9e-4rj70/Alabama Education Data, 1885-1910, in Excel form.xlsx",
+        "status": "profiler_error",
+        "detail": "profiler_error: No columns to parse from file"
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/2dt31-2x581/250730_ClCO3_RawDataForFigures.xlsx",
+        "status": "profiler_error",
+        "detail": "profiler_error: No columns to parse from file"
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/n4b15-bp311/Clearance of Extracellular Human Amyloid-\u03b2 Aggregates by Nutraceutical and Pharmaceutical Interventions.xlsx",
+        "status": "profiler_error",
+        "detail": "profiler_error: No columns to parse from file"
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/tbmca-wbj97/Data_Figure6_20250521.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/tbmca-wbj97/Data_Figure7_20250521.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/1pxgr-eqa61/Table_Figure6_20240312.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/1pxgr-eqa61/Table_Figure7_20240312.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/s7z8x-7j916/Dry Proteome Dataset.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/gqqxk-ysx83/Amino Acid Dataset.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/tc6tq-7hz47/teleseismic_earthquakes.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_100K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_90K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_140K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_150K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_140K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_130K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_150K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_110K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_100K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_120K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_110K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_100K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_120K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_100K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_100K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_130K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_120K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_100K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_110K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_120K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_120K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_80K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_90K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_150K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_100K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_120K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_80K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_130K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_130K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_80K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_110K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_130K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_150K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_110K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_130K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_130K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_120K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_1600mTorr_150K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_110K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_110K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_140K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_120K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_140K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_140K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_140K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_80K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_90K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_150K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_130K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_80K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_140K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_150K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_90K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_90K_20mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_400mTorr_90K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_100K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_110K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_150K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_140K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_80K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_90K_10mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/x3qp1-3k378/Absorption_800mTorr_90K_2mins.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/4m0ye-fw429/Table_Figure6_20240312_full.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/4m0ye-fw429/Table_Figure7_20240312_full.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/fjp7q-n1732/Extended data table 1. RBP genes in C. elegans_20240102.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/cdeer-7ah33/Extended data table 2. egl-1 activator candidates_20240102.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/3nkgg-4zd92/Extended data GG Assembly Builder V.xlsx",
+        "status": "crash",
+        "detail": "Please see the exception for more details."
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/8fjad-x7y61/reference_population.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/jcfp4-zjm73/Grim GAL80TS repression-induction Extended Data.xls",
+        "status": "profiler_error",
+        "detail": "profiler_error: No columns to parse from file"
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/7vge7-ryk74/CPRG GAL80ts repression-induction Extended Data.xls",
+        "status": "profiler_error",
+        "detail": "profiler_error: No columns to parse from file"
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/yzpvn-3m661/SourceData_FigS2.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/8jw5d-wc365/rBMP4_fitting_results.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/fpwk2-f1188/20191206_8_1000_speeds.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/fpwk2-f1188/20191206_9_1000_speeds.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/fpwk2-f1188/20191118_1_1000_speeds.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/fpwk2-f1188/20191030_1_1000_speeds.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/fpwk2-f1188/20191118_2_1000_speeds.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/dfv4g-dwc16/Padmanabhan Extended Dataset.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/w8rjd-z2291/reference_population.csv",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/m1r58-kvb98/TableDR2_StreamGageData_REVISED_v2.xlsx",
+        "status": "profiler_error",
+        "detail": "profiler_error: No columns to parse from file"
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/gxqxc-4gr31/Supplementary Data 4-2.xlsx",
+        "status": "ok",
+        "detail": ""
+      },
+      {
+        "path": "/Users/cedric/nyu-ms/auctus-ultraviolet/data/caltech/files/re7ss-jg650/Popgeorgiev_2018_figure1.csv",
+        "status": "ok",
+        "detail": ""
+      }
+    ]
+  },
+  "types": {
+    "synthetic_columns": 182,
+    "synthetic_correct": 120,
+    "synthetic_accuracy": 0.6593,
+    "synthetic_failures": [
+      "bool_01 (got place, want boolean|categorical|numeric)",
+      "currency (got text, want numeric)",
+      "percent (got text, want numeric)",
+      "record_code (got text, want identifier)",
+      "thousands_sep (got text, want numeric)",
+      "uuid (got text, want identifier)"
+    ],
+    "synthetic_by_case": {
+      "types.csv": 0.7692,
+      "types.tsv": 0.7692,
+      "types.xlsx": 0.7692,
+      "types_bom.csv": 0.7692,
+      "types_cp1252.csv": 0.7692,
+      "types_preamble.csv": 0.0,
+      "types_semicolon.csv": 0.7692
+    },
+    "readme_columns": 191,
+    "readme_scored": 128,
+    "readme_verified_gold": false,
+    "readme_accuracy": 0.8594,
+    "readme_strict_accuracy": 0.5547,
+    "readme_confusions": {
+      "categorical->numeric": 12,
+      "categorical->place": 3,
+      "date->numeric": 2,
+      "boolean->place": 1
+    }
+  },
+  "sampling": {
+    "files": 40,
+    "compared": 40,
+    "column_type_change_rate": 0.1383,
+    "files_with_type_changes": 6,
+    "temporal_files": 8,
+    "median_temporal_span_recall": 0.25,
+    "temporal_span_recall_below_0_5": 5
+  },
+  "performance": [
+    {
+      "rows": 1000,
+      "cols": 10,
+      "status": "ok",
+      "seconds": 2.51,
+      "peak_rss_mb": 1430.5,
+      "profiled_columns": 10
+    },
+    {
+      "rows": 1000,
+      "cols": 100,
+      "status": "ok",
+      "seconds": 4.04,
+      "peak_rss_mb": 1450.4,
+      "profiled_columns": 100
+    },
+    {
+      "rows": 1000,
+      "cols": 1000,
+      "status": "ok",
+      "seconds": 9.03,
+      "peak_rss_mb": 1560.7,
+      "profiled_columns": 300
+    },
+    {
+      "rows": 10000,
+      "cols": 10,
+      "status": "ok",
+      "seconds": 4.97,
+      "peak_rss_mb": 1448.7,
+      "profiled_columns": 10
+    },
+    {
+      "rows": 10000,
+      "cols": 100,
+      "status": "ok",
+      "seconds": 9.1,
+      "peak_rss_mb": 1572.3,
+      "profiled_columns": 100
+    },
+    {
+      "rows": 100000,
+      "cols": 10,
+      "status": "ok",
+      "seconds": 13.66,
+      "peak_rss_mb": 1592.2,
+      "profiled_columns": 10
+    },
+    {
+      "rows": 100000,
+      "cols": 100,
+      "status": "ok",
+      "seconds": 23.76,
+      "peak_rss_mb": 2650.6,
+      "profiled_columns": 100
+    }
+  ]
+}
