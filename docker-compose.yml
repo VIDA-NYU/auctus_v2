@@ -36,7 +36,9 @@ services:
     restart: unless-stopped
 
   minio:
-    image: minio/minio:latest
+    # minio/minio is no longer published on Docker Hub (MinIO stopped shipping free
+    # community images). Chainguard's build is maintained and API-compatible.
+    image: cgr.dev/chainguard/minio:latest
     container_name: auctus-minio
     environment:
       - MINIO_ROOT_USER=minioadmin
