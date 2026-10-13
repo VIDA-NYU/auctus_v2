@@ -149,7 +149,7 @@ def main() -> None:
     from eval.profiler_benchmark.common import load_corpus
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("stage", choices=["all", "robustness", "types", "sampling", "performance", "compare"])
+    parser.add_argument("stage", choices=["all", "robustness", "types", "sampling", "performance", "compare", "sampling-sweep"])
     parser.add_argument("paths", nargs="*", help="compare: BASELINE_DIR CURRENT_DIR")
     parser.add_argument("--harvest", nargs="+", type=Path, default=[], help="invenio_fetching harvest dirs")
     parser.add_argument("--per-instance", type=int, default=0, help="random files per instance (0 = all)")
@@ -157,11 +157,22 @@ def main() -> None:
     parser.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--sizes", nargs="+", type=int, default=[500, 2000, 5000], help="sampling-sweep sample sizes")
     parser.add_argument("--out", type=Path, default=HERE / "results" / "latest")
     args = parser.parse_args()
 
     if args.stage == "compare":
         sys.exit(score.compare(Path(args.paths[0]), Path(args.paths[1])))
+    if args.stage == "sampling-sweep":
+        from eval.profiler_benchmark import sampling_sweep
+        args.out.mkdir(parents=True, exist_ok=True)
+        rows = sampling_sweep.sweep(load_corpus(args.harvest), args.jobs, args.timeout, tuple(args.sizes), args.seed)
+        summary = sampling_sweep.summarize(rows)
+        score.write_rows(args.out / "sampling_sweep.jsonl", rows)
+        (args.out / "sampling_sweep_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+        (args.out / "sampling_sweep.md").write_text(sampling_sweep.report(summary, rows))
+        print((args.out / "sampling_sweep.md").read_text())
+        return
 
     args.out.mkdir(parents=True, exist_ok=True)
     corpus = load_corpus(args.harvest)
