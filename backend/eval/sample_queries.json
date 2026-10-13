@@ -1,0 +1,20 @@
+{
+  "_comment": "Example queries + graded relevance judgments (qrels) for retrieval_eval.py. Replace the dataset ids in 'relevant' with ids that actually exist in your OpenSearch index (the ECIR-DDG / NTCIR-DDG benchmark ids once Phase 5 ingests them). Relevance grades are e.g. 0-3; datasets not listed are treated as 0.",
+  "queries": [
+    {
+      "query_id": "q1",
+      "text": "yellow taxi trips",
+      "relevant": {
+        "REPLACE_WITH_REAL_DATASET_ID_1": 3,
+        "REPLACE_WITH_REAL_DATASET_ID_2": 1
+      }
+    },
+    {
+      "query_id": "q2",
+      "text": "restaurant inspections",
+      "relevant": {
+        "REPLACE_WITH_REAL_DATASET_ID_3": 2
+      }
+    }
+  ]
+}
