@@ -139,6 +139,15 @@ def compare(baseline_dir: Path, current_dir: Path) -> int:
     """Exit status 1 if any tracked metric regressed beyond tolerance, or a synthetic column broke."""
     base = json.loads((baseline_dir / "summary.json").read_text())
     cur = json.loads((current_dir / "summary.json").read_text())
+    # Robustness is compared on the files both runs profiled, so runs over different
+    # corpora (e.g. UltraViolet only vs UltraViolet + Caltech) stay comparable.
+    base_files = {r["path"]: r for r in read_rows(baseline_dir / "robustness.jsonl")}
+    cur_files = {r["path"]: r for r in read_rows(current_dir / "robustness.jsonl")}
+    shared = sorted(base_files.keys() & cur_files.keys())
+    if shared:
+        base["robustness"] = robustness_metrics([base_files[p] for p in shared])
+        cur["robustness"] = robustness_metrics([cur_files[p] for p in shared])
+        print(f"robustness compared on {len(shared)} files present in both runs")
     regressions = []
     for dotted, tolerance in TOLERANCE.items():
         section, key = dotted.split(".")
@@ -152,8 +161,15 @@ def compare(baseline_dir: Path, current_dir: Path) -> int:
     broken = sorted(passed(baseline_dir) - passed(current_dir))
     for case, column in broken:
         print(f"REGRESSION synthetic {case}:{column} passed in baseline, fails now")
-    usable = lambda d: {r["path"] for r in read_rows(d / "robustness.jsonl") if r.get("status") == "ok" and (r.get("nb_columns") or 0) > 1}
-    lost = sorted(usable(baseline_dir) - usable(current_dir))
+    usable = lambda files: {p for p in shared if files[p].get("status") == "ok" and (files[p].get("nb_columns") or 0) > 1}
+    lost = sorted(usable(base_files) - usable(cur_files))
+    gained = sorted(usable(cur_files) - usable(base_files))
+    for path in gained[:20]:
+        print(f"improved   file now usable: {path}")
+    for key in ("pipeline_temporal", "pipeline_bbox"):
+        def has(r):
+            return bool((r.get(key) or {}).get("start")) if key == "pipeline_temporal" else bool(r.get(key))
+        print(f"info       files with {key}: {sum(has(base_files[p]) for p in shared)} -> {sum(has(cur_files[p]) for p in shared)}")
     for path in lost[:20]:
         print(f"REGRESSION file no longer usable: {path}")
     return 1 if regressions or broken or lost else 0
