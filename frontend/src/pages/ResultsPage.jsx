@@ -14,18 +14,8 @@ const FILTER_CATEGORIES = [
   { id: 'location', label: 'Spatial' },
 ]
 
-const SOURCE_OPTIONS = [
-  'Socrata',
-  'CKAN',
-  'Local',
-  'NYC Open Data',
-  'World Bank',
-  'Zenodo',
-  'CAL FIRE',
-  'Inside Airbnb',
-  'European Central Bank',
-  'Our World in Data',
-]
+// Source filter options come from /api/v1/portals: /api/v1/search filters on the
+// portal domain, so platform names ("Socrata", "Zenodo") never matched anything.
 
 const TYPE_OPTIONS = ['spatial', 'numerical', 'temporal', 'categorical']
 
@@ -63,6 +53,24 @@ function ResultsPage() {
     bbox: null,
   })
   const [selectedDataset, setSelectedDataset] = useState(null)
+  const [portalOptions, setPortalOptions] = useState([])  // domains, the values the API filters on
+  const [portalLabels, setPortalLabels] = useState({})    // domain -> display label
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('http://localhost:8000/api/v1/portals')
+      .then((response) => (response.ok ? response.json() : { portals: [] }))
+      .then((payload) => {
+        if (cancelled) return
+        const portals = Array.isArray(payload?.portals) ? payload.portals.filter((p) => p?.domain) : []
+        setPortalOptions(portals.map((p) => p.domain))
+        setPortalLabels(Object.fromEntries(portals.map((p) => [p.domain, p.display_label || p.domain])))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const query = useMemo(() => searchParams.get('q') || '', [searchParams])
 
@@ -177,7 +185,7 @@ function ResultsPage() {
               >
                 {id === 'source' && (
                   <div className="grid min-w-72 grid-cols-2 gap-3">
-                    {SOURCE_OPTIONS.map((opt) => (
+                    {portalOptions.map((opt) => (
                       <label key={opt} className="inline-flex cursor-pointer items-center gap-2 text-sm hover:text-[#64518c]">
                         <input
                           type="checkbox"
@@ -191,7 +199,7 @@ function ResultsPage() {
                           }}
                           className="h-4 w-4 cursor-pointer rounded border-slate-200 text-[#64518c] focus:ring-[#64518c]"
                         />
-                        <span className="text-slate-700">{opt}</span>
+                        <span className="text-slate-700">{portalLabels[opt] || opt}</span>
                       </label>
                     ))}
                   </div>
