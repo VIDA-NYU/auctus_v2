@@ -476,4 +476,9 @@ class WorkerSettings:
 
     functions = [process_dataset_task]
     redis_settings = RedisSettings(host="redis", port=6379)
+    # ARQ defaults to 10 concurrent jobs and a 300 s timeout, but only
+    # PROFILER_CONCURRENCY (2) profile at once and the wait counts against the
+    # timeout: a burst of 50 zip-member jobs timed out 34 while still queued.
+    max_jobs = int(os.getenv("ARQ_MAX_JOBS", "4"))
+    job_timeout = int(os.getenv("ARQ_JOB_TIMEOUT_SECONDS", "1200"))
     on_startup = startup
