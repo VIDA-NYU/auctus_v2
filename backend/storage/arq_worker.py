@@ -447,12 +447,15 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
                 })
         # Leave failed profiles unstamped so the next pipeline run retries them instead
         # of treating them as up to date.
+        # This applies to Socrata's own timestamp too: stamped fallbacks matched the
+        # portal's timestamp on every later run, so failed datasets were never retried.
         source_updated_at = (socrata_updated_at or dataset_meta.get("source_updated_at")) if profiled else None
+        stamped_socrata_at = socrata_updated_at if profiled else None
         provider_type = str(dataset_meta.get("provider") or "socrata")
         domain_url = str(dataset_meta.get("domain") or base_url.replace("https://", "").replace("http://", ""))
         await persist_and_index(
             full_metadata_record, os_client, storage_client, embedding_model,
-            provider_type, domain_url, socrata_updated_at, source_updated_at,
+            provider_type, domain_url, stamped_socrata_at, source_updated_at,
         )
 
         # provider_type = str(dataset_meta.get("provider") or "socrata")
