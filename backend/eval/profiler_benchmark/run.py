@@ -33,7 +33,8 @@ PERF_SHAPES = [(1_000, 10), (1_000, 100), (1_000, 1_000), (10_000, 10), (10_000,
 
 def run_child(spec: dict, timeout: int) -> dict:
     """Profile one input in its own process; failures become a status, never an exception."""
-    env = {**os.environ, "PYTHONPATH": str(BACKEND)}
+    # Keep any caller PYTHONPATH (e.g. another profiler checkout to compare against).
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [str(BACKEND), os.environ.get("PYTHONPATH")]))}
     with tempfile.TemporaryDirectory() as cwd:  # atlas-profiler writes output/ files into the cwd
         try:
             proc = subprocess.run([sys.executable, "-m", "eval.profiler_benchmark.profile_one", json.dumps(spec)],
