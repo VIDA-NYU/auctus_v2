@@ -1,28 +1,30 @@
 {
   "run": {
-    "harvest": [],
+    "harvest": [
+      "../../data/ultraviolet"
+    ],
     "per_instance": 0,
     "seed": 0,
-    "stage": "performance",
-    "commit": "e3cd6d4",
+    "stage": "all",
+    "commit": "59f11c3",
     "atlas_profiler": "0.0.2b1",
     "pandas": "3.0.6",
-    "at": "2026-10-13T06:20:03+00:00"
+    "at": "2026-10-19T03:12:11+00:00"
   },
   "robustness": {
     "files": 66,
     "usable": 66,
     "usable_rate": 1.0,
-    "median_seconds": 3.9,
-    "max_peak_rss_mb": 1456.9,
+    "median_seconds": 4.34,
+    "max_peak_rss_mb": 1641.4,
     "by_instance_format": {
       "ultraviolet/csv": {
         "files": 59,
         "usable": 59,
         "ok": 59,
         "one_column": 0,
-        "profiler_temporal": 17,
-        "pipeline_temporal": 17,
+        "profiler_temporal": 18,
+        "pipeline_temporal": 18,
         "profiler_spatial": 1,
         "pipeline_bbox": 10
       },
@@ -73,69 +75,69 @@
     }
   },
   "sampling": {
-    "files": 23,
-    "compared": 19,
-    "column_type_change_rate": 0.1753,
-    "files_with_type_changes": 4,
-    "temporal_files": 6,
-    "median_temporal_span_recall": 0.837,
-    "temporal_span_recall_below_0_5": 3
+    "files": 0,
+    "compared": 0,
+    "column_type_change_rate": null,
+    "files_with_type_changes": 0,
+    "temporal_files": 0,
+    "median_temporal_span_recall": null,
+    "temporal_span_recall_below_0_5": 0
   },
   "performance": [
     {
       "rows": 1000,
       "cols": 10,
       "status": "ok",
-      "seconds": 2.69,
-      "peak_rss_mb": 1433.5,
+      "seconds": 3.42,
+      "peak_rss_mb": 1478.9,
       "profiled_columns": 10
     },
     {
       "rows": 1000,
       "cols": 100,
       "status": "ok",
-      "seconds": 7.84,
-      "peak_rss_mb": 1448.7,
+      "seconds": 7.04,
+      "peak_rss_mb": 1533.3,
       "profiled_columns": 100
     },
     {
       "rows": 1000,
       "cols": 1000,
       "status": "ok",
-      "seconds": 18.83,
-      "peak_rss_mb": 1553.5,
+      "seconds": 14.85,
+      "peak_rss_mb": 1613.5,
       "profiled_columns": 300
     },
     {
       "rows": 10000,
       "cols": 10,
       "status": "ok",
-      "seconds": 6.61,
-      "peak_rss_mb": 1458.2,
+      "seconds": 8.23,
+      "peak_rss_mb": 1508.3,
       "profiled_columns": 10
     },
     {
       "rows": 10000,
       "cols": 100,
       "status": "ok",
-      "seconds": 16.45,
-      "peak_rss_mb": 1573.0,
+      "seconds": 16.68,
+      "peak_rss_mb": 1659.0,
       "profiled_columns": 100
     },
     {
       "rows": 100000,
       "cols": 10,
       "status": "ok",
-      "seconds": 23.98,
-      "peak_rss_mb": 1601.3,
+      "seconds": 27.69,
+      "peak_rss_mb": 1649.3,
       "profiled_columns": 10
     },
     {
       "rows": 100000,
       "cols": 100,
       "status": "ok",
-      "seconds": 55.76,
-      "peak_rss_mb": 2619.6,
+      "seconds": 67.22,
+      "peak_rss_mb": 1976.7,
       "profiled_columns": 100
     }
   ]

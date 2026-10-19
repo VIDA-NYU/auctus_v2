@@ -29,7 +29,7 @@
 {"record": "9wnjp-kez15", "file": "Merged-Costs-1-4.csv", "column": "Phase", "gold_type": "", "expected": null, "acceptable": "", "got": "text", "verified": false, "strict_correct": null, "correct": null}
 {"record": "9wnjp-kez15", "file": "Merged-Costs-1-4.csv", "column": "Start_year", "gold_type": "YYYY", "expected": "date", "acceptable": "date", "got": "numeric", "verified": false, "strict_correct": false, "correct": false}
 {"record": "9wnjp-kez15", "file": "Merged-Costs-1-4.csv", "column": "End_year", "gold_type": "YYYY", "expected": "date", "acceptable": "date", "got": "numeric", "verified": false, "strict_correct": false, "correct": false}
-{"record": "9wnjp-kez15", "file": "Merged-Costs-1-4.csv", "column": "RR", "gold_type": "", "expected": null, "acceptable": "", "got": "numeric", "verified": false, "strict_correct": null, "correct": null}
+{"record": "9wnjp-kez15", "file": "Merged-Costs-1-4.csv", "column": "RR", "gold_type": "", "expected": null, "acceptable": "", "got": "boolean", "verified": false, "strict_correct": null, "correct": null}
 {"record": "9wnjp-kez15", "file": "Merged-Costs-1-4.csv", "column": "Length", "gold_type": "", "expected": null, "acceptable": "", "got": "numeric", "verified": false, "strict_correct": null, "correct": null}
 {"record": "9wnjp-kez15", "file": "Merged-Costs-1-4.csv", "column": "TunnelPer", "gold_type": "", "expected": null, "acceptable": "", "got": "numeric", "verified": false, "strict_correct": null, "correct": null}
 {"record": "9wnjp-kez15", "file": "Merged-Costs-1-4.csv", "column": "Tunnel", "gold_type": "", "expected": null, "acceptable": "", "got": "numeric", "verified": false, "strict_correct": null, "correct": null}

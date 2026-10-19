@@ -1,0 +1,182 @@
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "int_count", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "float_measure", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "float_missing", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "thousands_sep", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "percent", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "currency", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "date_iso", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "date_us", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "date_eu", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "datetime_iso", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "year", "expected": "date", "acceptable": "date|numeric", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "latitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": "geo_coordinate", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "longitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": "geo_coordinate", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "zip_code", "expected": "place", "acceptable": "identifier|place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "us_state", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "country", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "city", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "bool_tf", "expected": "boolean", "acceptable": "boolean", "got": "boolean", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "bool_yn", "expected": "boolean", "acceptable": "boolean|categorical", "got": "boolean", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "bool_01", "expected": "boolean", "acceptable": "boolean|categorical|numeric", "got": "place", "correct": false, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "category_small", "expected": "categorical", "acceptable": "categorical", "got": "categorical", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "category_codes", "expected": "categorical", "acceptable": "categorical", "got": "categorical", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "free_text", "expected": "text", "acceptable": "text", "got": "text", "correct": true, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "uuid", "expected": "identifier", "acceptable": "identifier", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "record_code", "expected": "identifier", "acceptable": "identifier", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.csv", "note": "baseline: comma, UTF-8", "column": "row_number", "expected": "identifier", "acceptable": "identifier|numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "int_count", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "float_measure", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "float_missing", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "thousands_sep", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "percent", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "currency", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "date_iso", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "date_us", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "date_eu", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "datetime_iso", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "year", "expected": "date", "acceptable": "date|numeric", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "latitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": "geo_coordinate", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "longitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": "geo_coordinate", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "zip_code", "expected": "place", "acceptable": "identifier|place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "us_state", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "country", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "city", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "bool_tf", "expected": "boolean", "acceptable": "boolean", "got": "boolean", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "bool_yn", "expected": "boolean", "acceptable": "boolean|categorical", "got": "boolean", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "bool_01", "expected": "boolean", "acceptable": "boolean|categorical|numeric", "got": "place", "correct": false, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "category_small", "expected": "categorical", "acceptable": "categorical", "got": "categorical", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "category_codes", "expected": "categorical", "acceptable": "categorical", "got": "categorical", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "free_text", "expected": "text", "acceptable": "text", "got": "text", "correct": true, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "uuid", "expected": "identifier", "acceptable": "identifier", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "record_code", "expected": "identifier", "acceptable": "identifier", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_semicolon.csv", "note": "semicolon delimiter", "column": "row_number", "expected": "identifier", "acceptable": "identifier|numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "int_count", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "float_measure", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "float_missing", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "thousands_sep", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "percent", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "currency", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "date_iso", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "date_us", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "date_eu", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "datetime_iso", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "year", "expected": "date", "acceptable": "date|numeric", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "latitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": "geo_coordinate", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "longitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": "geo_coordinate", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "zip_code", "expected": "place", "acceptable": "identifier|place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "us_state", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "country", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "city", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "bool_tf", "expected": "boolean", "acceptable": "boolean", "got": "boolean", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "bool_yn", "expected": "boolean", "acceptable": "boolean|categorical", "got": "boolean", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "bool_01", "expected": "boolean", "acceptable": "boolean|categorical|numeric", "got": "place", "correct": false, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "category_small", "expected": "categorical", "acceptable": "categorical", "got": "categorical", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "category_codes", "expected": "categorical", "acceptable": "categorical", "got": "categorical", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "free_text", "expected": "text", "acceptable": "text", "got": "text", "correct": true, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "uuid", "expected": "identifier", "acceptable": "identifier", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "record_code", "expected": "identifier", "acceptable": "identifier", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.tsv", "note": "tab delimiter", "column": "row_number", "expected": "identifier", "acceptable": "identifier|numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "int_count", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "float_measure", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "float_missing", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "thousands_sep", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "percent", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "currency", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "date_iso", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "date_us", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "date_eu", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "datetime_iso", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "year", "expected": "date", "acceptable": "date|numeric", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "latitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": "geo_coordinate", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "longitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": "geo_coordinate", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "zip_code", "expected": "place", "acceptable": "identifier|place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "us_state", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "country", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "city", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "bool_tf", "expected": "boolean", "acceptable": "boolean", "got": "boolean", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "bool_yn", "expected": "boolean", "acceptable": "boolean|categorical", "got": "boolean", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "bool_01", "expected": "boolean", "acceptable": "boolean|categorical|numeric", "got": "place", "correct": false, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "category_small", "expected": "categorical", "acceptable": "categorical", "got": "categorical", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "category_codes", "expected": "categorical", "acceptable": "categorical", "got": "categorical", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "free_text", "expected": "text", "acceptable": "text", "got": "text", "correct": true, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "uuid", "expected": "identifier", "acceptable": "identifier", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "record_code", "expected": "identifier", "acceptable": "identifier", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_cp1252.csv", "note": "Windows-1252 encoding", "column": "row_number", "expected": "identifier", "acceptable": "identifier|numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "int_count", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "float_measure", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "float_missing", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "thousands_sep", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "percent", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "currency", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "date_iso", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "date_us", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "date_eu", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "datetime_iso", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "year", "expected": "date", "acceptable": "date|numeric", "got": "date", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "latitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": "geo_coordinate", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "longitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": "geo_coordinate", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "zip_code", "expected": "place", "acceptable": "identifier|place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "us_state", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "country", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "city", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "bool_tf", "expected": "boolean", "acceptable": "boolean", "got": "boolean", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "bool_yn", "expected": "boolean", "acceptable": "boolean|categorical", "got": "boolean", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "bool_01", "expected": "boolean", "acceptable": "boolean|categorical|numeric", "got": "place", "correct": false, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "category_small", "expected": "categorical", "acceptable": "categorical", "got": "categorical", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "category_codes", "expected": "categorical", "acceptable": "categorical", "got": "categorical", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "free_text", "expected": "text", "acceptable": "text", "got": "text", "correct": true, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "uuid", "expected": "identifier", "acceptable": "identifier", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "record_code", "expected": "identifier", "acceptable": "identifier", "got": "text", "correct": false, "status": "ok"}
+{"case": "types_bom.csv", "note": "UTF-8 with BOM", "column": "row_number", "expected": "identifier", "acceptable": "identifier|numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "int_count", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "float_measure", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "float_missing", "expected": "numeric", "acceptable": "numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "thousands_sep", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "percent", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "currency", "expected": "numeric", "acceptable": "numeric", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "date_iso", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "date_us", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "date_eu", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "datetime_iso", "expected": "date", "acceptable": "date", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "year", "expected": "date", "acceptable": "date|numeric", "got": "date", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "latitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": "geo_coordinate", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "longitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": "geo_coordinate", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "zip_code", "expected": "place", "acceptable": "identifier|place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "us_state", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "country", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "city", "expected": "place", "acceptable": "place", "got": "place", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "bool_tf", "expected": "boolean", "acceptable": "boolean", "got": "boolean", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "bool_yn", "expected": "boolean", "acceptable": "boolean|categorical", "got": "boolean", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "bool_01", "expected": "boolean", "acceptable": "boolean|categorical|numeric", "got": "place", "correct": false, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "category_small", "expected": "categorical", "acceptable": "categorical", "got": "categorical", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "category_codes", "expected": "categorical", "acceptable": "categorical", "got": "categorical", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "free_text", "expected": "text", "acceptable": "text", "got": "text", "correct": true, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "uuid", "expected": "identifier", "acceptable": "identifier", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "record_code", "expected": "identifier", "acceptable": "identifier", "got": "text", "correct": false, "status": "ok"}
+{"case": "types.xlsx", "note": "Excel XLSX", "column": "row_number", "expected": "identifier", "acceptable": "identifier|numeric", "got": "numeric", "correct": true, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "int_count", "expected": "numeric", "acceptable": "numeric", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "float_measure", "expected": "numeric", "acceptable": "numeric", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "float_missing", "expected": "numeric", "acceptable": "numeric", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "thousands_sep", "expected": "numeric", "acceptable": "numeric", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "percent", "expected": "numeric", "acceptable": "numeric", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "currency", "expected": "numeric", "acceptable": "numeric", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "date_iso", "expected": "date", "acceptable": "date", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "date_us", "expected": "date", "acceptable": "date", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "date_eu", "expected": "date", "acceptable": "date", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "datetime_iso", "expected": "date", "acceptable": "date", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "year", "expected": "date", "acceptable": "date|numeric", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "latitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "longitude", "expected": "geo_coordinate", "acceptable": "geo_coordinate", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "zip_code", "expected": "place", "acceptable": "identifier|place", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "us_state", "expected": "place", "acceptable": "place", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "country", "expected": "place", "acceptable": "place", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "city", "expected": "place", "acceptable": "place", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "bool_tf", "expected": "boolean", "acceptable": "boolean", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "bool_yn", "expected": "boolean", "acceptable": "boolean|categorical", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "bool_01", "expected": "boolean", "acceptable": "boolean|categorical|numeric", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "category_small", "expected": "categorical", "acceptable": "categorical", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "category_codes", "expected": "categorical", "acceptable": "categorical", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "free_text", "expected": "text", "acceptable": "text", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "uuid", "expected": "identifier", "acceptable": "identifier", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "record_code", "expected": "identifier", "acceptable": "identifier", "got": null, "correct": false, "status": "ok"}
+{"case": "types_preamble.csv", "note": "title lines above the header (known gap: header assumed on row 1)", "column": "row_number", "expected": "identifier", "acceptable": "identifier|numeric", "got": null, "correct": false, "status": "ok"}
