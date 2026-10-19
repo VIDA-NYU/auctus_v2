@@ -46,6 +46,7 @@ def geo_data():
     try:
         from datamart_geo import GeoData
 
+        _cache_parent_lookups()
         _geo_data = GeoData.from_local_cache()
         LOGGER.info("datamart-geo loaded: place names will be resolved to bounding boxes")
     except Exception as exc:
@@ -63,6 +64,30 @@ def column_values(path, column: str, distinct: bool = False) -> list[str]:
         values = values.unique()
     series = scan.select(values).collect(engine="streaming").to_series()
     return [v for v in series.to_list() if v]
+
+
+def _cache_parent_lookups() -> None:
+    """Memoize datamart-geo's parent-area query (keyed by the area's admin codes).
+
+    Disambiguating place names walks every candidate's parent regions, one SQLite
+    query each, and the same parents (countries, states) come up again and again:
+    one 884-row UltraViolet table made 3,092 lookups, ~13 s. The query result depends
+    only on the codes, so caching it is safe.
+    """
+    from datamart_geo import Area
+
+    if getattr(Area._get_area_from_levels, "_cached", False):
+        return
+    original, cache = Area._get_area_from_levels, {}
+
+    def cached(self, levels):
+        key = tuple(levels)
+        if key not in cache:
+            cache[key] = original(self, levels)
+        return cache[key]
+
+    cached._cached = True
+    Area._get_area_from_levels = cached
 
 
 def _to_date(seconds: float) -> str | None:
