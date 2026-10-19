@@ -149,7 +149,7 @@ def main() -> None:
     from eval.profiler_benchmark.common import load_corpus
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("stage", choices=["all", "robustness", "types", "sampling", "performance", "compare", "sampling-sweep"])
+    parser.add_argument("stage", choices=["all", "robustness", "types", "sampling", "performance", "compare", "sampling-sweep", "mismatches"])
     parser.add_argument("paths", nargs="*", help="compare: BASELINE_DIR CURRENT_DIR")
     parser.add_argument("--harvest", nargs="+", type=Path, default=[], help="invenio_fetching harvest dirs")
     parser.add_argument("--per-instance", type=int, default=0, help="random files per instance (0 = all)")
@@ -163,6 +163,10 @@ def main() -> None:
 
     if args.stage == "compare":
         sys.exit(score.compare(Path(args.paths[0]), Path(args.paths[1])))
+    if args.stage == "mismatches":
+        from eval.profiler_benchmark import mismatches
+        mismatches.run(args.out)
+        return
     if args.stage == "sampling-sweep":
         from eval.profiler_benchmark import sampling_sweep
         args.out.mkdir(parents=True, exist_ok=True)
