@@ -29,6 +29,7 @@
           "label": "CaltechDATA"
         },
         "ultraviolet.library.nyu.edu": {
+          "max_datasets": 1000,
           "label": "NYU UltraViolet"
         }
       }
