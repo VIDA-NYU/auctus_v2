@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from dateutil.parser import parse as parse_datetime
@@ -23,6 +23,8 @@ LOGGER = logging.getLogger(__name__)
 MIN_YEAR, MAX_YEAR = 1000, 2200
 # Share of a place column's distinct values that must resolve to an admin area.
 MIN_RESOLVED_SHARE = 0.5
+# More distinct values than this and a "place" column is treated as mislabelled.
+MAX_PLACE_NAMES = 5000
 
 _geo_data: Any = None
 _geo_data_loaded = False
@@ -49,6 +51,18 @@ def geo_data():
     except Exception as exc:
         LOGGER.warning("datamart-geo unavailable (%s); place-name columns get no spatial coverage", exc)
     return _geo_data
+
+
+def column_values(path, column: str, distinct: bool = False) -> list[str]:
+    """All values (or the distinct ones) of one column of a normalized CSV, streamed."""
+    import polars as pl
+
+    scan = pl.scan_csv(str(path), infer_schema=False, missing_utf8_is_empty_string=True, low_memory=True)
+    values = pl.col(column).str.strip_chars()
+    if distinct:
+        values = values.unique()
+    series = scan.select(values).collect(engine="streaming").to_series()
+    return [v for v in series.to_list() if v]
 
 
 def _to_date(seconds: float) -> str | None:
@@ -101,22 +115,32 @@ def temporal_from_profiler(profiler_output: dict[str, Any],
                             ends.append(hi)
         if starts:
             return min(starts).date().isoformat(), max(ends).date().isoformat()
-    lows, highs = [], []
+    lows, highs, resolutions = [], [], set()
     for item in items:
         for entry in item.get("ranges") or []:
             bounds = entry.get("range") or {}
             if "gte" in bounds and "lte" in bounds:
                 lows.append(bounds["gte"])
                 highs.append(bounds["lte"])
+                resolutions.add(item.get("temporal_resolution"))
     if not lows:
         return None, None
-    return _to_date(min(lows)), _to_date(max(highs))
+    start, end = _to_date(min(lows)), _to_date(max(highs))
+    # A year-resolution column's last value 2022 means "through 2022", not 2022-01-01.
+    if end and resolutions == {"year"}:
+        end = f"{end[:4]}-12-31"
+    elif end and resolutions == {"month"}:
+        year, month = int(end[:4]), int(end[5:7])
+        next_month = datetime(year + month // 12, month % 12 + 1, 1)
+        end = (next_month - timedelta(days=1)).date().isoformat()
+    return start, end
 
 
 _YEAR_COLUMN_RE = re.compile(r"(^|[^a-z])(year|yr)s?([^a-z]|$)", re.IGNORECASE)
 
 
-def temporal_from_year_columns(headers: list[str], rows: list[dict[str, str]]) -> tuple[str | None, str | None]:
+def temporal_from_year_columns(headers: list[str], rows: list[dict[str, str]],
+                               path=None) -> tuple[str | None, str | None]:
     """(start, end) from columns named like "year" whose values are mostly 4-digit years.
 
     The profiler doesn't always type plain integer year columns as temporal
@@ -127,7 +151,10 @@ def temporal_from_year_columns(headers: list[str], rows: list[dict[str, str]]) -
     for header in headers:
         if not _YEAR_COLUMN_RE.search(str(header)):
             continue
-        values = [str(r.get(header, "")).strip() for r in rows]
+        if path is not None and header in (rows[0] if rows else {}):
+            values = column_values(path, header, distinct=True)  # the whole column
+        else:
+            values = [str(r.get(header, "")).strip() for r in rows]
         values = [v[:-2] if v.endswith(".0") else v for v in values if v]
         found = [int(v) for v in values if _YEAR_RE.fullmatch(v)]
         if values and len(found) >= 0.8 * len(values):
@@ -137,7 +164,7 @@ def temporal_from_year_columns(headers: list[str], rows: list[dict[str, str]]) -
     return f"{min(years)}-01-01", f"{max(years)}-12-31"
 
 
-def admin_bbox(profiler_output: dict[str, Any], rows: list[dict[str, str]]) -> list[float] | None:
+def admin_bbox(profiler_output: dict[str, Any], rows: list[dict[str, str]], path=None) -> list[float] | None:
     """Bounding box of place-name columns, resolved with datamart-geo.
 
     Works around atlas-profiler 0.0.2b1: when its ML geo-classifier labels a column
@@ -146,7 +173,7 @@ def admin_bbox(profiler_output: dict[str, Any], rows: list[dict[str, str]]) -> l
     profiler's own disambiguation, so results match what it would have computed.
     """
     geo = geo_data()
-    if geo is None or not rows:
+    if geo is None or not (rows or path):
         return None
     from profiler.spatial import disambiguate_admin_areas
 
@@ -155,10 +182,13 @@ def admin_bbox(profiler_output: dict[str, Any], rows: list[dict[str, str]]) -> l
         semantic = {s.rsplit("/", 1)[-1] for s in column.get("semantic_types") or []}
         if "AdministrativeArea" not in semantic:
             continue
-        values = [str(r.get(column["name"], "")).strip() for r in rows]
-        values = [v for v in values if v]
-        distinct = sorted(set(values))
+        if path is not None and column["name"] in (rows[0] if rows else {}):
+            distinct = sorted(column_values(path, column["name"], distinct=True))  # the whole column
+        else:
+            distinct = sorted({str(r.get(column["name"], "")).strip() for r in rows} - {""})
         if len(distinct) < 3:  # same threshold the profiler uses
+            continue
+        if len(distinct) > MAX_PLACE_NAMES:  # too many to be a place-name column; likely mislabelled
             continue
         # The ML geo-classifier also labels non-place columns as places (seen on
         # UltraViolet: unemployment rates resolved to a province of Iran). Numbers are

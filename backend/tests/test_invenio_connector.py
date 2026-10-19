@@ -182,6 +182,9 @@ class TransformerTests(unittest.TestCase):
         self.assertEqual(record["errors"], [])
         self.assertEqual([c["name"] for c in meta["columns"]], list(self.frame.columns))
         self.assertEqual(meta["nb_rows"], len(self.frame))
+        # The profiler's streaming CSV-path mode, not the in-memory fallback (which a
+        # polars upgrade or a normalization bug would silently trigger).
+        self.assertEqual(meta.get("profiling_mode"), "full-file")
 
     def test_comma_csv(self):
         self.assert_profiled(self.profile("comma.csv", lambda p: self.frame.to_csv(p, index=False)))
@@ -272,6 +275,35 @@ class TransformerTests(unittest.TestCase):
         output = {"columns": [{"name": "rate", "semantic_types": ["http://schema.org/AdministrativeArea"]}]}
         rows = [{"rate": v} for v in ["7", "10.5", "5.7", "6.2", "13", "21.1"]]
         self.assertIsNone(admin_bbox(output, rows))
+
+    def test_whole_file_time_range_when_sorted_by_date(self):  # the first 500 rows covered ~2% of this
+        n = 20000
+        frame = pd.DataFrame({"when": pd.date_range("2001-01-01", periods=n, freq="h").strftime("%Y-%m-%d %H:%M"),
+                              "value": range(n)})
+        record = self.profile("sorted_by_time.csv", lambda p: frame.to_csv(p, index=False))
+        self.assertEqual(record["profiler_metadata"]["nb_rows"], n)
+        self.assertEqual(record["temporal_coverage"], {"start": "2001-01-01", "end": "2003-04-14"})
+
+    def test_whole_file_bbox_when_sorted_by_place(self):
+        lat = np.linspace(-30.0, 60.0, 8000)
+        frame = pd.DataFrame({"latitude": lat, "longitude": np.linspace(-120.0, 100.0, 8000), "v": range(8000)})
+        record = self.profile("sorted_by_lat.csv", lambda p: frame.to_csv(p, index=False))
+        west, south, east, north = record["profiler_metadata"]["spatial_bbox"]
+        self.assertTrue(south <= -29.9 and north >= 59.9 and west <= -119.9 and east >= 99.9, (west, south, east, north))
+
+    @unittest.skipUnless(geo_data(), "datamart-geo data not downloaded")
+    def test_place_names_after_the_first_rows_count(self):
+        names = ["Kenya"] * 600 + ["Uganda", "Tanzania", "Rwanda", "Nigeria", "Ghana"] * 100
+        frame = pd.DataFrame({"country": names, "value": range(len(names))})
+        record = self.profile("late_places.csv", lambda p: frame.to_csv(p, index=False))
+        west, south, east, north = record["profiler_metadata"]["spatial_bbox"]
+        self.assertLess(west, 0)  # Ghana and Nigeria are west of the prime meridian / at 3°E: only in rows 600+
+
+    def test_semicolon_file_counts_every_row(self):
+        frame = pd.DataFrame({"a": range(3000), "b": ["x;y"] * 3000})  # a quoted separator inside values too
+        record = self.profile("semi_big.csv", lambda p: frame.to_csv(p, index=False, sep=";"))
+        self.assertEqual(record["profiler_metadata"]["nb_rows"], 3000)
+        self.assertEqual([c["name"] for c in record["profiler_metadata"]["columns"]], ["a", "b"])
 
     @unittest.expectedFailure
     def test_title_rows_above_header(self):  # known gap: header is assumed to be on row 1
