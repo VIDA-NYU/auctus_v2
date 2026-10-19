@@ -122,7 +122,11 @@ def report(s: dict) -> str:
                  ["", f"README dictionaries: {t['readme_scored']} of {t['readme_columns']} columns scorable; accuracy "
                   f"**{t['readme_accuracy']}** (strict, README type only: {t['readme_strict_accuracy']}; gold verified: {t['readme_verified_gold']}). Most common errors: "
                   + ", ".join(f"{k} ({v})" for k, v in t["readme_confusions"].items()), ""]
-    if "sampling" in s:
+    if "sampling" in s and not s["sampling"].get("compared"):
+        lines += ["## 3. Sampling", "",
+                  "Nothing to compare: robustness profiles whole files, so no file was truncated. "
+                  "Use `run.py sampling-sweep` to measure how much a row sample would lose.", ""]
+    elif "sampling" in s:
         m = s["sampling"]
         lines += ["## 3. Sampling (first 500 rows / 2 MB vs whole file)", "",
                   f"{m['compared']} files compared. Column types change on {m['files_with_type_changes']} files "

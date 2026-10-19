@@ -1,10 +1,10 @@
 # Profiler benchmark report
 
-Run: `{"harvest": ["../../data/ultraviolet"], "per_instance": 0, "seed": 0, "stage": "all", "commit": "59f11c3", "atlas_profiler": "0.0.2b1", "pandas": "3.0.6", "at": "2026-10-19T03:12:11+00:00"}`
+Run: `{"harvest": ["../../data/ultraviolet"], "per_instance": 0, "seed": 0, "stage": "all", "commit": "e4ec05c", "atlas_profiler": "0.0.2b1", "pandas": "3.0.6", "at": "2026-10-19T15:43:18+00:00", "profiler_code": "stock atlas-profiler (upstream main b449447 = PyPI 0.0.2b1 code)"}`
 
 ## 1. Robustness
 
-Usable profiles: **66/66** (1.0). Median 4.34 s per file; max peak memory 1641.4 MB.
+Usable profiles: **66/66** (1.0). Median 3.97 s per file; max peak memory 1621.5 MB.
 
 | instance/format | files | usable | errors | ≤1 column | profiler time cov. | pipeline time cov. | profiler spatial | pipeline bbox |
 |---|---|---|---|---|---|---|---|---|
@@ -34,20 +34,20 @@ Wrong on the baseline file:
 - thousands_sep (got text, want numeric)
 - uuid (got text, want identifier)
 
-README dictionaries: 128 of 191 columns scorable; accuracy **0.8594** (strict, README type only: 0.5547; gold verified: False). Most common errors: categorical->numeric (12), categorical->place (3), date->numeric (2), boolean->place (1)
+README dictionaries: 128 of 191 columns scorable; accuracy **0.8516** (strict, README type only: 0.5469; gold verified: False). Most common errors: categorical->numeric (11), categorical->place (3), date->numeric (2), numeric->identifier (1), categorical->identifier (1), boolean->place (1)
 
-## 3. Sampling (first 500 rows / 2 MB vs whole file)
+## 3. Sampling
 
-0 files compared. Column types change on 0 files (rate None of columns). Temporal span recall median None over 0 files; 0 files' samples cover less than half of the real time span.
+Nothing to compare: robustness profiles whole files, so no file was truncated. Use `run.py sampling-sweep` to measure how much a row sample would lose.
 
 ## 4. Performance (whole table, one run at a time)
 
 | rows | columns | status | seconds | peak MB |
 |---|---|---|---|---|
-| 1000 | 10 | ok | 3.42 | 1478.9 |
-| 1000 | 100 | ok | 7.04 | 1533.3 |
-| 1000 | 1000 | ok | 14.85 | 1613.5 |
-| 10000 | 10 | ok | 8.23 | 1508.3 |
-| 10000 | 100 | ok | 16.68 | 1659.0 |
-| 100000 | 10 | ok | 27.69 | 1649.3 |
-| 100000 | 100 | ok | 67.22 | 1976.7 |
+| 1000 | 10 | ok | 2.85 | 1482.5 |
+| 1000 | 100 | ok | 5.9 | 1543.0 |
+| 1000 | 1000 | ok | 13.09 | 1621.2 |
+| 10000 | 10 | ok | 6.79 | 1509.6 |
+| 10000 | 100 | ok | 14.26 | 1676.1 |
+| 100000 | 10 | ok | 23.22 | 1650.1 |
+| 100000 | 100 | ok | 57.02 | 1990.8 |
