@@ -17,7 +17,7 @@ from arq.connections import RedisSettings, create_pool
 from dateutil.parser import parse as parse_datetime
 
 from crawlers.ckan.crawler import discover_ckan_datasets
-from crawlers.invenio.crawler import discover_invenio_datasets
+from crawlers.invenio.crawler import discover_invenio_datasets, stale_doc_ids
 from crawlers.socrata.crawler import discover_socrata_datasets
 from storage.opensearch_client import AUCTUS_INDEX_NAME, AUCTUS_PORTALS_INDEX_NAME, get_client, init_db
 
@@ -109,6 +109,7 @@ async def discover_datasets_for_provider(
 	domain_url: str,
 	max_datasets: int,
 	provider_cfg: dict[str, Any] | None = None,
+	report: dict[str, Any] | None = None,
 ) -> list[str] | list[dict[str, Any]]:
 	"""Provider discovery factory: dispatch domain crawl to the matching engine.
 
@@ -124,6 +125,7 @@ async def discover_datasets_for_provider(
 			limit=int(domain_settings.get("max_datasets", max_datasets)),
 			query=str(domain_settings.get("query", "")),
 			page_size=int(domain_settings.get("page_size", 100)),
+			report=report,
 		)
 	if provider == "socrata":
 		return await discover_socrata_datasets(domain=domain_url, limit=max_datasets)
@@ -324,6 +326,50 @@ async def sync_portal_metadata(domain_url: str, provider_type: str) -> None:
 	client.index(index=AUCTUS_PORTALS_INDEX_NAME, id=domain_url, body=summary_document, refresh=True)
 
 
+# Pruning more than this share of a domain's docs in one run needs AUCTUS_PRUNE_FORCE=1,
+# so a discovery bug can't empty the index.
+MAX_PRUNE_SHARE = 0.5
+
+
+def prune_stale_docs(os_client, domain_url: str, discovered: list[dict[str, Any]], crawl_report: dict[str, Any]) -> list[str]:
+	"""Delete a domain's indexed docs (and stored profiles) that a complete crawl no longer produces.
+
+	Re-ingesting only overwrites docs, so files removed upstream, records made
+	restricted, and members dropped by the archive caps stayed searchable.
+	AUCTUS_PRUNE=0 turns this off.
+	"""
+	if os.getenv("AUCTUS_PRUNE", "1") == "0":
+		return []
+	if not crawl_report.get("complete"):
+		LOGGER.info("Discovery of %s was partial or capped; not pruning stale docs.", domain_url)
+		return []
+	from opensearchpy import helpers
+
+	indexed = [
+		{"id": hit["_id"], "archive_dataset_id": (hit.get("_source") or {}).get("archive_dataset_id")}
+		for hit in helpers.scan(os_client, index=AUCTUS_INDEX_NAME, _source=["archive_dataset_id"],
+		                        query={"query": {"term": {"domain": domain_url}}})
+	]
+	stale = stale_doc_ids(indexed, discovered, crawl_report.get("unlisted_archives", set()))
+	if not stale:
+		return []
+	if len(stale) > MAX_PRUNE_SHARE * len(indexed) and os.getenv("AUCTUS_PRUNE_FORCE") != "1":
+		LOGGER.warning("Refusing to prune %d of %d docs for %s (over %d%%); set AUCTUS_PRUNE_FORCE=1 to allow.",
+		               len(stale), len(indexed), domain_url, int(MAX_PRUNE_SHARE * 100))
+		return []
+	from storage.minio_client import PROFILE_BUCKET_NAME, get_storage_client
+
+	storage_client = get_storage_client()
+	for doc_id in stale:
+		os_client.delete(index=AUCTUS_INDEX_NAME, id=doc_id, ignore=[404])
+		try:
+			storage_client.remove_object(PROFILE_BUCKET_NAME, f"{doc_id}_profile.json")
+		except Exception as exc:  # the profile may never have been stored
+			LOGGER.debug("No stored profile removed for %s: %s", doc_id, exc)
+	LOGGER.info("🧹 Pruned %d stale docs for %s (%d indexed before).", len(stale), domain_url, len(indexed))
+	return stale
+
+
 async def main() -> None:
 	"""Discover datasets by provider/domain, dedupe by timestamp, and enqueue heavy jobs to ARQ."""
 	logging.basicConfig(
@@ -417,14 +463,18 @@ async def main() -> None:
 					domain_dataset_limit,
 				)
 
+				crawl_report: dict[str, Any] = {}
 				dataset_ids = await discover_datasets_for_provider(
 					provider_type=provider_key,
 					domain_url=domain_url,
 					max_datasets=domain_dataset_limit,
 					provider_cfg=provider_cfg,
+					report=crawl_report,
 				)
 				if not dataset_ids:
 					continue
+				if provider_key.lower() == "invenio":
+					prune_stale_docs(os_client, domain_url, dataset_ids, crawl_report)
 
 				base_url = str(provider_cfg.get("base_url", f"https://{domain_url}"))
 				fallback_bbox = provider_cfg.get("fallback_bbox", DEFAULT_FALLBACK_BBOX)

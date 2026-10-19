@@ -157,7 +157,7 @@ class ArchiveTests(unittest.TestCase):
         record = invenio_record({f"tiles_{i}.zip": 10**9 for i in range(5)})
         page = {"hits": {"hits": [record]}, "links": {}}
 
-        def fake_expand(entry):  # each zip holds 30 tiles
+        def fake_expand(entry, unlisted=None):  # each zip holds 30 tiles
             return [{**entry, "zip_member": f"t{j}.parquet", "dataset_id": f"{entry['dataset_id']}:{j}"} for j in range(30)]
 
         class FakeResponse:
@@ -173,8 +173,31 @@ class ArchiveTests(unittest.TestCase):
         with mock.patch.object(crawler, "expand_archive", fake_expand), \
              mock.patch.object(crawler, "async_client", lambda *a, **k: FakeClient()), \
              mock.patch.object(crawler, "MAX_ARCHIVE_MEMBERS_PER_RECORD", 50):
-            jobs = asyncio.run(crawler.discover_invenio_datasets(DOMAIN, limit=1000))
-        self.assertEqual(len(jobs), 50)
+            report = {}
+            jobs = asyncio.run(crawler.discover_invenio_datasets(DOMAIN, limit=1000, report=report))
+            self.assertEqual(len(jobs), 50)
+            self.assertTrue(report["complete"])
+            report = {}
+            asyncio.run(crawler.discover_invenio_datasets(DOMAIN, limit=10, report=report))
+            self.assertFalse(report["complete"])  # cut by limit: never prune on this
+
+    def test_stale_docs(self):
+        from crawlers.invenio.crawler import stale_doc_ids
+        discovered = [
+            {"dataset_id": "d:r1:a.csv", "file_extension": "csv"},
+            {"dataset_id": "d:r1:small.zip", "file_extension": "zip"},            # small archive job
+            {"dataset_id": "d:r2:big.zip:m1", "file_extension": "parquet", "zip_member": "m1.parquet"},
+        ]
+        indexed = [
+            {"id": "d:r1:a.csv"},                                                  # still there
+            {"id": "d:r1:small.zip:x", "archive_dataset_id": "d:r1:small.zip"},    # member of a small archive
+            {"id": "d:r2:big.zip:m1", "archive_dataset_id": "d:r2:big.zip"},       # selected member
+            {"id": "d:r2:big.zip:m9", "archive_dataset_id": "d:r2:big.zip"},       # beyond the cap now
+            {"id": "d:r3:gone.csv"},                                               # record deleted/restricted
+            {"id": "d:r4:flaky.zip:y", "archive_dataset_id": "d:r4:flaky.zip"},    # zip unlisted this run
+        ]
+        self.assertEqual(stale_doc_ids(indexed, discovered, {"d:r4:flaky.zip"}),
+                         ["d:r2:big.zip:m9", "d:r3:gone.csv"])
 
     def test_discovery_keeps_zips(self):
         keys = [e["file_key"] for e in file_entries(invenio_record({"a.zip": 10**11, "b.csv": 10}), DOMAIN, 10**6)]

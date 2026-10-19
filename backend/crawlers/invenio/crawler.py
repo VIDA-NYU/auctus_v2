@@ -123,18 +123,21 @@ def archive_member_entries(entry: dict[str, Any], archive: zipfile.ZipFile) -> l
     } for info in members]
 
 
-def expand_archive(entry: dict[str, Any]) -> list[dict[str, Any]]:
+def expand_archive(entry: dict[str, Any], unlisted: set[str] | None = None) -> list[dict[str, Any]]:
     """List an archive in place (HTTP Range) and turn it into jobs.
 
     No tabular members: no job. Small archive: one job that downloads it and
     profiles its members. Large archive: one job per selected member, each of
-    which reads only that member's bytes.
+    which reads only that member's bytes. Archives that can't be listed are added
+    to `unlisted`, so their already-indexed members aren't treated as stale.
     """
     try:
         with open_remote_zip(entry["file_url"], entry["file_size"]) as archive:
             members = archive_member_entries(entry, archive)
     except Exception as exc:  # split archives, unsupported compression, network errors
         LOGGER.warning("Could not list archive %s: %r", entry["file_key"], exc)
+        if unlisted is not None:
+            unlisted.add(entry["dataset_id"])
         return []
     if not members:
         return []
@@ -150,8 +153,13 @@ async def discover_invenio_datasets(
     page_size: int = DEFAULT_PAGE_SIZE,
     max_file_bytes: int = DEFAULT_MAX_FILE_BYTES,
     http_timeout_seconds: float = 30.0,
+    report: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Return up to `limit` public tabular files from an InvenioRDM instance.
+
+    If `report` is given it gets "complete" (every page listed, nothing cut by
+    `limit`) and "unlisted_archives" (zip ids that couldn't be listed); pruning
+    stale docs is only safe on a complete crawl.
 
     `query` is a Lucene query string; it is ANDed with a tabular file-type filter so
     the crawl only pages through records worth profiling. Zenodo needs a narrow
@@ -166,6 +174,8 @@ async def discover_invenio_datasets(
     params: dict[str, Any] | None = {"q": full_query, "size": page_size, "sort": "newest"}
 
     discovered: list[dict[str, Any]] = []
+    unlisted: set[str] = set()
+    failed = False
     async with async_client(http_timeout_seconds) as client:
         while url and len(discovered) < limit:
             try:
@@ -179,6 +189,7 @@ async def discover_invenio_datasets(
                 page = response.json()
             except (httpx.HTTPError, ValueError) as exc:
                 LOGGER.error("Failed to list records from %s: %s", domain, exc)
+                failed = True
                 break
 
             for record in page.get("hits", {}).get("hits", []):
@@ -195,7 +206,7 @@ async def discover_invenio_datasets(
                         continue
                     if budget <= 0:
                         continue
-                    jobs = await asyncio.to_thread(expand_archive, entry)
+                    jobs = await asyncio.to_thread(expand_archive, entry, unlisted)
                     if jobs and not jobs[0].get("zip_member"):  # one small-archive job
                         budget -= min(jobs[0].get("archive_tabular_members", 0), MAX_ARCHIVE_MEMBERS)
                         discovered.extend(jobs)
@@ -206,7 +217,29 @@ async def discover_invenio_datasets(
             # links.next already carries the query string.
             url, params = (page.get("links") or {}).get("next"), None
 
+    if report is not None:
+        report["complete"] = not failed and not url and len(discovered) <= limit
+        report["unlisted_archives"] = unlisted
     return discovered[:limit]
+
+
+def stale_doc_ids(indexed: list[dict[str, Any]], discovered: list[dict[str, Any]],
+                  unlisted_archives: set[str] = frozenset()) -> list[str]:
+    """Ids of indexed docs that a complete crawl no longer produces.
+
+    `indexed` holds {"id", "archive_dataset_id"} per doc of one domain. A doc is
+    kept if discovery produced its id, or it is a member of a small archive that
+    was discovered (its members are chosen when the archive is profiled), or of an
+    archive that couldn't be listed this time. Everything else (deleted or
+    restricted records, files removed from a record, members beyond the caps) is
+    stale.
+    """
+    keep_ids = {entry["dataset_id"] for entry in discovered}
+    keep_archives = {entry["dataset_id"] for entry in discovered
+                     if entry.get("file_extension") in ARCHIVE_EXTENSIONS and not entry.get("zip_member")}
+    keep_archives |= set(unlisted_archives)
+    return [doc["id"] for doc in indexed
+            if doc["id"] not in keep_ids and doc.get("archive_dataset_id") not in keep_archives]
 
 
 async def main() -> None:
