@@ -1,0 +1,7 @@
+{"rows": 1000, "cols": 10, "status": "ok", "seconds": 3.42, "peak_rss_mb": 1478.9, "profiled_columns": 10}
+{"rows": 1000, "cols": 100, "status": "ok", "seconds": 7.04, "peak_rss_mb": 1533.3, "profiled_columns": 100}
+{"rows": 1000, "cols": 1000, "status": "ok", "seconds": 14.85, "peak_rss_mb": 1613.5, "profiled_columns": 300}
+{"rows": 10000, "cols": 10, "status": "ok", "seconds": 8.23, "peak_rss_mb": 1508.3, "profiled_columns": 10}
+{"rows": 10000, "cols": 100, "status": "ok", "seconds": 16.68, "peak_rss_mb": 1659.0, "profiled_columns": 100}
+{"rows": 100000, "cols": 10, "status": "ok", "seconds": 27.69, "peak_rss_mb": 1649.3, "profiled_columns": 10}
+{"rows": 100000, "cols": 100, "status": "ok", "seconds": 67.22, "peak_rss_mb": 1976.7, "profiled_columns": 100}

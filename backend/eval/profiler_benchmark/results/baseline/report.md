@@ -1,14 +1,14 @@
 # Profiler benchmark report
 
-Run: `{"harvest": [], "per_instance": 0, "seed": 0, "stage": "performance", "commit": "e3cd6d4", "atlas_profiler": "0.0.2b1", "pandas": "3.0.6", "at": "2026-10-13T06:20:03+00:00"}`
+Run: `{"harvest": ["../../data/ultraviolet"], "per_instance": 0, "seed": 0, "stage": "all", "commit": "59f11c3", "atlas_profiler": "0.0.2b1", "pandas": "3.0.6", "at": "2026-10-19T03:12:11+00:00"}`
 
 ## 1. Robustness
 
-Usable profiles: **66/66** (1.0). Median 3.9 s per file; max peak memory 1456.9 MB.
+Usable profiles: **66/66** (1.0). Median 4.34 s per file; max peak memory 1641.4 MB.
 
 | instance/format | files | usable | errors | ≤1 column | profiler time cov. | pipeline time cov. | profiler spatial | pipeline bbox |
 |---|---|---|---|---|---|---|---|---|
-| ultraviolet/csv | 59 | 59 | 0 | 0 | 17 | 17 | 1 | 10 |
+| ultraviolet/csv | 59 | 59 | 0 | 0 | 18 | 18 | 1 | 10 |
 | ultraviolet/xlsx | 7 | 7 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 
@@ -38,16 +38,16 @@ README dictionaries: 128 of 191 columns scorable; accuracy **0.8594** (strict, R
 
 ## 3. Sampling (first 500 rows / 2 MB vs whole file)
 
-19 files compared. Column types change on 4 files (rate 0.1753 of columns). Temporal span recall median 0.837 over 6 files; 3 files' samples cover less than half of the real time span.
+0 files compared. Column types change on 0 files (rate None of columns). Temporal span recall median None over 0 files; 0 files' samples cover less than half of the real time span.
 
 ## 4. Performance (whole table, one run at a time)
 
 | rows | columns | status | seconds | peak MB |
 |---|---|---|---|---|
-| 1000 | 10 | ok | 2.69 | 1433.5 |
-| 1000 | 100 | ok | 7.84 | 1448.7 |
-| 1000 | 1000 | ok | 18.83 | 1553.5 |
-| 10000 | 10 | ok | 6.61 | 1458.2 |
-| 10000 | 100 | ok | 16.45 | 1573.0 |
-| 100000 | 10 | ok | 23.98 | 1601.3 |
-| 100000 | 100 | ok | 55.76 | 2619.6 |
+| 1000 | 10 | ok | 3.42 | 1478.9 |
+| 1000 | 100 | ok | 7.04 | 1533.3 |
+| 1000 | 1000 | ok | 14.85 | 1613.5 |
+| 10000 | 10 | ok | 8.23 | 1508.3 |
+| 10000 | 100 | ok | 16.68 | 1659.0 |
+| 100000 | 10 | ok | 27.69 | 1649.3 |
+| 100000 | 100 | ok | 67.22 | 1976.7 |

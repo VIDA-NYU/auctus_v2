@@ -1,0 +1,144 @@
+{
+  "run": {
+    "harvest": [
+      "../../data/ultraviolet"
+    ],
+    "per_instance": 0,
+    "seed": 0,
+    "stage": "all",
+    "commit": "59f11c3",
+    "atlas_profiler": "0.0.2b1",
+    "pandas": "3.0.6",
+    "at": "2026-10-19T03:12:11+00:00"
+  },
+  "robustness": {
+    "files": 66,
+    "usable": 66,
+    "usable_rate": 1.0,
+    "median_seconds": 4.34,
+    "max_peak_rss_mb": 1641.4,
+    "by_instance_format": {
+      "ultraviolet/csv": {
+        "files": 59,
+        "usable": 59,
+        "ok": 59,
+        "one_column": 0,
+        "profiler_temporal": 18,
+        "pipeline_temporal": 18,
+        "profiler_spatial": 1,
+        "pipeline_bbox": 10
+      },
+      "ultraviolet/xlsx": {
+        "files": 7,
+        "usable": 7,
+        "ok": 7,
+        "one_column": 0,
+        "profiler_temporal": 0,
+        "pipeline_temporal": 0,
+        "profiler_spatial": 0,
+        "pipeline_bbox": 0
+      }
+    },
+    "failures": []
+  },
+  "types": {
+    "synthetic_columns": 182,
+    "synthetic_correct": 120,
+    "synthetic_accuracy": 0.6593,
+    "synthetic_failures": [
+      "bool_01 (got place, want boolean|categorical|numeric)",
+      "currency (got text, want numeric)",
+      "percent (got text, want numeric)",
+      "record_code (got text, want identifier)",
+      "thousands_sep (got text, want numeric)",
+      "uuid (got text, want identifier)"
+    ],
+    "synthetic_by_case": {
+      "types.csv": 0.7692,
+      "types.tsv": 0.7692,
+      "types.xlsx": 0.7692,
+      "types_bom.csv": 0.7692,
+      "types_cp1252.csv": 0.7692,
+      "types_preamble.csv": 0.0,
+      "types_semicolon.csv": 0.7692
+    },
+    "readme_columns": 191,
+    "readme_scored": 128,
+    "readme_verified_gold": false,
+    "readme_accuracy": 0.8594,
+    "readme_strict_accuracy": 0.5547,
+    "readme_confusions": {
+      "categorical->numeric": 12,
+      "categorical->place": 3,
+      "date->numeric": 2,
+      "boolean->place": 1
+    }
+  },
+  "sampling": {
+    "files": 0,
+    "compared": 0,
+    "column_type_change_rate": null,
+    "files_with_type_changes": 0,
+    "temporal_files": 0,
+    "median_temporal_span_recall": null,
+    "temporal_span_recall_below_0_5": 0
+  },
+  "performance": [
+    {
+      "rows": 1000,
+      "cols": 10,
+      "status": "ok",
+      "seconds": 3.42,
+      "peak_rss_mb": 1478.9,
+      "profiled_columns": 10
+    },
+    {
+      "rows": 1000,
+      "cols": 100,
+      "status": "ok",
+      "seconds": 7.04,
+      "peak_rss_mb": 1533.3,
+      "profiled_columns": 100
+    },
+    {
+      "rows": 1000,
+      "cols": 1000,
+      "status": "ok",
+      "seconds": 14.85,
+      "peak_rss_mb": 1613.5,
+      "profiled_columns": 300
+    },
+    {
+      "rows": 10000,
+      "cols": 10,
+      "status": "ok",
+      "seconds": 8.23,
+      "peak_rss_mb": 1508.3,
+      "profiled_columns": 10
+    },
+    {
+      "rows": 10000,
+      "cols": 100,
+      "status": "ok",
+      "seconds": 16.68,
+      "peak_rss_mb": 1659.0,
+      "profiled_columns": 100
+    },
+    {
+      "rows": 100000,
+      "cols": 10,
+      "status": "ok",
+      "seconds": 27.69,
+      "peak_rss_mb": 1649.3,
+      "profiled_columns": 10
+    },
+    {
+      "rows": 100000,
+      "cols": 100,
+      "status": "ok",
+      "seconds": 67.22,
+      "peak_rss_mb": 1976.7,
+      "profiled_columns": 100
+    }
+  ]
+}
