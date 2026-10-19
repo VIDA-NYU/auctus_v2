@@ -93,6 +93,14 @@ class Table:
                            truncated_by_rows=False, truncated_by_bytes=False)
 
 
+# Written-out missing values, blanked during normalization: exactly pandas' default
+# na_values, so whole-file profiling treats them like the earlier pandas-based path did.
+# Without this, literal "NULL" in 5-15% of a DHL file's rows turned numeric columns into
+# text. Domain codes such as -99 or "." are left alone; they can be real values.
+MISSING_TOKENS = frozenset({"", "#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN", "-NaN", "-nan", "1.#IND",
+                            "1.#QNAN", "<NA>", "N/A", "NA", "NULL", "NaN", "None", "n/a", "nan", "null"})
+
+
 def _write_table(header: list[str], records, out: Path) -> Table:
     """Write rows to `out` as normalized CSV, keeping the first MAX_PROFILED_COLUMNS columns."""
     kept = [str(h) for h in header[:MAX_PROFILED_COLUMNS]]
@@ -101,7 +109,7 @@ def _write_table(header: list[str], records, out: Path) -> Table:
         writer = csv.writer(fh)
         writer.writerow(kept)
         for row in records:
-            values = [("" if v is None else str(v)) for v in row[:width]]
+            values = [("" if v is None or str(v).strip() in MISSING_TOKENS else str(v)) for v in row[:width]]
             if not any(v.strip() for v in values):
                 continue  # blank lines
             values += [""] * (width - len(values))

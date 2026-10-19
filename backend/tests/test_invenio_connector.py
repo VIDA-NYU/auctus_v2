@@ -299,6 +299,13 @@ class TransformerTests(unittest.TestCase):
         west, south, east, north = record["profiler_metadata"]["spatial_bbox"]
         self.assertLess(west, 0)  # Ghana and Nigeria are west of the prime meridian / at 3°E: only in rows 600+
 
+    def test_written_missing_values_keep_numbers_numeric(self):  # UltraViolet DHL files: literal "NULL"
+        values = [str(i * 1.5) for i in range(400)] + ["NULL", "NA", "n/a", "NaN"] * 25
+        frame = pd.DataFrame({"score": values, "id": range(len(values))})
+        record = self.profile("nulls.csv", lambda p: frame.to_csv(p, index=False))
+        column = next(c for c in record["profiler_metadata"]["columns"] if c["name"] == "score")
+        self.assertTrue(column["structural_type"].endswith("Float"), column["structural_type"])
+
     def test_semicolon_file_counts_every_row(self):
         frame = pd.DataFrame({"a": range(3000), "b": ["x;y"] * 3000})  # a quoted separator inside values too
         record = self.profile("semi_big.csv", lambda p: frame.to_csv(p, index=False, sep=";"))
