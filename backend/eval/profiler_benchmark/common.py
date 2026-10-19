@@ -37,7 +37,7 @@ def coarse_from_profiler(column: dict) -> str:
         return "boolean"
     if semantic & {"AdministrativeArea", "address", "GeoShape"}:
         return "place"
-    if "Identifier" in semantic:
+    if "identifier" in semantic:  # schema.org/identifier (lowercase)
         return "identifier"
     if "Enumeration" in semantic or "Categorical" in semantic:
         return "categorical"
