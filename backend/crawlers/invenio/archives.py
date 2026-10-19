@@ -15,7 +15,9 @@ import zipfile
 from contextlib import contextmanager
 from typing import Iterator
 
-ARCHIVE_TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls"}
+ARCHIVE_TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz"}
+# Two-part extensions recognized as one (data.csv.gz -> "csv.gz").
+COMPOUND_EXTENSIONS = ("csv.gz", "tsv.gz")
 SPREADSHEET_EXTENSIONS = {"xlsx", "xls"}
 SMALL_ARCHIVE_BYTES = int(os.getenv("SMALL_ARCHIVE_BYTES", str(20 * 1024 * 1024)))
 MAX_ARCHIVE_MEMBERS = int(os.getenv("MAX_ARCHIVE_MEMBERS", "25"))
@@ -25,7 +27,11 @@ RANGE_BLOCK_BYTES = 256 * 1024
 
 
 def member_extension(name: str) -> str:
+    """Lowercase extension of a file or archive member; compound ones like csv.gz kept whole."""
     base = name.rsplit("/", 1)[-1].lower()
+    for compound in COMPOUND_EXTENSIONS:
+        if base.endswith("." + compound):
+            return compound
     return base.rsplit(".", 1)[-1] if "." in base else ""
 
 

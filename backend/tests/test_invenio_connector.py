@@ -52,9 +52,11 @@ def invenio_record(files: dict[str, int], access: str = "public") -> dict:
 
 class DiscoveryTests(unittest.TestCase):
     def test_keeps_only_public_tabular_files_under_the_size_cap(self):
-        record = invenio_record({"a.csv": 10, "b.XLSX": 10, "c.pdf": 10, "README.md": 10, "huge.csv": 10**9})
-        keys = [e["file_key"] for e in file_entries(record, DOMAIN, max_file_bytes=10**6)]
-        self.assertEqual(keys, ["a.csv", "b.XLSX"])
+        record = invenio_record({"a.csv": 10, "b.XLSX": 10, "c.pdf": 10, "README.md": 10, "huge.csv": 10**9,
+                                 "d.csv.gz": 10, "e.parquet": 10, "f.fastq.gz": 10})
+        entries = file_entries(record, DOMAIN, max_file_bytes=10**6)
+        self.assertEqual([e["file_key"] for e in entries], ["a.csv", "b.XLSX", "d.csv.gz", "e.parquet"])
+        self.assertEqual([e["file_extension"] for e in entries], ["csv", "xlsx", "csv.gz", "parquet"])
 
     def test_restricted_records_yield_nothing(self):
         record = invenio_record({"a.csv": 10}, access="restricted")
@@ -127,6 +129,25 @@ class ArchiveTests(unittest.TestCase):
         # Crawler and transformer must derive the same id for a member.
         self.assertEqual(jobs[1]["dataset_id"], member_dataset_id(entry["dataset_id"], "data/b_table.csv"))
         self.assertEqual(jobs[0]["archive"]["url"], entry["file_url"])
+
+    def test_parquet_and_gz_members(self):
+        frame = pd.DataFrame({"year": range(2000, 2020), "value": range(20)})
+        path = Path(self.tmp.name) / "mixed.zip"
+        import gzip, io
+        parquet, gz = io.BytesIO(), io.BytesIO()
+        frame.to_parquet(parquet, index=False)
+        with gzip.GzipFile(fileobj=gz, mode="wb") as fh:
+            fh.write(frame.to_csv(index=False).encode())
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("tiles/part-0.parquet", parquet.getvalue())
+            archive.writestr("tables/table.csv.gz", gz.getvalue())
+            archive.writestr("notes/other.txt.gz", b"not tabular")
+        records = profile_archive(path, {"dataset_id": f"{DOMAIN}:r:z", "file_key": "mixed.zip"})
+        self.assertEqual(sorted(r["source_record"]["archive"]["member"] for r in records),
+                         ["tables/table.csv.gz", "tiles/part-0.parquet"])
+        for record in records:
+            self.assertEqual(record["profiler_metadata"]["nb_rows"], 20)
+            self.assertEqual(record["temporal_coverage"], {"start": "2000-01-01", "end": "2019-12-31"})
 
     def test_discovery_keeps_zips(self):
         keys = [e["file_key"] for e in file_entries(invenio_record({"a.zip": 10**11, "b.csv": 10}), DOMAIN, 10**6)]
@@ -212,6 +233,17 @@ class TransformerTests(unittest.TestCase):
                 pd.DataFrame().to_excel(writer, sheet_name="About", index=False)
                 self.frame.to_excel(writer, sheet_name="Data", index=False)
         self.assert_profiled(self.profile("two_sheets.xlsx", write))
+
+    def test_gzipped_csv_and_tsv(self):  # CaltechDATA has ~170 .gz files
+        import gzip
+        for name, sep in (("data.csv.gz", ","), ("data.tsv.gz", "\t")):
+            def write(path, sep=sep):
+                with gzip.open(path, "wt", encoding="utf-8", newline="") as fh:
+                    self.frame.to_csv(fh, index=False, sep=sep)
+            self.assert_profiled(self.profile(name, write))
+
+    def test_parquet(self):  # UltraViolet has ~34k Parquet files inside zips
+        self.assert_profiled(self.profile("data.parquet", lambda p: self.frame.to_parquet(p, index=False)))
 
     def test_byte_cap_inside_quoted_multiline_field(self):  # found on UltraViolet: "EOF inside string"
         long_cell = '"' + ("line of text\n" * 40) + '"'

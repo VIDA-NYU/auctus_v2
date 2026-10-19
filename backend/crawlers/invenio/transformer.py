@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import gzip
 import io
 import json
 import logging
@@ -121,9 +122,30 @@ def _write_table(header: list[str], records, out: Path) -> Table:
                  rows=count, bytes=out.stat().st_size)
 
 
+def _open_text(path: Path, extension: str):
+    """Text handle on a delimited file, decompressing .gz; BOMs dropped, bad bytes replaced."""
+    if extension.endswith(".gz"):
+        return gzip.open(path, "rt", encoding="utf-8-sig", errors="replace", newline="")
+    return open(path, encoding="utf-8-sig", errors="replace", newline="")
+
+
+def _parquet_rows(path: Path, columns: list[str]):
+    """Rows of a Parquet file as tuples, a row group batch at a time (never all in memory)."""
+    import pyarrow.parquet as pq
+
+    for batch in pq.ParquetFile(path).iter_batches(batch_size=50_000, columns=columns):
+        yield from zip(*(column.to_pylist() for column in batch.columns))
+
+
 def normalize_table(raw: Path, extension: str) -> Table:
-    """Normalize a whole delimited file or the first non-empty sheet of a workbook."""
+    """Normalize a whole delimited file (plain or .gz), a Parquet file, or the first
+    non-empty sheet of a workbook."""
     out = Path(tempfile.NamedTemporaryFile(delete=False, suffix=".csv").name)
+    if extension == "parquet":
+        import pyarrow.parquet as pq
+
+        header = pq.ParquetFile(raw).schema_arrow.names
+        return _write_table(header, _parquet_rows(raw, header[:MAX_PROFILED_COLUMNS]), out)
     if extension in SPREADSHEET_EXTENSIONS:
         # Workbooks often start with a title or notes sheet and keep the data on a
         # later one (CaltechDATA), so empty sheets are skipped.
@@ -137,7 +159,7 @@ def normalize_table(raw: Path, extension: str) -> Table:
         return _write_table(list(frame.columns), frame.itertuples(index=False, name=None), out)
     separator = detect_separator(raw, extension)
     # utf-8-sig drops a BOM; undecodable bytes (Windows-1252 uploads) are replaced.
-    with open(raw, encoding="utf-8-sig", errors="replace", newline="") as fh:
+    with _open_text(raw, extension) as fh:
         reader = csv.reader(fh, delimiter=separator)
         header = next(reader, [])
         return _write_table(header, reader, out)
@@ -163,8 +185,8 @@ def load_local_table(path: Path, extension: str) -> Table:
 def detect_separator(path: Path, extension: str) -> str:
     """Sniff the delimiter: repository CSVs are not always comma-separated (e.g. `;`
     from European locales). Falls back to the extension's default."""
-    default = "\t" if extension == "tsv" else ","
-    with open(path, mode="r", encoding="utf-8", errors="replace", newline="") as fh:
+    default = "\t" if extension.startswith("tsv") else ","
+    with _open_text(path, extension) as fh:
         head = fh.read(64 * 1024)
     try:
         return csv.Sniffer().sniff(head, delimiters=",;\t|").delimiter
@@ -404,7 +426,7 @@ async def build_archive_records(dataset_meta: dict[str, Any], max_sample_rows: i
 def profile_local_file(path: Path, dataset_meta: dict[str, Any] | None = None) -> dict[str, Any]:
     """Run the whole transformer on a local file, without network (tests, benchmarks)."""
     path = Path(path)
-    extension = path.name.rsplit(".", 1)[-1].lower() if "." in path.name else ""
+    extension = member_extension(path.name)
     meta = {"dataset_id": f"local:{path.name}", "file_key": path.name, **(dataset_meta or {})}
     table = load_local_table(path, extension)
     try:

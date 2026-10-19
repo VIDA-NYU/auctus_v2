@@ -29,7 +29,7 @@ from crawlers.invenio.http import async_client
 
 LOGGER = logging.getLogger(__name__)
 
-TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls"}
+TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz"}
 # Zips: small ones become one archive job (downloaded); large ones are listed in
 # place and each selected tabular member becomes its own job (see archives.py).
 ARCHIVE_EXTENSIONS = {"zip"}
@@ -47,7 +47,7 @@ def html_to_text(value: str | None) -> str:
 
 
 def file_extension(key: str) -> str:
-    return key.rsplit(".", 1)[-1].lower() if "." in key else ""
+    return member_extension(key)
 
 
 def summarize_record(record: dict[str, Any], domain: str) -> dict[str, Any]:
@@ -155,7 +155,9 @@ async def discover_invenio_datasets(
     query: it has ~184k datasets with tabular files and allows 25 results per page
     and 30 requests per minute anonymously.
     """
-    type_filter = "files.types:(" + " OR ".join(sorted(TABULAR_EXTENSIONS | ARCHIVE_EXTENSIONS)) + ")"
+    # InvenioRDM indexes the last extension only (data.csv.gz -> "gz").
+    searchable = {ext.rsplit(".", 1)[-1] for ext in TABULAR_EXTENSIONS | ARCHIVE_EXTENSIONS}
+    type_filter = "files.types:(" + " OR ".join(sorted(searchable)) + ")"
     full_query = f"({query}) AND {type_filter}" if query else type_filter
     url: str | None = f"https://{domain}/api/records"
     params: dict[str, Any] | None = {"q": full_query, "size": page_size, "sort": "newest"}
