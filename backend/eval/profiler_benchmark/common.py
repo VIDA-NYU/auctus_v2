@@ -1,7 +1,7 @@
 """Shared logic for the profiler benchmark: corpus loading and type mapping.
 
 Profiling itself always goes through the connector
-(crawlers.invenio.transformer.profile_local_file / sample_local_file / profile_sample),
+(crawlers.invenio.transformer.load_local_table / profile_table / assemble_record),
 so the benchmark measures exactly what ingestion runs. It needs a checkout of the
 backend and its Python requirements, not the Docker stack.
 """
