@@ -149,6 +149,33 @@ class ArchiveTests(unittest.TestCase):
             self.assertEqual(record["profiler_metadata"]["nb_rows"], 20)
             self.assertEqual(record["temporal_coverage"], {"start": "2000-01-01", "end": "2019-12-31"})
 
+    def test_archive_members_capped_per_record(self):
+        import asyncio
+        from unittest import mock
+        import crawlers.invenio.crawler as crawler
+
+        record = invenio_record({f"tiles_{i}.zip": 10**9 for i in range(5)})
+        page = {"hits": {"hits": [record]}, "links": {}}
+
+        def fake_expand(entry):  # each zip holds 30 tiles
+            return [{**entry, "zip_member": f"t{j}.parquet", "dataset_id": f"{entry['dataset_id']}:{j}"} for j in range(30)]
+
+        class FakeResponse:
+            status_code = 200
+            def raise_for_status(self): pass
+            def json(self): return page
+
+        class FakeClient:
+            async def __aenter__(self): return self
+            async def __aexit__(self, *a): pass
+            async def get(self, *a, **k): return FakeResponse()
+
+        with mock.patch.object(crawler, "expand_archive", fake_expand), \
+             mock.patch.object(crawler, "async_client", lambda *a, **k: FakeClient()), \
+             mock.patch.object(crawler, "MAX_ARCHIVE_MEMBERS_PER_RECORD", 50):
+            jobs = asyncio.run(crawler.discover_invenio_datasets(DOMAIN, limit=1000))
+        self.assertEqual(len(jobs), 50)
+
     def test_discovery_keeps_zips(self):
         keys = [e["file_key"] for e in file_entries(invenio_record({"a.zip": 10**11, "b.csv": 10}), DOMAIN, 10**6)]
         self.assertEqual(keys, ["a.zip", "b.csv"])  # zips have no size cap: they're read in place

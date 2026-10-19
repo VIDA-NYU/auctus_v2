@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import html
 import logging
+import os
 import re
 import zipfile
 from typing import Any
@@ -19,6 +20,7 @@ from urllib.parse import quote
 import httpx
 
 from crawlers.invenio.archives import (
+    MAX_ARCHIVE_MEMBERS,
     SMALL_ARCHIVE_BYTES,
     member_dataset_id,
     member_extension,
@@ -33,6 +35,7 @@ TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz"
 # Zips: small ones become one archive job (downloaded); large ones are listed in
 # place and each selected tabular member becomes its own job (see archives.py).
 ARCHIVE_EXTENSIONS = {"zip"}
+MAX_ARCHIVE_MEMBERS_PER_RECORD = int(os.getenv("MAX_ARCHIVE_MEMBERS_PER_RECORD", "50"))
 DEFAULT_PAGE_SIZE = 100
 DEFAULT_MAX_FILE_BYTES = 200 * 1024 * 1024
 TAG_RE = re.compile(r"<[^>]+>")
@@ -179,11 +182,26 @@ async def discover_invenio_datasets(
                 break
 
             for record in page.get("hits", {}).get("hits", []):
+                # Tile sets come split over many zips (an UltraViolet record has ~35 zips
+                # of near-identical Parquet tiles), so the member cap is per record,
+                # shared across its archives; once spent, its other zips aren't listed.
+                # Trade-off: a record that is a collection of different datasets (UAE Open
+                # Data, 67 tables) is capped too. Grouping same-schema members into one
+                # logical dataset would remove the need for a cap.
+                budget = MAX_ARCHIVE_MEMBERS_PER_RECORD
                 for entry in file_entries(record, domain, max_file_bytes):
-                    if entry["file_extension"] in ARCHIVE_EXTENSIONS:
-                        discovered.extend(await asyncio.to_thread(expand_archive, entry))
-                    else:
+                    if entry["file_extension"] not in ARCHIVE_EXTENSIONS:
                         discovered.append(entry)
+                        continue
+                    if budget <= 0:
+                        continue
+                    jobs = await asyncio.to_thread(expand_archive, entry)
+                    if jobs and not jobs[0].get("zip_member"):  # one small-archive job
+                        budget -= min(jobs[0].get("archive_tabular_members", 0), MAX_ARCHIVE_MEMBERS)
+                        discovered.extend(jobs)
+                    else:
+                        discovered.extend(jobs[:budget])
+                        budget -= len(jobs[:budget])
 
             # links.next already carries the query string.
             url, params = (page.get("links") or {}).get("next"), None
