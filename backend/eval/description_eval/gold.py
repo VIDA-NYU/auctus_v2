@@ -1,12 +1,15 @@
 """Build the hand-metadata ("gold") side.
 
-For every UltraViolet record that Auctus indexed:
-- record-level gold straight from the UltraViolet API: curator description,
+For every record Auctus indexed on an instance (UltraViolet, CaltechDATA):
+- record-level gold straight from the repository API: curator description,
   subjects, dates, locations (no extraction, these are typed fields);
-- column-level gold from the record's README data dictionary. Dictionaries come in
-  several formats (HTML tables, grid tables, indented lists), so an LLM extracts them
-  into JSON, and a person must check each file against the README and set
+- column-level gold from the record's documentation: READMEs, codebooks, data
+  dictionaries (loose or inside zips; found by `run scan`). They come in many formats
+  (HTML tables, grid tables, indented lists, codebook CSVs, PDFs), so an LLM extracts
+  them into JSON, and a person must check each file against the source and set
   "verified": true before it counts.
+
+UltraViolet gold is gold/<record>.json; other instances are gold/<instance>/<record>.json.
 """
 
 from __future__ import annotations
@@ -19,17 +22,17 @@ from crawlers.invenio.crawler import html_to_text
 from crawlers.invenio.http import async_client
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
 
-from eval.description_eval.common import GOLD_DIR, UV_DOMAIN, ask_json, write_json
+from eval.description_eval.common import DATA_DIR, GOLD_DIR, UV_DOMAIN, ask_json, read_json, write_json
 
 README_TEXT_EXTENSIONS = {"md", "txt", ""}
 MAX_README_CHARS = 120_000
 
-EXTRACTION_PROMPT = """You are extracting a data dictionary from a dataset README written by a librarian.
+EXTRACTION_PROMPT = """You are extracting a data dictionary from a dataset's documentation (README, codebook or data dictionary).
 
 The record contains these tabular files:
 {file_list}
 
-README:
+Documentation:
 <<<
 {readme}
 >>>
@@ -88,6 +91,61 @@ async def fetch_readme(client, record: dict[str, Any]) -> tuple[str | None, str]
     return None, ""
 
 
+async def gold_path(instance: str, record_id: str):
+    return GOLD_DIR / f"{record_id}.json" if instance == "ultraviolet" else GOLD_DIR / instance / f"{record_id}.json"
+
+
+# Documents naming fewer of the record's columns than this aren't sent for extraction.
+MIN_COLUMN_HITS = 3
+
+
+def documentation_prompt(source: dict[str, Any]) -> tuple[list[str], str]:
+    """(doc names, text) of the docs worth extracting, best first, within MAX_README_CHARS."""
+    names, parts, used = [], [], 0
+    for doc in source["docs"]:
+        if doc["column_hits"] < MIN_COLUMN_HITS or used >= MAX_README_CHARS:
+            continue
+        chunk = f"### {doc['name']} ({doc['where']})\n{doc['text'][: MAX_README_CHARS - used]}"
+        names.append(doc["name"])
+        parts.append(chunk)
+        used += len(chunk)
+    return names, "\n\n".join(parts)
+
+
+def build_gold_from_sources(instance: str, record_ids: list[str] | None = None, overwrite: bool = False) -> list[str]:
+    """Gold from `run scan` output; never overwrites a hand-verified file."""
+    written = []
+    for source_path in sorted((DATA_DIR / "sources" / instance).glob("*.json")):
+        source = read_json(source_path)
+        record_id = source["record_id"]
+        if record_ids and record_id not in record_ids:
+            continue
+        path = gold_path(instance, record_id)
+        if path.exists() and (read_json(path).get("verified") or not overwrite):
+            continue
+        doc_names, text = documentation_prompt(source)
+        dictionary: dict[str, Any] = {"files": {}, "notes": "no documentation naming the columns"}
+        if text:
+            file_list = "\n".join(f"- {f['file_key']}" for f in source["files"])
+            dictionary = ask_json(EXTRACTION_PROMPT.format(file_list=file_list, readme=text), max_tokens=60000)
+        write_json(path, {
+            "record_id": record_id,
+            "domain": source["domain"],
+            "files": [{"dataset_id": f["dataset_id"], "file_key": f["file_key"]} for f in source["files"]],
+            "curator": source["curator"],
+            "readme_file": ", ".join(doc_names) or None,
+            "readme_truncated": len(text) >= MAX_README_CHARS,
+            "dictionary": dictionary.get("files") or {},
+            "extraction_notes": dictionary.get("notes", ""),
+            # Set to true by hand after checking `dictionary` against the documentation.
+            "verified": False,
+        })
+        written.append(record_id)
+        print(f"gold {instance}/{record_id}: docs={doc_names} "
+              f"columns={sum(len(v) for v in (dictionary.get('files') or {}).values())}")
+    return written
+
+
 async def build_gold(record_ids: list[str] | None = None, overwrite: bool = False) -> list[str]:
     files_by_record = indexed_uv_files()
     written = []
@@ -125,5 +183,9 @@ async def build_gold(record_ids: list[str] | None = None, overwrite: bool = Fals
     return written
 
 
-def main(record_ids: list[str] | None = None, overwrite: bool = False) -> None:
-    asyncio.run(build_gold(record_ids, overwrite))
+def main(record_ids: list[str] | None = None, overwrite: bool = False, instances: list[str] | None = None) -> None:
+    if instances:  # from `run scan` output
+        for instance in instances:
+            build_gold_from_sources(instance, record_ids, overwrite)
+    else:  # legacy: first README only, UltraViolet only
+        asyncio.run(build_gold(record_ids, overwrite))

@@ -21,6 +21,9 @@ CACHE_DIR = DATA_DIR / "cache" / "llm"
 RESULTS_DIR = DATA_DIR / "results"
 
 UV_DOMAIN = "ultraviolet.library.nyu.edu"
+# Instances gold can come from. UltraViolet is the development set; CaltechDATA is
+# held out (the profiler fixes were written looking at UltraViolet failures only).
+INSTANCES = {"ultraviolet": UV_DOMAIN, "caltech": "data.caltech.edu"}
 PORTKEY_BASE_URL = os.getenv("PORTKEY_BASE_URL", "https://ai-gateway.apps.cloud.rt.nyu.edu/v1/")
 # AutoDDG generates with gemini-2.5-flash; judging with a different (stronger) model
 # avoids a model grading its own output. Only Gemini models are enabled on the NYU
