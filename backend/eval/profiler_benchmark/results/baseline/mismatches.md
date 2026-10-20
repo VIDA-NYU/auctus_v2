@@ -1,6 +1,6 @@
 # README type mismatches by failure mode
 
-247 of 498 scored README columns disagree with the profiler; 6 more README columns don't exist in their file (unscored).
+243 of 498 scored README columns disagree with the profiler; 6 more README columns don't exist in their file (unscored).
 
 | failure mode | columns | on | what it is |
 |---|---|---|---|
@@ -8,12 +8,12 @@
 | place_false_positive | 46 | profiler | geo-classifier labelled a non-place column (codes, flags, numbers) as a place |
 | other | 35 | unclear | doesn't fit a rule; read the values |
 | yes_no_flags | 15 | ambiguous | a yes/no or 0/1 column read as categorical/numeric vs boolean |
-| text_vs_categorical | 6 | ambiguous | free text vs categorical: a granularity call, not an error |
 | not_in_file | 6 | gold | README column name not found in the file (extraction error or README drift) |
 | missing_codes | 2 | data | missing-value codes written as text (NA, '.', -99, 'NaN') mixed into a numeric or date column, so it gets a weaker type |
+| text_vs_categorical | 2 | ambiguous | free text vs categorical: a granularity call, not an error |
 | formatted_numbers | 2 | profiler | numbers with $, % or thousands separators typed as text |
 
-Scored mismatches by attribution: profiler 189, unclear 35, ambiguous 21, data 2
+Scored mismatches by attribution: profiler 189, unclear 35, ambiguous 17, data 2
 
 ## coded_categories (141)
 
@@ -87,17 +87,6 @@ Scored mismatches by attribution: profiler 189, unclear 35, ambiguous 21, data 2
 | tn478-2kc30 | 2020_NYU_egress_covid19_raw_v3.csv | Nam_Frm | binary | categorical | ok |
 | ... | 3 more | | | | |
 
-## text_vs_categorical (6)
-
-| dataset | file | column | README type | profiler | values seen |
-|---|---|---|---|---|---|
-| dshqk-atn19 | ukraineinrussianpublishing.csv | Language | Text | categorical | Russian, Russian, translated from Ukrainian, Ukrainian, translated fro |
-| dshqk-atn19 | ukraineinrussianpublishing.csv | Category | Text | categorical | History, Ukrainian literature, Russian literature, Political thought,  |
-| dshqk-atn19 | ukraineinrussianpublishing.csv | Subcategory 1 | Text | categorical | Genre fiction, Post-Soviet, Poetry, World War II, Classics |
-| dshqk-atn19 | ukraineinrussianpublishing.csv | Subcategory 2 | Text | categorical | Sci-fi/Fantasy, Historical fiction, Military advenure novels, Detectiv |
-| fz2tx-v7x97 | TaggedTranscripts.csv | tag | Categorical | text | Inspiration.books, Timeconstraints, Research.online.artists, Inspirati |
-| tn478-2kc30 | 2020_NYU_egress_covid19_raw_v3.csv | X3r_T_1 | Categorical | text | NA, Personal Object (non-cell phone), Vehicle, Building/Subway Part, S |
-
 ## not_in_file (6)
 
 | dataset | file | column | README type | profiler | values seen |
@@ -115,6 +104,13 @@ Scored mismatches by attribution: profiler 189, unclear 35, ambiguous 21, data 2
 |---|---|---|---|---|---|
 | 9wnjp-kez15 | Merged-Costs-1-4.csv | Start_year | YYYY | numeric | NaN, 2021, 2020, 2019, 2017 |
 | 9wnjp-kez15 | Merged-Costs-1-4.csv | End_year | YYYY | numeric | NaN, 2020, 2022, 2021, 2019 |
+
+## text_vs_categorical (2)
+
+| dataset | file | column | README type | profiler | values seen |
+|---|---|---|---|---|---|
+| fz2tx-v7x97 | TaggedTranscripts.csv | tag | Categorical | text | Inspiration.books, Timeconstraints, Research.online.artists, Inspirati |
+| tn478-2kc30 | 2020_NYU_egress_covid19_raw_v3.csv | X3r_T_1 | Categorical | text | NA, Personal Object (non-cell phone), Vehicle, Building/Subway Part, S |
 
 ## formatted_numbers (2)
 

@@ -95,6 +95,9 @@ def coarse_from_gold(type_text: str, units_text: str = "", column: str = "", def
     context = f"{column} {definition}".lower()
     if re.search(r"\byears?\b", context) and expected == "numeric":
         acceptable.add("date")
+    # "Text"/"String" is a storage type: repeated labels stored as text are categorical.
+    if expected == "text":
+        acceptable.add("categorical")
     if re.search(_PLACE_WORDS, context) and expected in ("categorical", "text"):
         acceptable.add("place")
     if expected in ("categorical", "boolean") and re.search(_CODED_VALUES, units_text):
