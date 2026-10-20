@@ -5,12 +5,12 @@
 | failure mode | columns | on | what it is |
 |---|---|---|---|
 | not_in_file | 14 | gold | README column name not found in the file (extraction error or README drift) |
-| coded_categories | 11 | ambiguous | categories stored as numeric codes (1 = 'Not at all'); the README calls it categorical, the data is integers |
+| coded_categories | 11 | profiler | categories stored as numeric codes (1 = 'Not at all') typed numeric; the README says categorical |
 | place_false_positive | 4 | profiler | geo-classifier labelled a non-place column (codes, flags, numbers) as a place |
 | missing_codes | 2 | data | missing-value codes written as text (NA, '.', -99, 'NaN') mixed into a numeric or date column, so it gets a weaker type |
 | other | 2 | unclear | doesn't fit a rule; read the values |
 
-Scored mismatches by attribution: ambiguous 11, profiler 4, data 2, unclear 2
+Scored mismatches by attribution: profiler 15, data 2, unclear 2
 
 ## not_in_file (14)
 
