@@ -10,7 +10,8 @@
     "atlas_profiler": "0.0.2b1",
     "pandas": "3.0.6",
     "at": "2026-10-19T15:43:18+00:00",
-    "profiler_code": "stock atlas-profiler (upstream main b449447 = PyPI 0.0.2b1 code)"
+    "profiler_code": "stock atlas-profiler (upstream main b449447 = PyPI 0.0.2b1 code)",
+    "gold": "2026-10-20: scanned docs (28 records with dictionaries), value labels -> categorical"
   },
   "robustness": {
     "files": 66,
@@ -63,18 +64,22 @@
       "types_preamble.csv": 0.0,
       "types_semicolon.csv": 0.7692
     },
-    "readme_columns": 191,
-    "readme_scored": 128,
+    "readme_columns": 3668,
+    "readme_scored": 498,
     "readme_verified_gold": false,
-    "readme_accuracy": 0.8516,
-    "readme_strict_accuracy": 0.5469,
+    "readme_accuracy": 0.504,
+    "readme_strict_accuracy": 0.2711,
     "readme_confusions": {
-      "categorical->numeric": 11,
-      "categorical->place": 3,
-      "date->numeric": 2,
-      "numeric->identifier": 1,
-      "categorical->identifier": 1,
-      "boolean->place": 1
+      "categorical->numeric": 168,
+      "categorical->place": 41,
+      "categorical->boolean": 9,
+      "date->numeric": 4,
+      "text->categorical": 4,
+      "boolean->categorical": 4,
+      "numeric->place": 3,
+      "date->text": 3,
+      "numeric->identifier": 2,
+      "date->place": 2
     }
   },
   "sampling": {

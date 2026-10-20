@@ -145,12 +145,44 @@ def performance(jobs: int, timeout: int, tmp: Path) -> list[dict]:
             for (r, c), res in zip(PERF_SHAPES, results)]
 
 
+def rescore(out: Path) -> None:
+    """Re-apply the gold (dictionaries and type mapping) to a run's README rows without
+    profiling again: profiled types are kept, expected types recomputed."""
+    from eval.profiler_benchmark.common import coarse_from_gold
+    from eval.profiler_benchmark.score import read_rows, write_rows
+
+    gold = {}
+    for path in sorted(GOLD_DIR.glob("*.json")) + sorted(VERIFIED_GOLD_DIR.glob("*.json") if VERIFIED_GOLD_DIR.exists() else []):
+        g = json.loads(path.read_text())
+        for file_key, columns in (g.get("dictionary") or {}).items():
+            targets = [f["file_key"] for f in g["files"]] if file_key == "*" else [file_key]
+            for target in targets:
+                for col in columns:
+                    gold[(g["record_id"], target, col["column"])] = (col, g.get("verified", False))
+    rows = []
+    for row in read_rows(out / "types_readme.jsonl"):
+        entry = gold.get((row["record"], row["file"], row["column"]))
+        if entry is None:
+            continue
+        col, verified = entry
+        expected, acceptable = coarse_from_gold(col.get("type", ""), col.get("units", ""), col["column"],
+                                                col.get("definition", ""))
+        got = row["got"]
+        scorable = expected is not None and got is not None
+        rows.append({**row, "gold_type": col.get("type", ""), "expected": expected,
+                     "acceptable": "|".join(sorted(acceptable)), "verified": verified,
+                     "strict_correct": got == expected if scorable else None,
+                     "correct": got in acceptable if scorable else None})
+    write_rows(out / "types_readme.jsonl", rows)
+
+
 def main() -> None:
     from eval.profiler_benchmark import score
     from eval.profiler_benchmark.common import load_corpus
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("stage", choices=["all", "robustness", "types", "sampling", "performance", "compare", "sampling-sweep", "mismatches"])
+    parser.add_argument("stage", choices=["all", "robustness", "types", "sampling", "performance", "compare", "sampling-sweep",
+                                          "mismatches", "rescore"])
     parser.add_argument("paths", nargs="*", help="compare: BASELINE_DIR CURRENT_DIR")
     parser.add_argument("--harvest", nargs="+", type=Path, default=[], help="invenio_fetching harvest dirs")
     parser.add_argument("--per-instance", type=int, default=0, help="random files per instance (0 = all)")
@@ -166,6 +198,12 @@ def main() -> None:
         sys.exit(score.compare(Path(args.paths[0]), Path(args.paths[1])))
     if args.stage == "mismatches":
         from eval.profiler_benchmark import mismatches
+        mismatches.run(args.out)
+        return
+    if args.stage == "rescore":
+        from eval.profiler_benchmark import mismatches
+        rescore(args.out)
+        score.summarize_dir(args.out, {"rescored": True})
         mismatches.run(args.out)
         return
     if args.stage == "sampling-sweep":

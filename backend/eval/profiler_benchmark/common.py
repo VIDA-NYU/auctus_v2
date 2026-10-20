@@ -82,6 +82,11 @@ def coarse_from_gold(type_text: str, units_text: str = "", column: str = "", def
                 break
         if expected:
             break
+    # A codebook listing value labels ("1: Single; 2: Married") documents categories,
+    # whatever storage type it states (REDCap/SPSS exports say "Numeric" for these).
+    labels = re.findall(r"(?:^|[;,\n])\s*-?\d+(?:\.\d+)?\s*[:=]\s*\S", units_text)
+    if expected in (None, "numeric") and len(labels) >= 2:
+        return "categorical", {"categorical", "boolean"} if len(labels) == 2 else {"categorical"}
     if expected is None:
         return None, set()
     acceptable = {expected}

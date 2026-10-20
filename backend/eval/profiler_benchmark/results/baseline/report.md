@@ -1,6 +1,6 @@
 # Profiler benchmark report
 
-Run: `{"harvest": ["../../data/ultraviolet"], "per_instance": 0, "seed": 0, "stage": "all", "commit": "e4ec05c", "atlas_profiler": "0.0.2b1", "pandas": "3.0.6", "at": "2026-10-19T15:43:18+00:00", "profiler_code": "stock atlas-profiler (upstream main b449447 = PyPI 0.0.2b1 code)"}`
+Run: `{"harvest": ["../../data/ultraviolet"], "per_instance": 0, "seed": 0, "stage": "all", "commit": "e4ec05c", "atlas_profiler": "0.0.2b1", "pandas": "3.0.6", "at": "2026-10-19T15:43:18+00:00", "profiler_code": "stock atlas-profiler (upstream main b449447 = PyPI 0.0.2b1 code)", "gold": "2026-10-20: scanned docs (28 records with dictionaries), value labels -> categorical"}`
 
 ## 1. Robustness
 
@@ -34,7 +34,7 @@ Wrong on the baseline file:
 - thousands_sep (got text, want numeric)
 - uuid (got text, want identifier)
 
-README dictionaries: 128 of 191 columns scorable; accuracy **0.8516** (strict, README type only: 0.5469; gold verified: False). Most common errors: categorical->numeric (11), categorical->place (3), date->numeric (2), numeric->identifier (1), categorical->identifier (1), boolean->place (1)
+README dictionaries: 498 of 3668 columns scorable; accuracy **0.504** (strict, README type only: 0.2711; gold verified: False). Most common errors: categorical->numeric (168), categorical->place (41), categorical->boolean (9), date->numeric (4), text->categorical (4), boolean->categorical (4), numeric->place (3), date->text (3), numeric->identifier (2), date->place (2)
 
 ## 3. Sampling
 
