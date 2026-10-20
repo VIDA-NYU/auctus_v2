@@ -67,19 +67,19 @@
     "readme_columns": 3668,
     "readme_scored": 498,
     "readme_verified_gold": false,
-    "readme_accuracy": 0.504,
+    "readme_accuracy": 0.512,
     "readme_strict_accuracy": 0.2711,
     "readme_confusions": {
       "categorical->numeric": 170,
       "categorical->place": 43,
       "categorical->boolean": 9,
-      "text->categorical": 4,
       "boolean->categorical": 4,
       "numeric->place": 3,
       "date->text": 3,
       "date->numeric": 2,
       "numeric->identifier": 2,
-      "categorical->text": 2
+      "categorical->text": 2,
+      "numeric->categorical": 2
     }
   },
   "sampling": {
