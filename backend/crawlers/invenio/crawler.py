@@ -9,6 +9,7 @@ their record context for later compendium work.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import html
 import logging
 import os
@@ -24,8 +25,9 @@ from crawlers.invenio.archives import (
     SMALL_ARCHIVE_BYTES,
     member_dataset_id,
     member_extension,
+    member_pattern,
     open_remote_zip,
-    select_archive_members,
+    tabular_members,
 )
 from crawlers.invenio.http import async_client
 
@@ -35,7 +37,14 @@ TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz"
 # Zips: small ones become one archive job (downloaded); large ones are listed in
 # place and each selected tabular member becomes its own job (see archives.py).
 ARCHIVE_EXTENSIONS = {"zip"}
+# Members of large zips that share a name pattern (part.#.parquet) across a record
+# are one table split into parts: they become one grouped dataset, profiled from a
+# sample of parts (see transformer.profile_member_group). Other members of large
+# zips are profiled one by one, at most MAX_ARCHIVE_MEMBERS per zip and
+# MAX_ARCHIVE_MEMBERS_PER_RECORD per record. Small zips aren't capped per record.
 MAX_ARCHIVE_MEMBERS_PER_RECORD = int(os.getenv("MAX_ARCHIVE_MEMBERS_PER_RECORD", "50"))
+MIN_GROUP_MEMBERS = int(os.getenv("MIN_GROUP_MEMBERS", "5"))
+MAX_GROUP_SAMPLES = int(os.getenv("MAX_GROUP_SAMPLES", "40"))
 DEFAULT_PAGE_SIZE = 100
 DEFAULT_MAX_FILE_BYTES = 200 * 1024 * 1024
 TAG_RE = re.compile(r"<[^>]+>")
@@ -108,10 +117,10 @@ def file_entries(record: dict[str, Any], domain: str, max_file_bytes: int) -> li
 
 
 def archive_member_entries(entry: dict[str, Any], archive: zipfile.ZipFile) -> list[dict[str, Any]]:
-    """One job per selected tabular member of a (large) archive entry."""
-    members, total = select_archive_members(archive)
+    """One entry per tabular member of a (large) archive entry; not yet capped."""
+    members = tabular_members(archive)
     archive_info = {"dataset_id": entry["dataset_id"], "file_key": entry["file_key"], "url": entry["file_url"],
-                    "size": entry["file_size"], "tabular_members": total, "profiled_members": len(members)}
+                    "size": entry["file_size"], "tabular_members": len(members)}
     return [{
         **entry,
         "dataset_id": member_dataset_id(entry["dataset_id"], info.filename),
@@ -124,12 +133,12 @@ def archive_member_entries(entry: dict[str, Any], archive: zipfile.ZipFile) -> l
 
 
 def expand_archive(entry: dict[str, Any], unlisted: set[str] | None = None) -> list[dict[str, Any]]:
-    """List an archive in place (HTTP Range) and turn it into jobs.
+    """List an archive in place (HTTP Range).
 
-    No tabular members: no job. Small archive: one job that downloads it and
-    profiles its members. Large archive: one job per selected member, each of
-    which reads only that member's bytes. Archives that can't be listed are added
-    to `unlisted`, so their already-indexed members aren't treated as stale.
+    No tabular members: []. Small archive: one job that downloads it and profiles its
+    members. Large archive: one entry per tabular member, to be grouped or capped by
+    plan_member_jobs. Archives that can't be listed are added to `unlisted`, so their
+    already-indexed members aren't treated as stale.
     """
     try:
         with open_remote_zip(entry["file_url"], entry["file_size"]) as archive:
@@ -144,6 +153,91 @@ def expand_archive(entry: dict[str, Any], unlisted: set[str] | None = None) -> l
     if (entry.get("file_size") or 0) < SMALL_ARCHIVE_BYTES:
         return [{**entry, "archive_tabular_members": members[0]["archive"]["tabular_members"]}]
     return members
+
+
+def spread_sample(items: list[Any], k: int) -> list[Any]:
+    """k items evenly spaced over `items`, first and last included."""
+    if len(items) <= k:
+        return list(items)
+    if k <= 1:
+        return items[:1]
+    return [items[round(i * (len(items) - 1) / (k - 1))] for i in range(k)]
+
+
+def group_dataset_id(member: dict[str, Any], pattern: str) -> str:
+    """Stable id of a grouped dataset: the record's id prefix plus the pattern."""
+    prefix = member["archive"]["dataset_id"].rsplit(":", 1)[0]  # domain:record
+    return f"{prefix}:group:{hashlib.sha1(pattern.encode()).hexdigest()[:12]}"
+
+
+def group_job(pattern: str, members: list[dict[str, Any]], max_samples: int = MAX_GROUP_SAMPLES) -> dict[str, Any]:
+    """One job for all parts of a split table, with the parts to sample.
+
+    Parts are sampled across every zip they're spread over (one per zip first, then
+    evenly within zips), so coverage reaches every zip, e.g. every city of a
+    per-city tile set.
+    """
+    archives: dict[str, dict[str, Any]] = {}
+    by_archive: dict[str, list[dict[str, Any]]] = {}
+    for member in members:
+        archive = member["archive"]
+        archives.setdefault(archive["dataset_id"], {k: archive[k] for k in ("dataset_id", "file_key", "url", "size")})
+        by_archive.setdefault(archive["dataset_id"], []).append(member)
+    per_archive = max(1, max_samples // max(1, len(by_archive)))
+    samples = []
+    for archive_id, parts in by_archive.items():
+        samples += [{"archive": archive_id, "member": m["zip_member"], "file_size": m["file_size"]}
+                    for m in spread_sample(parts, per_archive)]
+    samples = spread_sample(samples, max_samples)
+    first = members[0]
+    extension = first["file_extension"]
+    return {
+        **{k: v for k, v in first.items() if k not in ("zip_member", "archive")},
+        "dataset_id": group_dataset_id(first, pattern),
+        "file_key": f"{pattern} ({len(members)} parts in {len(archives)} zip{'s' if len(archives) > 1 else ''})",
+        "file_extension": extension,
+        "file_size": sum(m["file_size"] or 0 for m in members),
+        "file_url": first["archive"]["url"],
+        "member_group": {
+            "pattern": pattern,
+            "total_members": len(members),
+            "total_bytes": sum(m["file_size"] or 0 for m in members),
+            "archives": list(archives.values()),
+            "samples": samples,
+        },
+    }
+
+
+def plan_member_jobs(members: list[dict[str, Any]], budget: int = MAX_ARCHIVE_MEMBERS_PER_RECORD,
+                     per_archive: int = MAX_ARCHIVE_MEMBERS,
+                     min_group: int = MIN_GROUP_MEMBERS) -> list[dict[str, Any]]:
+    """Jobs for the members of a record's large zips.
+
+    Members sharing a name pattern and extension (at least `min_group` of them)
+    become one group job; the rest are profiled one by one, capped per zip and per
+    record.
+    """
+    patterns: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for member in members:
+        patterns.setdefault((member_pattern(member["zip_member"]), member["file_extension"]), []).append(member)
+    jobs, singles = [], []
+    for (pattern, _ext), group in patterns.items():
+        if len(group) >= min_group:
+            jobs.append(group_job(pattern, group))
+        else:
+            singles += group
+    per_zip: dict[str, int] = {}
+    taken = 0
+    for member in sorted(singles, key=lambda m: m["file_key"]):
+        archive_id = member["archive"]["dataset_id"]
+        if taken >= budget:
+            break
+        if per_zip.get(archive_id, 0) >= per_archive:
+            continue
+        per_zip[archive_id] = per_zip.get(archive_id, 0) + 1
+        taken += 1
+        jobs.append(member)
+    return jobs
 
 
 async def discover_invenio_datasets(
@@ -193,26 +287,20 @@ async def discover_invenio_datasets(
                 break
 
             for record in page.get("hits", {}).get("hits", []):
-                # Tile sets come split over many zips (an UltraViolet record has ~35 zips
-                # of near-identical Parquet tiles), so the member cap is per record,
-                # shared across its archives; once spent, its other zips aren't listed.
-                # Trade-off: a record that is a collection of different datasets (UAE Open
-                # Data, 67 tables) is capped too. Grouping same-schema members into one
-                # logical dataset would remove the need for a cap.
-                budget = MAX_ARCHIVE_MEMBERS_PER_RECORD
+                # Tile sets come split over many zips (an UltraViolet record has 35
+                # zips of Parquet tiles, one per city), so members of all of a
+                # record's large zips are planned together.
+                large_members = []
                 for entry in file_entries(record, domain, max_file_bytes):
                     if entry["file_extension"] not in ARCHIVE_EXTENSIONS:
                         discovered.append(entry)
                         continue
-                    if budget <= 0:
-                        continue
                     jobs = await asyncio.to_thread(expand_archive, entry, unlisted)
                     if jobs and not jobs[0].get("zip_member"):  # one small-archive job
-                        budget -= min(jobs[0].get("archive_tabular_members", 0), MAX_ARCHIVE_MEMBERS)
                         discovered.extend(jobs)
                     else:
-                        discovered.extend(jobs[:budget])
-                        budget -= len(jobs[:budget])
+                        large_members.extend(jobs)
+                discovered.extend(plan_member_jobs(large_members))
 
             # links.next already carries the query string.
             url, params = (page.get("links") or {}).get("next"), None
@@ -229,14 +317,16 @@ def stale_doc_ids(indexed: list[dict[str, Any]], discovered: list[dict[str, Any]
 
     `indexed` holds {"id", "archive_dataset_id"} per doc of one domain. A doc is
     kept if discovery produced its id, or it is a member of a small archive that
-    was discovered (its members are chosen when the archive is profiled), or of an
-    archive that couldn't be listed this time. Everything else (deleted or
+    was discovered (its members are chosen when the archive is profiled), one of a
+    discovered group's per-schema docs, or a member of an archive that couldn't be
+    listed this time. Everything else (deleted or
     restricted records, files removed from a record, members beyond the caps) is
     stale.
     """
     keep_ids = {entry["dataset_id"] for entry in discovered}
     keep_archives = {entry["dataset_id"] for entry in discovered
-                     if entry.get("file_extension") in ARCHIVE_EXTENSIONS and not entry.get("zip_member")}
+                     if (entry.get("file_extension") in ARCHIVE_EXTENSIONS and not entry.get("zip_member"))
+                     or entry.get("member_group")}  # a group's per-schema docs
     keep_archives |= set(unlisted_archives)
     return [doc["id"] for doc in indexed
             if doc["id"] not in keep_ids and doc.get("archive_dataset_id") not in keep_archives]

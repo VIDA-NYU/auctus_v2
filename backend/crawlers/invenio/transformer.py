@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import datetime as dt
 import gzip
+import hashlib
 import io
 import json
 import logging
@@ -396,8 +398,203 @@ def profile_remote_member(dataset_meta: dict[str, Any], *_unused) -> dict[str, A
     with open_remote_zip(archive["url"], archive["size"]) as zf:
         info = zf.getinfo(dataset_meta["zip_member"])
         table, ext = member_table(zf, info)
-    totals = {"tabular_members": archive["tabular_members"], "profiled_members": archive["profiled_members"]}
+    totals = {"tabular_members": archive["tabular_members"]}
     return member_record(dataset_meta, archive["dataset_id"], archive["file_key"], info, table, ext, totals)
+
+
+# --- split tables (grouped zip members) -------------------------------------------
+
+LATITUDE = "http://schema.org/latitude"
+LONGITUDE = "http://schema.org/longitude"
+DATETIME = "http://schema.org/DateTime"
+# Parts of a group in a format without footer statistics (CSV, spreadsheets) are
+# fully profiled, at most this many per schema; the others only add to the row count.
+MAX_GROUP_FULL_PROFILES = int(os.getenv("MAX_GROUP_FULL_PROFILES", "5"))
+
+
+def _extract_member(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> Path:
+    ext = member_extension(info.filename)
+    limit = MAX_SPREADSHEET_BYTES if ext in SPREADSHEET_EXTENSIONS else MAX_FILE_BYTES
+    if info.file_size > limit:
+        raise ValueError(f"member is larger than the {limit}-byte limit")
+    raw = Path(tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}").name)
+    with archive.open(info) as source:
+        copy_capped(source, raw, limit)
+    return raw
+
+
+def parquet_summary(path: Path) -> dict[str, Any]:
+    """Column names, row count and per-column min/max from a Parquet footer (no data read)."""
+    import pyarrow.parquet as pq
+
+    pf = pq.ParquetFile(path)
+    meta = pf.metadata
+    stats: dict[str, list[Any]] = {}
+    for g in range(meta.num_row_groups):
+        group = meta.row_group(g)
+        for j in range(group.num_columns):
+            column = group.column(j)
+            st = column.statistics
+            if st is None or not st.has_min_max:
+                continue
+            name, current = column.path_in_schema, stats.get(column.path_in_schema)
+            try:
+                stats[name] = [min(current[0], st.min), max(current[1], st.max)] if current else [st.min, st.max]
+            except TypeError:  # mixed or incomparable types
+                continue
+    return {"columns": pf.schema_arrow.names, "rows": meta.num_rows, "stats": stats}
+
+
+def _columns_typed(output: dict[str, Any], semantic: str) -> list[str]:
+    return [c["name"] for c in output.get("columns", []) if semantic in (c.get("semantic_types") or [])]
+
+
+def _stats_bbox(stats: dict[str, list[Any]], output: dict[str, Any]) -> list[float] | None:
+    """Bounding box from footer min/max of the columns the profiler typed lat/long."""
+    for lat in _columns_typed(output, LATITUDE):
+        for lon in _columns_typed(output, LONGITUDE):
+            if lat in stats and lon in stats:
+                try:
+                    bbox = [float(stats[lon][0]), float(stats[lat][0]), float(stats[lon][1]), float(stats[lat][1])]
+                except (TypeError, ValueError):
+                    continue
+                if _valid_bbox(bbox):
+                    return bbox
+    return None
+
+
+def _stats_dates(stats: dict[str, list[Any]], output: dict[str, Any]) -> tuple[str | None, str | None]:
+    """(start, end) from footer min/max of date/time columns, when stored as dates."""
+    starts, ends = [], []
+    for name in _columns_typed(output, DATETIME):
+        lo, hi = stats.get(name, [None, None])
+        if isinstance(lo, (dt.date, dt.datetime)) and isinstance(hi, (dt.date, dt.datetime)):
+            starts.append(lo.isoformat()[:10])
+            ends.append(hi.isoformat()[:10])
+    return (min(starts), max(ends)) if starts else (None, None)
+
+
+def _union_bbox(a: list[float] | None, b: list[float] | None) -> list[float] | None:
+    if not a or not b:
+        return a or b
+    return [min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])]
+
+
+def _union_range(a: tuple, b: tuple) -> tuple:
+    starts = [v for v in (a[0], b[0]) if v]
+    ends = [v for v in (a[1], b[1]) if v]
+    return (min(starts) if starts else None, max(ends) if ends else None)
+
+
+def profile_member_group(dataset_meta: dict[str, Any], opener=open_remote_zip) -> list[dict[str, Any]]:
+    """Profile a table split into many zip members as one dataset (one record per schema).
+
+    The first sampled part of each schema is profiled whole (types, semantics,
+    coverage). Other sampled Parquet parts only have their footer read: row count
+    and min/max of the lat/long and date columns, merged into the box and time
+    range. The total row count is extrapolated from the sampled parts' share of
+    the group's uncompressed bytes (nb_rows_estimated).
+    """
+    group = dataset_meta["member_group"]
+    group_id = dataset_meta["dataset_id"]
+    archives = {a["dataset_id"]: a for a in group["archives"]}
+    samples_by_archive: dict[str, list[dict[str, Any]]] = {}
+    for sample in group["samples"]:
+        samples_by_archive.setdefault(sample["archive"], []).append(sample)
+
+    schemas: dict[tuple, dict[str, Any]] = {}  # column names -> merged state
+
+    def add_full(key, table, ext, archive, info):
+        headers, rows, output, errors = profile_table(table)
+        meta = {**dataset_meta, "file_key": f"{archive['file_key']}/{info.filename}", "file_extension": ext,
+                "file_size": info.file_size}
+        record = assemble_record(meta, table, headers, rows, output, errors)
+        coverage = record["temporal_coverage"]
+        if key not in schemas:
+            schemas[key] = {"record": record, "output": output, "bbox": record["profiler_metadata"]["spatial_bbox"],
+                            "time": (coverage["start"], coverage["end"]), "rows": 0, "bytes": 0, "parts": 0, "profiled": 0}
+        state = schemas[key]
+        state["bbox"] = _union_bbox(state["bbox"], record["profiler_metadata"]["spatial_bbox"])
+        state["time"] = _union_range(state["time"], (coverage["start"], coverage["end"]))
+        state["profiled"] += 1
+        return state
+
+    for archive_id, samples in samples_by_archive.items():
+        archive = archives[archive_id]
+        try:
+            with opener(archive["url"], archive["size"]) as zf:
+                for sample in samples:
+                    raw = table = None
+                    try:
+                        info = zf.getinfo(sample["member"])
+                        ext = member_extension(info.filename)
+                        raw = _extract_member(zf, info)
+                        if ext == "parquet":
+                            summary = parquet_summary(raw)
+                            key = tuple(summary["columns"])
+                            if key not in schemas:
+                                table = normalize_table(raw, ext)
+                                add_full(key, table, ext, archive, info)
+                            state = schemas[key]
+                            state["bbox"] = _union_bbox(state["bbox"], _stats_bbox(summary["stats"], state["output"]))
+                            state["time"] = _union_range(state["time"], _stats_dates(summary["stats"], state["output"]))
+                            rows = summary["rows"]
+                        else:
+                            table = normalize_table(raw, ext)
+                            key = tuple(table.headers)
+                            if key not in schemas or schemas[key]["profiled"] < MAX_GROUP_FULL_PROFILES:
+                                add_full(key, table, ext, archive, info)
+                            state = schemas[key]
+                            rows = table.rows
+                        state["rows"] += rows
+                        state["bytes"] += info.file_size
+                        state["parts"] += 1
+                    except Exception as exc:
+                        LOGGER.warning("Skipping group part %s: %r", sample["member"], exc)
+                    finally:
+                        if raw is not None:
+                            raw.unlink(missing_ok=True)
+                        if table is not None:
+                            table.path.unlink(missing_ok=True)
+        except Exception as exc:  # the zip itself couldn't be opened
+            LOGGER.warning("Skipping group archive %s: %r", archive["file_key"], exc)
+
+    sampled_bytes = sum(state["bytes"] for state in schemas.values())
+    records = []
+    for i, (key, state) in enumerate(sorted(schemas.items(), key=lambda kv: -kv[1]["bytes"])):
+        record = state["record"]
+        doc_id = group_id if i == 0 else f"{group_id}:{hashlib.sha1('|'.join(key).encode()).hexdigest()[:8]}"
+        scale = group["total_bytes"] / sampled_bytes if sampled_bytes else 1.0
+        title = (dataset_meta.get("record") or {}).get("title", "")
+        record.update({
+            "id": doc_id,
+            "title": f"{title}: {dataset_meta['file_key']}".strip(": "),
+            "archive_dataset_id": group_id,
+            "temporal_coverage": {"start": state["time"][0], "end": state["time"][1]},
+        })
+        pm = record["profiler_metadata"]
+        pm.update({"nb_rows": int(round(state["rows"] * scale)), "nb_rows_estimated": scale != 1.0,
+                   "spatial_bbox": state["bbox"]})
+        record["source_record"].update({
+            "file_key": dataset_meta["file_key"],
+            "file_size": group["total_bytes"],
+            "member_group": {"pattern": group["pattern"], "total_members": group["total_members"],
+                             "archives": len(group["archives"]), "sampled_parts": state["parts"],
+                             "profiled_parts": state["profiled"], "schemas": len(schemas)},
+        })
+        record.pop("spatial_coverage", None)
+        if state["bbox"]:
+            b = state["bbox"]
+            record["spatial_coverage"] = {"label": "", "bbox": {
+                "type": "envelope", "coordinates": [[b[0], b[3]], [b[2], b[1]]]}}
+        records.append(record)
+    return records
+
+
+async def build_group_records(dataset_meta: dict[str, Any], **_unused) -> list[dict[str, Any]]:
+    """Profile a grouped split table (see profile_member_group) off the event loop."""
+    async with PROFILER_SLOTS:
+        return await asyncio.to_thread(profile_member_group, dataset_meta)
 
 
 async def build_archive_records(dataset_meta: dict[str, Any], max_sample_rows: int | None = None,

@@ -11,6 +11,7 @@ Takes ~1-2 minutes: each transformer test runs atlas-profiler for real.
 
 from __future__ import annotations
 
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -149,16 +150,12 @@ class ArchiveTests(unittest.TestCase):
             self.assertEqual(record["profiler_metadata"]["nb_rows"], 20)
             self.assertEqual(record["temporal_coverage"], {"start": "2000-01-01", "end": "2019-12-31"})
 
-    def test_archive_members_capped_per_record(self):
+    def run_discovery(self, record, fake_expand, **kwargs):
         import asyncio
         from unittest import mock
         import crawlers.invenio.crawler as crawler
 
-        record = invenio_record({f"tiles_{i}.zip": 10**9 for i in range(5)})
         page = {"hits": {"hits": [record]}, "links": {}}
-
-        def fake_expand(entry, unlisted=None):  # each zip holds 30 tiles
-            return [{**entry, "zip_member": f"t{j}.parquet", "dataset_id": f"{entry['dataset_id']}:{j}"} for j in range(30)]
 
         class FakeResponse:
             status_code = 200
@@ -170,16 +167,129 @@ class ArchiveTests(unittest.TestCase):
             async def __aexit__(self, *a): pass
             async def get(self, *a, **k): return FakeResponse()
 
+        report = {}
         with mock.patch.object(crawler, "expand_archive", fake_expand), \
-             mock.patch.object(crawler, "async_client", lambda *a, **k: FakeClient()), \
-             mock.patch.object(crawler, "MAX_ARCHIVE_MEMBERS_PER_RECORD", 50):
-            report = {}
-            jobs = asyncio.run(crawler.discover_invenio_datasets(DOMAIN, limit=1000, report=report))
-            self.assertEqual(len(jobs), 50)
-            self.assertTrue(report["complete"])
-            report = {}
-            asyncio.run(crawler.discover_invenio_datasets(DOMAIN, limit=10, report=report))
-            self.assertFalse(report["complete"])  # cut by limit: never prune on this
+             mock.patch.object(crawler, "async_client", lambda *a, **k: FakeClient()):
+            jobs = asyncio.run(crawler.discover_invenio_datasets(DOMAIN, report=report, **kwargs))
+        return jobs, report
+
+    def test_record_discovery_groups_tiles_and_caps_single_tables(self):
+        letters = "abcdefghijklmnopqrstuvwxyz"
+        record = invenio_record({f"city_{i}.zip": 10**9 for i in range(5)})
+
+        def fake_expand(entry, unlisted=None):  # each zip: 30 tiles of one table + 20 distinct tables
+            i = int(entry["file_key"].split("_")[1].split(".")[0])
+            archive = {"dataset_id": entry["dataset_id"], "file_key": entry["file_key"], "url": entry["file_url"],
+                       "size": entry["file_size"], "tabular_members": 50}
+            names = [f"city{i}/part.{j}.parquet" for j in range(30)] + [f"{letters[i]}{letters[j]}.csv" for j in range(20)]
+            return [{**entry, "dataset_id": f"{entry['dataset_id']}:{n}", "file_key": f"{entry['file_key']}/{n}",
+                     "file_extension": n.rsplit(".", 1)[1], "file_size": 1000, "zip_member": n, "archive": archive}
+                    for n in names]
+
+        jobs, report = self.run_discovery(record, fake_expand, limit=1000)
+        groups = [j for j in jobs if j.get("member_group")]
+        self.assertEqual(len(groups), 1)  # 150 tiles over 5 zips -> one dataset
+        group = groups[0]["member_group"]
+        self.assertEqual((group["pattern"], group["total_members"], len(group["archives"])), ("part.#.parquet", 150, 5))
+        self.assertEqual(len(group["samples"]), 40)
+        self.assertEqual(len({s["archive"] for s in group["samples"]}), 5)  # every zip sampled
+        self.assertEqual(len(jobs) - 1, 50)  # single tables: capped per record
+        self.assertTrue(report["complete"])
+        _, report = self.run_discovery(record, fake_expand, limit=10)
+        self.assertFalse(report["complete"])  # cut by limit: never prune on this
+
+    def test_small_zips_are_not_capped_per_record(self):  # UAE Open Data: 60 small zips of distinct tables
+        record = invenio_record({f"table_{i}.zip": 1000 for i in range(60)})
+
+        def fake_expand(entry, unlisted=None):
+            return [{**entry, "archive_tabular_members": 3}]
+
+        jobs, _ = self.run_discovery(record, fake_expand, limit=1000)
+        self.assertEqual(len(jobs), 60)
+
+    def test_same_table_in_two_formats_is_profiled_once(self):
+        path = Path(self.tmp.name) / "formats.zip"
+        frame = pd.DataFrame({"a": [1, 2]})
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("t/Social.csv", frame.to_csv(index=False))
+            archive.writestr("t/Social.xls", b"old excel")
+            archive.writestr("t/Other.xlsx", b"excel")
+        with zipfile.ZipFile(path) as archive:
+            members, total = select_archive_members(archive)
+        self.assertEqual([m.filename for m in members], ["t/Other.xlsx", "t/Social.csv"])
+
+    def make_tile_zips(self, cities):
+        """One zip per city, each holding Parquet tiles with lat/lon and dates."""
+        from crawlers.invenio.crawler import archive_member_entries
+        members = []
+        for i, (name, lon) in enumerate(cities):
+            path = Path(self.tmp.name) / f"{name}.zip"
+            with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+                for j in range(6):
+                    frame = pd.DataFrame({
+                        "latitude": np.linspace(30 + j, 30.5 + j, 50), "longitude": np.linspace(lon, lon + 0.5, 50),
+                        "observed": pd.date_range(f"{2000 + i}-01-01", periods=50, freq="D"),
+                        "landuse": ["urban", "water"] * 25})
+                    buf = io.BytesIO()
+                    frame.to_parquet(buf, index=False)
+                    archive.writestr(f"{name}/parts/part.{j}.parquet", buf.getvalue())
+            entry = {"dataset_id": f"{DOMAIN}:tiles-rec:{name}", "file_key": f"{name}.zip", "file_extension": "zip",
+                     "file_size": path.stat().st_size, "file_url": str(path),
+                     "record": {"title": "Land use", "record_id": "tiles-rec"}}
+            with zipfile.ZipFile(path) as archive:
+                members += archive_member_entries(entry, archive)
+        return members
+
+    def test_group_profile_covers_every_zip(self):
+        from crawlers.invenio.crawler import group_job
+        from crawlers.invenio.transformer import profile_member_group
+        members = self.make_tile_zips([("houston", -95.5), ("boston", -71.2), ("denver", -105.0)])
+        job = group_job("part.#.parquet", members)
+        records = profile_member_group(job, opener=lambda url, size: zipfile.ZipFile(url))
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual(record["id"], job["dataset_id"])
+        self.assertEqual(record["archive_dataset_id"], job["dataset_id"])
+        bbox = record["profiler_metadata"]["spatial_bbox"]
+        self.assertAlmostEqual(bbox[0], -105.0)  # west edge from Denver
+        self.assertAlmostEqual(bbox[2], -70.7)   # east edge from Boston
+        self.assertEqual(record["temporal_coverage"]["start"], "2000-01-01")
+        self.assertEqual(record["temporal_coverage"]["end"], "2002-02-19")
+        self.assertEqual(record["profiler_metadata"]["nb_rows"], 18 * 50)  # all parts sampled: exact
+        self.assertFalse(record["profiler_metadata"]["nb_rows_estimated"])
+        self.assertEqual(record["source_record"]["member_group"]["total_members"], 18)
+
+    def test_group_profile_from_a_sample_estimates_rows(self):
+        from crawlers.invenio.crawler import group_job
+        from crawlers.invenio.transformer import profile_member_group
+        members = self.make_tile_zips([("austin", -97.7), ("miami", -80.2)])
+        job = group_job("part.#.parquet", members, max_samples=4)
+        record = profile_member_group(job, opener=lambda url, size: zipfile.ZipFile(url))[0]
+        self.assertTrue(record["profiler_metadata"]["nb_rows_estimated"])
+        self.assertAlmostEqual(record["profiler_metadata"]["nb_rows"], 12 * 50, delta=12 * 50 * 0.1)
+        self.assertEqual(record["source_record"]["member_group"]["sampled_parts"], 4)
+
+    def test_group_with_two_schemas_gives_two_datasets(self):
+        from crawlers.invenio.crawler import group_job
+        from crawlers.invenio.transformer import profile_member_group
+        members = self.make_tile_zips([("reno", -119.8)])
+        path = Path(self.tmp.name) / "other.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            for j in range(3):
+                buf = io.BytesIO()
+                pd.DataFrame({"height": range(30), "floors": range(30)}).to_parquet(buf, index=False)
+                archive.writestr(f"other/part.{j}.parquet", buf.getvalue())
+        from crawlers.invenio.crawler import archive_member_entries
+        entry = {"dataset_id": f"{DOMAIN}:tiles-rec:other", "file_key": "other.zip", "file_extension": "zip",
+                 "file_size": path.stat().st_size, "file_url": str(path), "record": {"title": "Land use"}}
+        with zipfile.ZipFile(path) as archive:
+            members += archive_member_entries(entry, archive)
+        job = group_job("part.#.parquet", members)
+        records = profile_member_group(job, opener=lambda url, size: zipfile.ZipFile(url))
+        self.assertEqual(len(records), 2)
+        self.assertEqual(records[0]["id"], job["dataset_id"])  # the bigger schema keeps the group id
+        self.assertTrue(records[1]["id"].startswith(job["dataset_id"] + ":"))
+        self.assertEqual({r["archive_dataset_id"] for r in records}, {job["dataset_id"]})
 
     def test_stale_docs(self):
         from crawlers.invenio.crawler import stale_doc_ids
@@ -195,7 +305,9 @@ class ArchiveTests(unittest.TestCase):
             {"id": "d:r2:big.zip:m9", "archive_dataset_id": "d:r2:big.zip"},       # beyond the cap now
             {"id": "d:r3:gone.csv"},                                               # record deleted/restricted
             {"id": "d:r4:flaky.zip:y", "archive_dataset_id": "d:r4:flaky.zip"},    # zip unlisted this run
+            {"id": "d:r5:group:abc:1f", "archive_dataset_id": "d:r5:group:abc"},   # second schema of a group
         ]
+        discovered.append({"dataset_id": "d:r5:group:abc", "file_extension": "parquet", "member_group": {"pattern": "p.#"}})
         self.assertEqual(stale_doc_ids(indexed, discovered, {"d:r4:flaky.zip"}),
                          ["d:r2:big.zip:m9", "d:r3:gone.csv"])
 

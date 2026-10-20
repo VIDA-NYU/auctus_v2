@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import zipfile
 from contextlib import contextmanager
 from typing import Iterator
@@ -24,6 +25,9 @@ MAX_ARCHIVE_MEMBERS = int(os.getenv("MAX_ARCHIVE_MEMBERS", "25"))
 # Spreadsheet members are read whole; pandas inflates them several-fold in memory.
 MAX_SPREADSHEET_MEMBER_BYTES = 25 * 1024 * 1024
 RANGE_BLOCK_BYTES = 256 * 1024
+# When a table exists in several formats under one name, profile only the first of
+# these (UAE Open Data ships SocialAssistance.xlsx next to SocialAssistance.xls).
+FORMAT_PREFERENCE = ("csv", "tsv", "csv.gz", "tsv.gz", "parquet", "xlsx", "xls")
 
 
 def member_extension(name: str) -> str:
@@ -40,13 +44,37 @@ def member_dataset_id(archive_dataset_id: str, member: str) -> str:
     return f"{archive_dataset_id}:{hashlib.sha1(member.encode()).hexdigest()[:12]}"
 
 
-def select_archive_members(archive: zipfile.ZipFile,
-                           limit: int = MAX_ARCHIVE_MEMBERS) -> tuple[list[zipfile.ZipInfo], int]:
-    """(members to profile, number of tabular members) for a zip archive.
+def member_pattern(name: str) -> str:
+    """A member's base name with digit runs collapsed: tiles of one table share it.
 
-    Skips macOS resource forks, hidden and Office lock files, and spreadsheets too
-    large to load. Archives can hold thousands of tables (e.g. tile sets), so at most
-    `limit` are profiled, in name order; the total is kept for later grouping.
+    "04_Houston_TX/parquet_parts_gz/part.4000.parquet" -> "part.#.parquet",
+    "oceania/R066_C162.parquet" -> "r#_c#.parquet".
+    """
+    return re.sub(r"\d+", "#", name.rsplit("/", 1)[-1].lower())
+
+
+def drop_duplicate_formats(names: list[str]) -> set[str]:
+    """Names to skip because the same table (same path minus extension) exists in a
+    preferred format."""
+    by_stem: dict[str, list[str]] = {}
+    for name in names:
+        ext = member_extension(name)
+        stem = name[: -(len(ext) + 1)] if ext else name
+        by_stem.setdefault(stem.lower(), []).append(name)
+    rank = {ext: i for i, ext in enumerate(FORMAT_PREFERENCE)}
+    skip = set()
+    for group in by_stem.values():
+        if len(group) > 1:
+            keep = min(group, key=lambda n: rank.get(member_extension(n), len(rank)))
+            skip.update(n for n in group if n != keep)
+    return skip
+
+
+def tabular_members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
+    """Every tabular member of a zip worth profiling, in name order.
+
+    Skips macOS resource forks, hidden and Office lock files, spreadsheets too large
+    to load, and copies of a table in a less preferred format.
     """
     tabular = []
     for info in archive.infolist():
@@ -59,7 +87,18 @@ def select_archive_members(archive: zipfile.ZipFile,
         if ext in SPREADSHEET_EXTENSIONS and info.file_size > MAX_SPREADSHEET_MEMBER_BYTES:
             continue
         tabular.append(info)
-    tabular.sort(key=lambda i: i.filename)
+    skip = drop_duplicate_formats([i.filename for i in tabular])
+    return sorted((i for i in tabular if i.filename not in skip), key=lambda i: i.filename)
+
+
+def select_archive_members(archive: zipfile.ZipFile,
+                           limit: int = MAX_ARCHIVE_MEMBERS) -> tuple[list[zipfile.ZipInfo], int]:
+    """(members to profile, number of tabular members) for a zip archive.
+
+    Archives can hold thousands of tables (e.g. tile sets), so at most `limit` are
+    profiled, in name order; the total is kept.
+    """
+    tabular = tabular_members(archive)
     return tabular[:limit], len(tabular)
 
 

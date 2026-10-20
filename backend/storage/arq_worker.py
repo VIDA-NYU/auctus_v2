@@ -15,7 +15,7 @@ from typing import Any
 import pandas as pd
 from arq.connections import RedisSettings
 
-from crawlers.invenio.transformer import build_archive_records, build_invenio_record
+from crawlers.invenio.transformer import build_archive_records, build_group_records, build_invenio_record
 from crawlers.socrata.transformer import build_validation_record
 from storage.minio_client import get_storage_client, upload_heavy_profile
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
@@ -362,13 +362,19 @@ async def persist_and_index(record: dict[str, Any], os_client, storage_client, e
 
 
 async def process_archive_task(ctx: dict[str, Any], dataset_meta: dict[str, Any], settings: dict[str, Any]) -> str:
-    """Profile the tabular members of a zip and index one document per member."""
+    """Profile the tabular members of a zip (one document per member), or a table split
+    over many zip members (one document per schema)."""
     dataset_id = dataset_meta["dataset_id"]
     os_client = ctx.get("os_client") or get_client()
     storage_client = ctx.get("storage_client") or get_storage_client()
     embedding_model = ctx.get("embedding_model") or get_embedding_model()
-    records = await build_archive_records(dataset_meta, **settings)
-    LOGGER.info("Archive %s: %d tabular member(s) profiled", dataset_id, len(records))
+    if dataset_meta.get("member_group"):
+        records = await build_group_records(dataset_meta, **settings)
+        LOGGER.info("Group %s: %d dataset(s) from %d sampled parts", dataset_id, len(records),
+                    len(dataset_meta["member_group"]["samples"]))
+    else:
+        records = await build_archive_records(dataset_meta, **settings)
+        LOGGER.info("Archive %s: %d tabular member(s) profiled", dataset_id, len(records))
     domain_url = str(dataset_meta.get("domain") or "")
     for record in records:
         await persist_and_index(record, os_client, storage_client, embedding_model, "invenio", domain_url,
@@ -383,7 +389,7 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
     dataset_id = dataset_meta.get("dataset_id") or dataset_meta.get("id")
     if not dataset_id:
         raise ValueError("dataset_meta missing required dataset_id")
-    if dataset_meta.get("file_extension") == "zip":
+    if dataset_meta.get("file_extension") == "zip" or dataset_meta.get("member_group"):
         pipeline_settings = load_runtime_config().get("pipeline_settings", {})
         return await process_archive_task(ctx, dataset_meta, {
             "max_sample_rows": int(dataset_meta.get("max_sample_rows") or pipeline_settings.get("max_sample_rows", 500)),

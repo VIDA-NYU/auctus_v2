@@ -95,6 +95,18 @@ SOURCE_RECORD_MAPPING = {
                     "profiled_members": {"type": "integer"},
                 },
             },
+            # Set on documents for a table split over many zip members (tile sets).
+            "member_group": {
+                "type": "object",
+                "properties": {
+                    "pattern": {"type": "keyword"},
+                    "total_members": {"type": "integer"},
+                    "archives": {"type": "integer"},
+                    "sampled_parts": {"type": "integer"},
+                    "profiled_parts": {"type": "integer"},
+                    "schemas": {"type": "integer"},
+                },
+            },
         },
     },
 }
