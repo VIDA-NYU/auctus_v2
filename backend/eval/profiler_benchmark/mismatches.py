@@ -32,7 +32,8 @@ YESNO = {"yes", "no", "y", "n", "true", "false", "t", "f"}
 MODES = {
     "not_in_file": ("gold", "README column name not found in the file (extraction error or README drift)"),
     "not_profiled": ("pipeline", "column exists but wasn't profiled (beyond the column cap)"),
-    "coded_categories": ("ambiguous", "categories stored as numeric codes (1 = 'Not at all'); the README calls it categorical, the data is integers"),
+    # The README is the codebook: numeric codes it calls categories are categories.
+    "coded_categories": ("profiler", "categories stored as numeric codes (1 = 'Not at all') typed numeric; the README says categorical"),
     "place_false_positive": ("profiler", "geo-classifier labelled a non-place column (codes, flags, numbers) as a place"),
     "formatted_numbers": ("profiler", "numbers with $, % or thousands separators typed as text"),
     "missing_codes": ("data", "missing-value codes written as text (NA, '.', -99, 'NaN') mixed into a numeric or date column, so it gets a weaker type"),
