@@ -91,7 +91,7 @@ async def fetch_readme(client, record: dict[str, Any]) -> tuple[str | None, str]
     return None, ""
 
 
-async def gold_path(instance: str, record_id: str):
+def gold_path(instance: str, record_id: str):
     return GOLD_DIR / f"{record_id}.json" if instance == "ultraviolet" else GOLD_DIR / instance / f"{record_id}.json"
 
 
