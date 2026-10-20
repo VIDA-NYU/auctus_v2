@@ -20,6 +20,7 @@ Run inside the worker environment (it needs autoddg, portkey, minio and the
 OpenSearch client), e.g.:
 
     docker compose exec arq-worker python -m eval.backfill_descriptions --all
+    docker compose exec arq-worker python -m eval.backfill_descriptions --domains ultraviolet.library.nyu.edu --workers 6
     docker compose exec arq-worker python -m eval.backfill_descriptions --ids abcd-1234 wxyz-5678
     python -m eval.backfill_descriptions --all --dry-run   # report only, no LLM calls
 
@@ -34,6 +35,7 @@ import argparse
 import json
 import logging
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 from storage.arq_worker import attach_autoddg_description
 
@@ -85,6 +87,14 @@ def list_all_ids(os_client, index: str) -> list[str]:
         except Exception:
             pass
     return ids
+
+
+def list_domain_ids(os_client, index: str, domains: list[str]) -> list[str]:
+    """Document ids of the given portal domains."""
+    from opensearchpy import helpers
+
+    return [h["_id"] for h in helpers.scan(os_client, index=index, _source=False,
+                                           query={"query": {"terms": {"domain": domains}}})]
 
 
 def load_full_profile(storage_client, dataset_id: str) -> dict | None:
@@ -141,6 +151,9 @@ def main(argv: list[str] | None = None) -> int:
     group.add_argument(
         "--all", action="store_true", help="Backfill every document in the index"
     )
+    group.add_argument("--domains", nargs="+", help="Backfill every document of these portal domains")
+    parser.add_argument("--workers", type=int, default=1,
+                        help="Datasets processed concurrently (each makes several sequential LLM calls)")
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -151,7 +164,10 @@ def main(argv: list[str] | None = None) -> int:
     os_client = get_client()
     storage_client = get_storage_client()
 
-    ids = args.ids or list_all_ids(os_client, AUCTUS_INDEX_NAME)
+    if args.domains:
+        ids = list_domain_ids(os_client, AUCTUS_INDEX_NAME, args.domains)
+    else:
+        ids = args.ids or list_all_ids(os_client, AUCTUS_INDEX_NAME)
     print(f"Backfilling {len(ids)} dataset(s){' [dry-run]' if args.dry_run else ''}")
     if not AUTODDG_EVAL_ARMS:
         print(
@@ -159,14 +175,19 @@ def main(argv: list[str] | None = None) -> int:
             "(not regenerated, not cleared)."
         )
 
-    counts: dict[str, int] = {}
-    failures = 0
-    for i, dataset_id in enumerate(ids, 1):
+    def run_one(dataset_id: str) -> str:
         try:
-            status = backfill_one(os_client, storage_client, dataset_id, args.dry_run)
+            return backfill_one(os_client, storage_client, dataset_id, args.dry_run)
         except Exception as exc:
             LOGGER.exception("Backfill failed for %s: %s", dataset_id, exc)
-            status = "error"
+            return "error"
+
+    counts: dict[str, int] = {}
+    failures = 0
+    with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
+        statuses = pool.map(run_one, ids)
+        results = list(zip(ids, statuses))
+    for i, (dataset_id, status) in enumerate(results, 1):
         # no-profile / no-sample are expected for seeded or sample-less docs and
         # only reported; real generation problems drive the exit code.
         if status in ("generation-failed", "error"):
