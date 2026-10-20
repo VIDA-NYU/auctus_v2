@@ -49,7 +49,8 @@ def parse_json(text: str) -> Any:
     if fenced:
         text = fenced.group(1)
     start = min((i for i in (text.find("{"), text.find("[")) if i >= 0), default=0)
-    return json.loads(text[start:])
+    # strict=False: LLMs sometimes leave raw tabs/newlines inside strings.
+    return json.loads(text[start:], strict=False)
 
 
 def ask_json(prompt: str, model: str = JUDGE_MODEL, max_tokens: int = 16000) -> Any:
