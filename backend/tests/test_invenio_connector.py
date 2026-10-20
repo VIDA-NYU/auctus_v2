@@ -269,6 +269,22 @@ class ArchiveTests(unittest.TestCase):
         self.assertAlmostEqual(record["profiler_metadata"]["nb_rows"], 12 * 50, delta=12 * 50 * 0.1)
         self.assertEqual(record["source_record"]["member_group"]["sampled_parts"], 4)
 
+    def test_geoparquet_bbox_and_index_columns(self):  # uMORPH: WKB geometry + GeoParquet bbox
+        import json as _json
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        from crawlers.invenio.transformer import normalize_table
+        table = pa.table({"height": [3.0, 9.5], "geometry": [b"\x01", b"\x02"], "__null_dask_index__": [0, 1]})
+        geo = {"primary_column": "geometry", "columns": {"geometry": {"encoding": "WKB", "bbox": [142.0, -40.0, 144.0, -38.0]}}}
+        path = Path(self.tmp.name) / "geo.parquet"
+        pq.write_table(table.replace_schema_metadata({b"geo": _json.dumps(geo).encode()}), path)
+        normalized = normalize_table(path, "parquet")
+        self.assertEqual(normalized.headers, ["height", "geometry"])
+        self.assertEqual(normalized.geo_bbox, [142.0, -40.0, 144.0, -38.0])
+        geo["columns"]["geometry"]["crs"] = None  # unknown CRS: don't trust the numbers
+        pq.write_table(table.replace_schema_metadata({b"geo": _json.dumps(geo).encode()}), path)
+        self.assertIsNone(normalize_table(path, "parquet").geo_bbox)
+
     def test_group_with_two_schemas_gives_two_datasets(self):
         from crawlers.invenio.crawler import group_job
         from crawlers.invenio.transformer import profile_member_group
@@ -310,6 +326,14 @@ class ArchiveTests(unittest.TestCase):
         discovered.append({"dataset_id": "d:r5:group:abc", "file_extension": "parquet", "member_group": {"pattern": "p.#"}})
         self.assertEqual(stale_doc_ids(indexed, discovered, {"d:r4:flaky.zip"}),
                          ["d:r2:big.zip:m9", "d:r3:gone.csv"])
+
+    def test_superseded_archive_docs_are_removed(self):
+        from unittest import mock
+        from storage.arq_worker import remove_superseded_docs
+        os_client, storage = mock.Mock(), mock.Mock()
+        os_client.search.return_value = {"hits": {"hits": [{"_id": "g"}, {"_id": "g:old-schema"}]}}
+        self.assertEqual(remove_superseded_docs(os_client, storage, "g", {"g"}), ["g:old-schema"])
+        os_client.delete.assert_called_once()
 
     def test_discovery_keeps_zips(self):
         keys = [e["file_key"] for e in file_entries(invenio_record({"a.zip": 10**11, "b.csv": 10}), DOMAIN, 10**6)]

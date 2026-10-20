@@ -24,6 +24,7 @@ import io
 import json
 import logging
 import os
+import re
 import sys
 import tempfile
 import zipfile
@@ -90,6 +91,7 @@ class Table:
     total_columns: int
     rows: int
     bytes: int
+    geo_bbox: list[float] | None = None  # from GeoParquet metadata, if any
 
     def stats(self) -> SampleStats:
         return SampleStats(sample_path=self.path, bytes_written=self.bytes, newline_count=self.rows,
@@ -139,6 +141,35 @@ def _parquet_rows(path: Path, columns: list[str]):
         yield from zip(*(column.to_pylist() for column in batch.columns))
 
 
+# Index columns pandas/Dask write into Parquet (__index_level_0__, __null_dask_index__):
+# not data, and their presence in only some parts would split a table's schema.
+_INDEX_ARTIFACT = re.compile(r"^__.*__$")
+
+
+def parquet_columns(names: list[str]) -> list[str]:
+    return [n for n in names if not _INDEX_ARTIFACT.match(n)]
+
+
+def geoparquet_bbox(schema_metadata: dict | None) -> list[float] | None:
+    """The primary geometry column's bbox from GeoParquet metadata, when in lon/lat.
+
+    GeoParquet: a missing "crs" means OGC:CRS84; an explicit null means unknown.
+    """
+    try:
+        geo = json.loads((schema_metadata or {}).get(b"geo") or b"null")
+        column = geo["columns"][geo.get("primary_column") or next(iter(geo["columns"]))]
+        bbox = [float(v) for v in column["bbox"][:4]] if len(column["bbox"]) == 4 else None
+    except (TypeError, ValueError, KeyError, StopIteration):
+        return None
+    if "crs" in column:
+        crs = column["crs"]
+        ident = (crs or {}).get("id") or {} if isinstance(crs, dict) else {}
+        lonlat = (ident.get("authority"), str(ident.get("code"))) in {("EPSG", "4326"), ("OGC", "CRS84")}
+        if not lonlat and crs not in ("OGC:CRS84", "EPSG:4326"):
+            return None
+    return bbox if bbox and _valid_bbox(bbox) else None
+
+
 def normalize_table(raw: Path, extension: str) -> Table:
     """Normalize a whole delimited file (plain or .gz), a Parquet file, or the first
     non-empty sheet of a workbook."""
@@ -146,8 +177,11 @@ def normalize_table(raw: Path, extension: str) -> Table:
     if extension == "parquet":
         import pyarrow.parquet as pq
 
-        header = pq.ParquetFile(raw).schema_arrow.names
-        return _write_table(header, _parquet_rows(raw, header[:MAX_PROFILED_COLUMNS]), out)
+        schema = pq.ParquetFile(raw).schema_arrow
+        header = parquet_columns(schema.names)
+        table = _write_table(header, _parquet_rows(raw, header[:MAX_PROFILED_COLUMNS]), out)
+        table.geo_bbox = geoparquet_bbox(schema.metadata)
+        return table
     if extension in SPREADSHEET_EXTENSIONS:
         # Workbooks often start with a title or notes sheet and keep the data on a
         # later one (CaltechDATA), so empty sheets are skipped.
@@ -312,8 +346,8 @@ def assemble_record(dataset_meta: dict[str, Any], table: Table, headers: list[st
     inferred_bbox = infer_spatial_bbox(headers, rows)
 
     profiler_metadata = _merge_profiler_output(profiler_output, table.stats(), inferred_bbox, fallback_bbox=None)
-    candidate_bbox = (bbox_from_profiler(profiler_output) or admin_bbox(profiler_output, rows, table.path)
-                      or inferred_bbox)
+    candidate_bbox = (bbox_from_profiler(profiler_output) or table.geo_bbox
+                      or admin_bbox(profiler_output, rows, table.path) or inferred_bbox)
     real_bbox = [float(v) for v in candidate_bbox] if _valid_bbox(candidate_bbox) else None
     # _merge_profiler_output always fills a bbox (worst case the whole world); keep only a real one.
     profiler_metadata["spatial_bbox"] = real_bbox
@@ -442,7 +476,8 @@ def parquet_summary(path: Path) -> dict[str, Any]:
                 stats[name] = [min(current[0], st.min), max(current[1], st.max)] if current else [st.min, st.max]
             except TypeError:  # mixed or incomparable types
                 continue
-    return {"columns": pf.schema_arrow.names, "rows": meta.num_rows, "stats": stats}
+    return {"columns": parquet_columns(pf.schema_arrow.names), "rows": meta.num_rows, "stats": stats,
+            "geo_bbox": geoparquet_bbox(pf.schema_arrow.metadata)}
 
 
 def _columns_typed(output: dict[str, Any], semantic: str) -> list[str]:
@@ -537,6 +572,7 @@ def profile_member_group(dataset_meta: dict[str, Any], opener=open_remote_zip) -
                                 add_full(key, table, ext, archive, info)
                             state = schemas[key]
                             state["bbox"] = _union_bbox(state["bbox"], _stats_bbox(summary["stats"], state["output"]))
+                            state["bbox"] = _union_bbox(state["bbox"], summary["geo_bbox"])
                             state["time"] = _union_range(state["time"], _stats_dates(summary["stats"], state["output"]))
                             rows = summary["rows"]
                         else:

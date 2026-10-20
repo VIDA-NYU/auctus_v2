@@ -17,7 +17,7 @@ from arq.connections import RedisSettings
 
 from crawlers.invenio.transformer import build_archive_records, build_group_records, build_invenio_record
 from crawlers.socrata.transformer import build_validation_record
-from storage.minio_client import get_storage_client, upload_heavy_profile
+from storage.minio_client import PROFILE_BUCKET_NAME, get_storage_client, upload_heavy_profile
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
 from run_pipeline_ingest import apply_socrata_timestamp, apply_source_timestamp, isolate_search_payload, load_runtime_config, sync_portal_metadata
 
@@ -380,8 +380,30 @@ async def process_archive_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
         await persist_and_index(record, os_client, storage_client, embedding_model, "invenio", domain_url,
                                 None, dataset_meta.get("source_updated_at"))
     if records:
+        remove_superseded_docs(os_client, storage_client, dataset_id, {r["id"] for r in records})
         await sync_portal_metadata(domain_url=domain_url, provider_type="invenio")
     return dataset_id
+
+
+def remove_superseded_docs(os_client, storage_client, archive_id: str, current_ids: set[str]) -> list[str]:
+    """Delete an archive's or group's docs that this run didn't produce again.
+
+    Discovery-level pruning keeps every doc of a discovered archive or group, since
+    only the job knows which members/schemas it yields. Only called when the job
+    produced records, so a failed run never empties an archive.
+    """
+    hits = os_client.search(index=AUCTUS_INDEX_NAME, size=10_000, _source=False,
+                            body={"query": {"term": {"archive_dataset_id": archive_id}}})["hits"]["hits"]
+    superseded = [h["_id"] for h in hits if h["_id"] not in current_ids]
+    for doc_id in superseded:
+        os_client.delete(index=AUCTUS_INDEX_NAME, id=doc_id, ignore=[404])
+        try:
+            storage_client.remove_object(PROFILE_BUCKET_NAME, f"{doc_id}_profile.json")
+        except Exception:  # the profile may never have been stored
+            pass
+    if superseded:
+        LOGGER.info("Removed %d superseded doc(s) of %s", len(superseded), archive_id)
+    return superseded
 
 
 async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]) -> str:
