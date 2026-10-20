@@ -34,7 +34,7 @@ Wrong on the baseline file:
 - thousands_sep (got text, want numeric)
 - uuid (got text, want identifier)
 
-README dictionaries: 498 of 3668 columns scorable; accuracy **0.504** (strict, README type only: 0.2711; gold verified: False). Most common errors: categorical->numeric (168), categorical->place (41), categorical->boolean (9), date->numeric (4), text->categorical (4), boolean->categorical (4), numeric->place (3), date->text (3), numeric->identifier (2), date->place (2)
+README dictionaries: 498 of 3668 columns scorable; accuracy **0.504** (strict, README type only: 0.2711; gold verified: False). Most common errors: categorical->numeric (170), categorical->place (43), categorical->boolean (9), text->categorical (4), boolean->categorical (4), numeric->place (3), date->text (3), date->numeric (2), numeric->identifier (2), categorical->text (2)
 
 ## 3. Sampling
 

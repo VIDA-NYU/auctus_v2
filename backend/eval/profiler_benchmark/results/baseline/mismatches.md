@@ -6,15 +6,14 @@
 |---|---|---|---|
 | coded_categories | 141 | profiler | categories stored as numeric codes (1 = 'Not at all') typed numeric; the README says categorical |
 | place_false_positive | 46 | profiler | geo-classifier labelled a non-place column (codes, flags, numbers) as a place |
-| other | 33 | unclear | doesn't fit a rule; read the values |
+| other | 35 | unclear | doesn't fit a rule; read the values |
 | yes_no_flags | 15 | ambiguous | a yes/no or 0/1 column read as categorical/numeric vs boolean |
 | text_vs_categorical | 6 | ambiguous | free text vs categorical: a granularity call, not an error |
 | not_in_file | 6 | gold | README column name not found in the file (extraction error or README drift) |
 | missing_codes | 2 | data | missing-value codes written as text (NA, '.', -99, 'NaN') mixed into a numeric or date column, so it gets a weaker type |
-| dates_as_numbers | 2 | ambiguous | dates stored as plain numbers (e.g. YYYYMMDD) or the README's 'date' is a number |
 | formatted_numbers | 2 | profiler | numbers with $, % or thousands separators typed as text |
 
-Scored mismatches by attribution: profiler 189, unclear 33, ambiguous 23, data 2
+Scored mismatches by attribution: profiler 189, unclear 35, ambiguous 21, data 2
 
 ## coded_categories (141)
 
@@ -52,7 +51,7 @@ Scored mismatches by attribution: profiler 189, unclear 33, ambiguous 23, data 2
 | d8z0p-brn64 | 2026-07-20_SPSKQuasi_UltraViolet.csv | pbq4 | Numeric | place | 2, 1, 3 |
 | ... | 34 more | | | | |
 
-## other (33)
+## other (35)
 
 | dataset | file | column | README type | profiler | values seen |
 |---|---|---|---|---|---|
@@ -68,7 +67,7 @@ Scored mismatches by attribution: profiler 189, unclear 33, ambiguous 23, data 2
 | d8z0p-brn64 | 2026-07-20_SPSKQuasi_UltraViolet.csv | fies6 | Numeric | boolean | 0, 1 |
 | d8z0p-brn64 | 2026-07-20_SPSKQuasi_UltraViolet.csv | fies7 | Numeric | boolean | 0, 1 |
 | d8z0p-brn64 | 2026-07-20_SPSKQuasi_UltraViolet.csv | fies8 | Numeric | boolean | 0, 1 |
-| ... | 21 more | | | | |
+| ... | 23 more | | | | |
 
 ## yes_no_flags (15)
 
@@ -116,13 +115,6 @@ Scored mismatches by attribution: profiler 189, unclear 33, ambiguous 23, data 2
 |---|---|---|---|---|---|
 | 9wnjp-kez15 | Merged-Costs-1-4.csv | Start_year | YYYY | numeric | NaN, 2021, 2020, 2019, 2017 |
 | 9wnjp-kez15 | Merged-Costs-1-4.csv | End_year | YYYY | numeric | NaN, 2020, 2022, 2021, 2019 |
-
-## dates_as_numbers (2)
-
-| dataset | file | column | README type | profiler | values seen |
-|---|---|---|---|---|---|
-| frv59-hzf81 | KS_data.csv | Confident |  | numeric | 1, 2, 5, 4, 3 |
-| frv59-hzf81 | KS_data.xlsx | Confident |  | numeric | 1, 2, 5, 4, 3 |
 
 ## formatted_numbers (2)
 
