@@ -74,6 +74,13 @@ def coarse_from_gold(type_text: str, units_text: str = "", column: str = "", def
     numeric codes (1 = "Not at all") are also numeric. Unmappable entries return
     (None, set()) and are left out of the score.
     """
+    # A codebook listing value labels ("1: Single; 2: Married") documents categories,
+    # whatever storage type it states (REDCap/SPSS exports say "Numeric" for these).
+    # Checked first: label text ("1: less than a year") must not read as a date type.
+    labels = re.findall(r"(?:^|[;,\n])\s*-?\d+(?:\.\d+)?\s*[:=]\s*\S", units_text)
+    stated = type_text.lower().strip()
+    if len(labels) >= 2 and (not stated or re.search(r"\b(numeric|number|integer|int\d*)\b", stated)):
+        return "categorical", {"categorical", "boolean"} if len(labels) == 2 else {"categorical"}
     expected = None
     for text in (type_text.lower(), "" if type_text.strip() else units_text.lower()):
         for label, pattern in _GOLD_RULES:
@@ -82,11 +89,6 @@ def coarse_from_gold(type_text: str, units_text: str = "", column: str = "", def
                 break
         if expected:
             break
-    # A codebook listing value labels ("1: Single; 2: Married") documents categories,
-    # whatever storage type it states (REDCap/SPSS exports say "Numeric" for these).
-    labels = re.findall(r"(?:^|[;,\n])\s*-?\d+(?:\.\d+)?\s*[:=]\s*\S", units_text)
-    if expected in (None, "numeric") and len(labels) >= 2:
-        return "categorical", {"categorical", "boolean"} if len(labels) == 2 else {"categorical"}
     if expected is None:
         return None, set()
     acceptable = {expected}
