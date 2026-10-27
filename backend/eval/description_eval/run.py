@@ -32,6 +32,7 @@ def main() -> None:
     p = sub.add_parser("compare")
     p.add_argument("--include-unverified", action="store_true",
                    help="use unverified dictionaries too (for a dry run; never for reported numbers)")
+    p.add_argument("--no-llm", action="store_true", help="coverage and time agreement only (no VPN needed)")
     p = sub.add_parser("human-sample")
     p.add_argument("--n", type=int, default=30)
     sub.add_parser("human-score")
@@ -48,7 +49,7 @@ def main() -> None:
         collect.main()
     elif args.stage == "compare":
         from eval.description_eval import compare
-        compare.main(include_unverified=args.include_unverified)
+        compare.main(include_unverified=args.include_unverified, llm=not args.no_llm)
     elif args.stage == "human-sample":
         from eval.description_eval import human_check
         human_check.sample(args.n)
