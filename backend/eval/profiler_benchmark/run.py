@@ -238,6 +238,11 @@ def main() -> None:
             robust = robustness(corpus, args.jobs, args.timeout)
             # Per-column detail is only needed in memory (sampling check); keep the saved file small.
             score.write_rows(args.out / "robustness.jsonl", [{k: v for k, v in r.items() if k != "columns"} for r in robust])
+            # Per-column types, kept apart so robustness.jsonl stays small; used to diff two
+            # profiler versions column by column (e.g. a held-out check).
+            score.write_rows(args.out / "robustness_columns.jsonl", [
+                {"path": r["path"], "name": c.get("name"), "coarse": c.get("coarse")}
+                for r in robust for c in r.get("columns") or []])
         if args.stage in ("all", "types"):
             synthetic, readme = types(args.jobs, args.timeout, tmp)
             score.write_rows(args.out / "types_synthetic.jsonl", synthetic)
