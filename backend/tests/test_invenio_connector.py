@@ -577,7 +577,9 @@ class CodebookTests(unittest.TestCase):
             {"name": "note", "structural_type": "http://schema.org/Text", "semantic_types": []}]}
         documented = {"gender": {"labels": {"0": "Male", "1": "Female", "2": "Other"}, "source": "cb.csv"},
                       "note": {"labels": {"1": "a", "2": "b"}, "source": "cb.csv"}}
-        self.assertEqual(apply_value_labels(output, documented), 1)  # text columns untouched
+        output["columns"].append({"name": "depth_index", "structural_type": "http://schema.org/Float", "semantic_types": []})
+        documented["depth_index"] = {"labels": {"0": "no flows", "1": "frictionless"}, "source": "README.txt"}
+        self.assertEqual(apply_value_labels(output, documented), 1)  # text and float columns untouched
         gender = output["columns"][0]
         self.assertEqual(gender["semantic_types"], ["http://schema.org/Enumeration"])  # 3 options: not yes/no
         self.assertEqual(gender["value_labels_text"], "Male; Female; Other")

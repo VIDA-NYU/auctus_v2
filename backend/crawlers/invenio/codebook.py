@@ -147,7 +147,9 @@ def apply_value_labels(profiler_output: dict[str, Any], documented: dict[str, di
     marked = 0
     for column in profiler_output.get("columns") or []:
         doc = documented.get(column.get("name"))
-        if not doc or column.get("structural_type") not in (INTEGER, FLOAT):
+        # Integers only: a float column's documented "0 = none; 1 = perfect" describes the
+        # ends of a continuous scale (DHL depth_index), not codes.
+        if not doc or column.get("structural_type") != INTEGER:
             continue
         semantic = [s for s in column.get("semantic_types") or []
                     if not (s == BOOLEAN and len(doc["labels"]) > 2)]  # 0/1 data, 7 documented options
