@@ -29,6 +29,7 @@ from crawlers.invenio.archives import (
     open_remote_zip,
     tabular_members,
 )
+from crawlers.invenio.codebook import MAX_DOC_BYTES, is_documentation
 from crawlers.invenio.http import async_client
 
 LOGGER = logging.getLogger(__name__)
@@ -85,6 +86,15 @@ def summarize_record(record: dict[str, Any], domain: str) -> dict[str, Any]:
         "publisher": metadata.get("publisher") or domain,
         "access": (record.get("access") or {}).get("files"),
         "updated": record.get("updated"),
+        # Codebooks / data dictionaries / READMEs: value labels mark coded columns
+        # categorical when the record's tables are profiled (see codebook.py).
+        "documentation": [
+            {"key": key, "url": f"https://{domain}/api/records/{record_id}/files/{quote(key)}/content",
+             "size": entry.get("size")}
+            for key, entry in ((record.get("files") or {}).get("entries") or {}).items()
+            if (record.get("access") or {}).get("files") == "public" and is_documentation(key)
+            and (entry.get("size") or 0) <= MAX_DOC_BYTES
+        ],
     }
 
 

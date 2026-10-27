@@ -539,3 +539,59 @@ class TransformerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class CodebookTests(unittest.TestCase):
+    """Value labels from documentation mark coded columns categorical (codebook.py)."""
+
+    def test_redcap_codebook(self):  # label before code, one variable per block
+        from crawlers.invenio.codebook import value_labels
+        doc = ("Variable Name,Variable Label,Answer Label,Answer Code,Variable Type\n"
+               "marital,Marital status,,,Numeric\n,,Single,1,\n,,Married,2,\n,,Widowed,3,\n"
+               "hhadults,Adults in household,Open ended,,Numeric\n").encode()
+        found = value_labels([("Codebook.csv", doc)], ["marital", "hhadults"])
+        self.assertEqual(found["marital"]["labels"], {"1": "Single", "2": "Married", "3": "Widowed"})
+        self.assertNotIn("hhadults", found)  # a count: no labels, stays numeric
+
+    def test_label_column_codebook(self):  # "Column Label | Values | Value Labels" layout, range labels
+        from crawlers.invenio.codebook import value_labels
+        doc = ("Column,Description,Column Label,Values,Value Labels\n"
+               "B,Age group,AgeCat,1,18-29\n,,,2,30-39\n,,,3,40+\n"
+               "C,Gender,Gender,1,Female\n,,,2,Male\n").encode()
+        found = value_labels([("codebook.csv", doc)], ["AgeCat", "Gender"])
+        self.assertEqual(found["AgeCat"]["labels"], {"1": "18-29", "2": "30-39", "3": "40+"})
+        self.assertEqual(found["Gender"]["labels"], {"1": "Female", "2": "Male"})
+
+    def test_readme_text(self):
+        from crawlers.invenio.codebook import value_labels
+        doc = b"make_plan: How certain are you?\n  1 (very uncertain)\n  5 (very certain)\nage: years\n"
+        found = value_labels([("README.txt", doc)], ["make_plan", "age"])
+        self.assertEqual(set(found["make_plan"]["labels"]), {"1", "5"})
+        self.assertNotIn("age", found)
+
+    def test_documented_codes_become_categorical(self):
+        from crawlers.invenio.codebook import apply_value_labels
+        output = {"columns": [
+            {"name": "gender", "structural_type": "http://schema.org/Integer", "semantic_types": ["http://schema.org/Boolean"]},
+            {"name": "note", "structural_type": "http://schema.org/Text", "semantic_types": []}]}
+        documented = {"gender": {"labels": {"0": "Male", "1": "Female", "2": "Other"}, "source": "cb.csv"},
+                      "note": {"labels": {"1": "a", "2": "b"}, "source": "cb.csv"}}
+        self.assertEqual(apply_value_labels(output, documented), 1)  # text columns untouched
+        gender = output["columns"][0]
+        self.assertEqual(gender["semantic_types"], ["http://schema.org/Enumeration"])  # 3 options: not yes/no
+        self.assertEqual(gender["value_labels_text"], "Male; Female; Other")
+
+    def test_local_file_uses_its_codebook(self):
+        tmp = Path(tempfile.mkdtemp())
+        pd.DataFrame({"marital": [1, 2, 3, 1, 2] * 10, "visits": [0, 1, 2, 3, 4] * 10}).to_csv(tmp / "data.csv", index=False)
+        (tmp / "codebook.csv").write_text("Variable,Label,Code\nmarital,,\n,Single,1\n,Married,2\n,Widowed,3\n")
+        record = profile_local_file(tmp / "data.csv", {"local_documentation": [str(tmp / "codebook.csv")]})
+        columns = {c["name"]: c for c in record["profiler_metadata"]["columns"]}
+        self.assertIn("http://schema.org/Enumeration", columns["marital"]["semantic_types"])
+        self.assertNotIn("value_labels", columns["visits"])
+
+    def test_discovery_lists_documentation(self):
+        record = invenio_record({"data.csv": 10, "README.md": 10, "codebook.xlsx": 10, "paper.pdf": 10})
+        docs = file_entries(record, DOMAIN, max_file_bytes=10**6)[0]["record"]["documentation"]
+        self.assertEqual(sorted(d["key"] for d in docs), ["README.md", "codebook.xlsx"])

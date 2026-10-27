@@ -209,6 +209,10 @@ DATASETS_MAPPING = {
                             "mean": {"type": "float"},
                             "stddev": {"type": "float"},
                             "plot": {"type": "object", "enabled": False},
+                            # From the record's codebook (crawlers/invenio/codebook.py).
+                            "value_labels": {"type": "object", "enabled": False},
+                            "value_labels_text": {"type": "text", "analyzer": "text_analyzer"},
+                            "value_labels_source": {"type": "keyword"},
                         },
                     },
                 },

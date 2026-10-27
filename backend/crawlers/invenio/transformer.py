@@ -43,6 +43,8 @@ from crawlers.invenio.archives import (
     open_remote_zip,
     select_archive_members,
 )
+from crawlers.invenio.codebook import (MAX_DOC_BYTES, apply_value_labels, documentation_for, is_documentation,
+                                       value_labels)
 from crawlers.invenio.http import async_client
 from crawlers.socrata.transformer import (
     SampleStats,
@@ -345,6 +347,12 @@ def assemble_record(dataset_meta: dict[str, Any], table: Table, headers: list[st
         temporal_start, temporal_end = infer_temporal_range(headers, rows)
     inferred_bbox = infer_spatial_bbox(headers, rows)
 
+    try:  # documentation never breaks profiling
+        documented = value_labels(documentation_for(dataset_meta), headers)
+        if documented:
+            apply_value_labels(profiler_output, documented)
+    except Exception as exc:
+        LOGGER.info("Skipping documentation for %s: %r", dataset_meta.get("dataset_id"), exc)
     profiler_metadata = _merge_profiler_output(profiler_output, table.stats(), inferred_bbox, fallback_bbox=None)
     candidate_bbox = (bbox_from_profiler(profiler_output) or table.geo_bbox
                       or admin_bbox(profiler_output, rows, table.path) or inferred_bbox)
@@ -417,6 +425,10 @@ def profile_archive(path: Path, dataset_meta: dict[str, Any], *_unused) -> list[
     with zipfile.ZipFile(path) as archive:
         members, total = select_archive_members(archive)
         totals = {"tabular_members": total, "profiled_members": len(members)}
+        # Codebooks shipped inside the zip (UAE Open Data has one per table).
+        zip_docs = [(i.filename, archive.read(i)) for i in archive.infolist()
+                    if not i.is_dir() and is_documentation(i.filename) and i.file_size <= MAX_DOC_BYTES]
+        dataset_meta = {**dataset_meta, "_archive_documentation": zip_docs}
         for info in members:
             try:
                 records.append(member_record(dataset_meta, archive_id, archive_key, info,
