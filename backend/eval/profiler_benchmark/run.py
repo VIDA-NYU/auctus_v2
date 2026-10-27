@@ -83,27 +83,32 @@ def types(jobs: int, timeout: int, tmp: Path) -> tuple[list[dict], list[dict]]:
     readme = []
     gold_files = {p.stem: p for p in (sorted(GOLD_DIR.glob("*.json")) if GOLD_DIR.exists() else [])}
     gold_files.update({p.stem: p for p in VERIFIED_GOLD_DIR.glob("*.json")} if VERIFIED_GOLD_DIR.exists() else {})
+    work = []  # (gold, target, columns, local path)
     for gold_path in [gold_files[k] for k in sorted(gold_files)]:
         gold = json.loads(gold_path.read_text())
         for file_key, columns in (gold.get("dictionary") or {}).items():
             targets = [f["file_key"] for f in gold["files"]] if file_key == "*" else [file_key]
             for target in targets:
                 local = BACKEND.parents[1] / "data" / "ultraviolet" / "files" / gold["record_id"] / target
-                if not local.exists():
-                    continue
-                result = run_child({"path": str(local)}, timeout)
-                found = {c["name"].strip().lower(): c for c in result.get("columns", [])}
-                for col in columns:
-                    expected, acceptable = coarse_from_gold(col.get("type", ""), col.get("units", ""),
-                                                            col["column"], col.get("definition", ""))
-                    got = found.get(str(col["column"]).strip().lower(), {}).get("coarse")
-                    scorable = expected is not None and got is not None
-                    readme.append({"record": gold["record_id"], "file": target, "column": col["column"],
-                                   "gold_type": col.get("type", ""), "expected": expected,
-                                   "acceptable": "|".join(sorted(acceptable)), "got": got,
-                                   "verified": gold.get("verified", False),
-                                   "strict_correct": got == expected if scorable else None,
-                                   "correct": got in acceptable if scorable else None})
+                if local.exists():
+                    work.append((gold, target, columns, str(local)))
+    # Profile each file once, in parallel (README dictionaries cover ~120 files).
+    paths = sorted({w[3] for w in work})
+    profiled = dict(zip(paths, run_many([{"path": p} for p in paths], jobs, timeout, "types/readme")))
+    for gold, target, columns, local in work:
+        result = profiled[local]
+        found = {c["name"].strip().lower(): c for c in result.get("columns", [])}
+        for col in columns:
+            expected, acceptable = coarse_from_gold(col.get("type", ""), col.get("units", ""),
+                                                    col["column"], col.get("definition", ""))
+            got = found.get(str(col["column"]).strip().lower(), {}).get("coarse")
+            scorable = expected is not None and got is not None
+            readme.append({"record": gold["record_id"], "file": target, "column": col["column"],
+                           "gold_type": col.get("type", ""), "expected": expected,
+                           "acceptable": "|".join(sorted(acceptable)), "got": got,
+                           "verified": gold.get("verified", False),
+                           "strict_correct": got == expected if scorable else None,
+                           "correct": got in acceptable if scorable else None})
     return synthetic, readme
 
 
