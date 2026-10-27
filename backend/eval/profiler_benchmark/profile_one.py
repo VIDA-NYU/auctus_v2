@@ -73,8 +73,10 @@ def main() -> None:
     table = load_local_table(path, ext)
     try:
         headers, rows, output, errors = profile_table(table)
-        record = assemble_record({"dataset_id": f"bench:{path.name}", "file_key": path.name},
-                                 table, headers, rows, output, errors)
+        meta = {"dataset_id": f"bench:{path.name}", "file_key": path.name}
+        if spec.get("docs"):  # the record's codebooks / READMEs (run.py --docs)
+            meta["local_documentation"] = spec["docs"]
+        record = assemble_record(meta, table, headers, rows, output, errors)
     finally:
         table.path.unlink(missing_ok=True)
     result = summarize(record)

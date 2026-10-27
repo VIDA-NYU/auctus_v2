@@ -31,6 +31,12 @@ GOLD_DIR = HERE.parent / "description_eval" / "data" / "gold"
 PERF_SHAPES = [(1_000, 10), (1_000, 100), (1_000, 1_000), (10_000, 10), (10_000, 100), (100_000, 10), (100_000, 100)]
 
 
+# --docs: profile README-gold files with their record's documentation (codebook value
+# labels). That's how ingestion runs, but the gold comes from the same documents, so
+# report it next to the profiler-only number, never instead of it.
+USE_DOCS = False
+
+
 def run_child(spec: dict, timeout: int) -> dict:
     """Profile one input in its own process; failures become a status, never an exception."""
     # Keep any caller PYTHONPATH (e.g. another profiler checkout to compare against).
@@ -94,7 +100,15 @@ def types(jobs: int, timeout: int, tmp: Path) -> tuple[list[dict], list[dict]]:
                     work.append((gold, target, columns, str(local)))
     # Profile each file once, in parallel (README dictionaries cover ~120 files).
     paths = sorted({w[3] for w in work})
-    profiled = dict(zip(paths, run_many([{"path": p} for p in paths], jobs, timeout, "types/readme")))
+    specs = []
+    for path in paths:
+        spec = {"path": path}
+        if USE_DOCS:  # give the pipeline the record's documentation, as ingestion does
+            from crawlers.invenio.codebook import is_documentation
+            record_dir = next(p for p in Path(path).parents if p.parent.name == "files")
+            spec["docs"] = sorted(str(d) for d in record_dir.rglob("*") if d.is_file() and is_documentation(d.name))
+        specs.append(spec)
+    profiled = dict(zip(paths, run_many(specs, jobs, timeout, "types/readme")))
     for gold, target, columns, local in work:
         result = profiled[local]
         found = {c["name"].strip().lower(): c for c in result.get("columns", [])}
@@ -197,7 +211,11 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--sizes", nargs="+", type=int, default=[500, 2000, 5000], help="sampling-sweep sample sizes")
     parser.add_argument("--out", type=Path, default=HERE / "results" / "latest")
+    parser.add_argument("--docs", action="store_true",
+                        help="types: give files their record's codebooks (measures reading, not inference)")
     args = parser.parse_args()
+    global USE_DOCS
+    USE_DOCS = args.docs
 
     if args.stage == "compare":
         sys.exit(score.compare(Path(args.paths[0]), Path(args.paths[1])))
