@@ -32,15 +32,15 @@ from eval.description_eval.common import (COLLECTED_DIR, GOLD_DIR, JUDGE_MODEL, 
 COLUMN_BATCH = 50
 SEED = 20261026
 
-COLUMN_JUDGE = """You are checking automatically generated column descriptions against the dataset's own documentation.
+COLUMN_JUDGE = """You are checking automatically generated column descriptions against a dataset's own documentation.
 
-For each column below you get the documentation's definition (and value labels, if any) and an
-automatically generated description. Grade whether the generated description says what the
-column is:
-- "correct": same meaning (wording may differ; it need not repeat every value label)
-- "partial": right general area but missing or blurring something important (e.g. calls a
+Each item gives the documentation's definition of a column (and value labels, if any) and an
+automatically generated description. The column's name is withheld on purpose: judge only
+whether the two texts describe the same variable.
+- "correct": same variable (wording may differ; it need not repeat every value label)
+- "partial": same general area but missing or blurring something important (e.g. calls a
   coded category a number, misses what the codes mean, wrong unit)
-- "wrong": a different meaning, or a claim that contradicts the documentation
+- "wrong": a different variable, or a claim that contradicts the documentation
 
 {pairs}
 
@@ -110,7 +110,7 @@ def judge_columns(pairs: list[dict]) -> list[dict]:
     for start in range(0, len(pairs), COLUMN_BATCH):
         batch = pairs[start:start + COLUMN_BATCH]
         text = "\n\n".join(
-            f"id {i}: column `{p['column']}`\n  documentation: {p['definition']}"
+            f"id {i}:\n  documentation: {p['definition']}"
             + (f" (values: {p['labels'][:300]})" if p['labels'] else "")
             + f"\n  generated: {p['generated']}" for i, p in enumerate(batch))
         grades = {g["id"]: g for g in ask_json(COLUMN_JUDGE.format(pairs=text))}
@@ -120,20 +120,17 @@ def judge_columns(pairs: list[dict]) -> list[dict]:
 
 
 def shuffled(pairs: list[dict]) -> list[dict]:
-    """Negative control: each generated text paired with another column's documentation (same file)."""
+    """Negative control: each generated text paired with a column definition from a
+    different record (within one file, neighbouring survey items are near-duplicates)."""
     rng = random.Random(SEED)
+    sample = rng.sample(pairs, min(150, len(pairs)))
     out = []
-    by_file: dict[tuple, list[dict]] = {}
-    for p in pairs:
-        by_file.setdefault((p["record"], p["file"]), []).append(p)
-    for group in by_file.values():
-        if len(group) < 2:
-            continue
-        others = group[1:] + group[:1]
-        for p, q in zip(group, others):
+    for p in sample:
+        others = [q for q in pairs if q["record"] != p["record"]]
+        if others:
+            q = rng.choice(others)
             out.append({**p, "definition": q["definition"], "labels": q["labels"], "control": True})
-    rng.shuffle(out)
-    return out[:150]
+    return out
 
 
 def time_agreement(gold: dict[str, Any], collected: dict[str, Any]) -> list[dict]:
