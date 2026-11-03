@@ -760,3 +760,55 @@ class FormatTests(unittest.TestCase):
                          ["KS_data.csv", "bias.dta", "nyu_2451_1_WGS84_Roads.zip", "study.csv"])
         docs = {d["key"] for d in entries[0]["record"]["documentation"]}
         self.assertTrue({"study.dta", "bias.dta"} <= docs)  # Stata files double as codebooks
+
+
+class DatabaseTests(unittest.TestCase):
+    """SQLite / SpatiaLite / GeoPackage: one dataset per table (formats.py, profile_database)."""
+
+    @staticmethod
+    def spatialite_point(lon: float, lat: float, srid: int = 4326) -> bytes:
+        import struct
+        mbr = struct.pack("<4d", lon, lat, lon, lat)
+        return bytes([0, 1]) + struct.pack("<i", srid) + mbr + bytes([0x7C]) + struct.pack("<i2d", 1, lon, lat) + bytes([0xFE])
+
+    def make_db(self, path: Path):
+        import sqlite3
+        con = sqlite3.connect(path)
+        con.execute("create table geometry_columns (f_table_name text, f_geometry_column text, srid int)")
+        con.execute("insert into geometry_columns values ('stations', 'geometry', 4326)")
+        con.execute("create table stations (stop_id text, name text, geometry blob)")
+        con.executemany("insert into stations values (?, ?, ?)",
+                        [(f"s{i}", f"Station {i}", self.spatialite_point(-74.0 + i / 10, 40.6 + i / 20)) for i in range(5)])
+        con.execute("create table tract_census (geoid text, pop int, hshd int)")
+        con.executemany("insert into tract_census values (?, ?, ?)", [(f"36061{i:06d}", 1000 + i, 400 + i) for i in range(30)])
+        con.execute("create table spatial_ref_sys (srid int, auth_name text)")
+        con.execute("create table idx_stations_geometry (pkid int)")
+        con.execute("create view big_tracts as select geoid, pop from tract_census where pop > 1010")
+        con.commit()
+        con.close()
+
+    def test_tables_views_and_extent(self):
+        from crawlers.invenio.formats import database_tables, read_database_table
+        path = Path(tempfile.mkdtemp()) / "gdb.sqlite"
+        self.make_db(path)
+        self.assertEqual(database_tables(path), ["big_tracts", "stations", "tract_census"])  # system tables skipped
+        stations = read_database_table(path, "stations")
+        self.assertEqual(stations.header, ["stop_id", "name"])  # geometry blob not profiled
+        self.assertEqual(len(list(stations.rows)), 5)
+        for got, want in zip(stations.bbox, [-74.0, 40.6, -73.6, 40.8]):
+            self.assertAlmostEqual(got, want)
+        self.assertIsNone(read_database_table(path, "tract_census").bbox)
+
+    def test_database_in_a_zip_gives_one_dataset_per_table(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.make_db(tmp / "gdb.sqlite")
+        with zipfile.ZipFile(tmp / "gdb.zip", "w") as archive:
+            archive.write(tmp / "gdb.sqlite", "nyc/gdb.sqlite")
+        records = profile_archive(tmp / "gdb.zip", {"dataset_id": "t:gdb", "file_key": "gdb.zip", "record": {"title": "NYC"}})
+        by_table = {r["source_record"]["database"]["table"]: r for r in records}
+        self.assertEqual(sorted(by_table), ["big_tracts", "stations", "tract_census"])
+        self.assertEqual(by_table["tract_census"]["profiler_metadata"]["nb_rows"], 30)
+        self.assertEqual(by_table["stations"]["source_record"]["file_key"], "gdb.zip/nyc/gdb.sqlite#stations")
+        self.assertEqual({r["archive_dataset_id"] for r in records}, {"t:gdb"})
+        self.assertEqual(len({r["id"] for r in records}), 3)
+        self.assertIsNotNone(by_table["stations"]["profiler_metadata"]["spatial_bbox"])

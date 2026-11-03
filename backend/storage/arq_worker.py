@@ -15,9 +15,11 @@ from typing import Any
 import pandas as pd
 from arq.connections import RedisSettings
 
-from crawlers.invenio.transformer import build_archive_records, build_group_records, build_invenio_record
+from crawlers.invenio.formats import DATABASE_EXTENSIONS
+from crawlers.invenio.transformer import (build_archive_records, build_database_records, build_group_records,
+                                          build_invenio_record)
 from crawlers.socrata.transformer import build_validation_record
-from storage.minio_client import PROFILE_BUCKET_NAME, get_storage_client, upload_heavy_profile
+from storage.minio_client import PROFILE_BUCKET_NAME, get_heavy_profile_object, get_storage_client, upload_heavy_profile
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
 from run_pipeline_ingest import apply_socrata_timestamp, apply_source_timestamp, isolate_search_payload, load_runtime_config, sync_portal_metadata
 
@@ -333,6 +335,33 @@ async def build_full_record(dataset_meta: dict[str, Any], **settings: Any) -> di
     return await build_validation_record(dataset_meta["dataset_id"], **settings)
 
 
+AUTODDG_FIELDS = ("autoddg_description", "autoddg_search_description", "autoddg_topic", "autoddg_semantic_profile")
+
+
+def carry_over_autoddg(record: dict[str, Any], storage_client) -> dict[str, Any]:
+    """With AutoDDG off, keep the descriptions a re-profiled dataset already has.
+
+    Indexing replaces the whole document, so a re-ingest without AutoDDG used to
+    wipe every generated description. They are copied from the stored full profile
+    (same file, same id); new datasets get none until a backfill.
+    """
+    if get_autoddg() is not None or any(record.get(f) for f in AUTODDG_FIELDS):
+        return record
+    try:
+        response, _ = get_heavy_profile_object(storage_client, record.get("id"))
+        try:
+            previous = json.loads(response.read())
+        finally:
+            response.close()
+            response.release_conn()
+    except Exception:  # no stored profile: a new dataset
+        return record
+    for field in AUTODDG_FIELDS:
+        if previous.get(field):
+            record[field] = previous[field]
+    return record
+
+
 async def persist_and_index(record: dict[str, Any], os_client, storage_client, embedding_model,
                             provider_type: str, domain_url: str, socrata_updated_at: str | None,
                             source_updated_at: str | None) -> None:
@@ -346,6 +375,7 @@ async def persist_and_index(record: dict[str, Any], os_client, storage_client, e
     # Run in a thread: this makes several sequential blocking LLM calls, which
     # would otherwise stall every other task on the worker's event loop.
     record = await asyncio.to_thread(attach_autoddg_description, record)
+    record = await asyncio.to_thread(carry_over_autoddg, record, storage_client)
 
     LOGGER.info("Uploading full profile to MinIO for dataset %s", routing_key)
     upload_heavy_profile(storage_client, routing_key, record)
@@ -372,6 +402,9 @@ async def process_archive_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
         records = await build_group_records(dataset_meta, **settings)
         LOGGER.info("Group %s: %d dataset(s) from %d sampled parts", dataset_id, len(records),
                     len(dataset_meta["member_group"]["samples"]))
+    elif dataset_meta.get("file_extension") in DATABASE_EXTENSIONS:
+        records = await build_database_records(dataset_meta, **settings)
+        LOGGER.info("Database %s: %d table(s) profiled", dataset_id, len(records))
     else:
         records = await build_archive_records(dataset_meta, **settings)
         LOGGER.info("Archive %s: %d tabular member(s) profiled", dataset_id, len(records))
@@ -411,7 +444,8 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
     dataset_id = dataset_meta.get("dataset_id") or dataset_meta.get("id")
     if not dataset_id:
         raise ValueError("dataset_meta missing required dataset_id")
-    if dataset_meta.get("file_extension") == "zip" or dataset_meta.get("member_group"):
+    if (dataset_meta.get("file_extension") == "zip" or dataset_meta.get("member_group")
+            or dataset_meta.get("file_extension") in DATABASE_EXTENSIONS):
         pipeline_settings = load_runtime_config().get("pipeline_settings", {})
         return await process_archive_task(ctx, dataset_meta, {
             "max_sample_rows": int(dataset_meta.get("max_sample_rows") or pipeline_settings.get("max_sample_rows", 500)),

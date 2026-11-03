@@ -16,7 +16,8 @@ import zipfile
 from contextlib import contextmanager
 from typing import Iterator
 
-ARCHIVE_TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz", "geojson", "dta", "shp"}
+ARCHIVE_TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz", "geojson", "dta", "shp",
+                              "sqlite", "gpkg"}
 # A shapefile is several members: the .shp (geometry, the one we list) needs its .dbf
 # (attribute table); .shx, .prj (projection) and .cpg (encoding) are read when present.
 SHAPEFILE_SIDECARS = ("dbf", "shx", "prj", "cpg")
@@ -30,7 +31,8 @@ MAX_SPREADSHEET_MEMBER_BYTES = 25 * 1024 * 1024
 RANGE_BLOCK_BYTES = 256 * 1024
 # When a table exists in several formats under one name, profile only the first of
 # these (UAE Open Data ships SocialAssistance.xlsx next to SocialAssistance.xls).
-FORMAT_PREFERENCE = ("csv", "tsv", "csv.gz", "tsv.gz", "parquet", "xlsx", "xls", "geojson", "shp", "dta")
+FORMAT_PREFERENCE = ("csv", "tsv", "csv.gz", "tsv.gz", "parquet", "xlsx", "xls", "geojson", "shp", "dta", "gpkg",
+                     "sqlite")
 
 
 def member_extension(name: str) -> str:

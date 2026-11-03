@@ -165,3 +165,101 @@ def read_stata(path: Path) -> Read:
 
 
 READERS: dict[str, Any] = {"shp": read_shapefile, "geojson": read_geojson, "dta": read_stata}
+
+
+# --- SQLite / SpatiaLite / GeoPackage -------------------------------------------------
+
+DATABASE_EXTENSIONS = {"sqlite", "sqlite3", "gpkg"}
+# Bookkeeping tables of SQLite, SpatiaLite and GeoPackage: never data.
+_SYSTEM_TABLES = {
+    "geometry_columns", "geometry_columns_auth", "geometry_columns_statistics", "geometry_columns_field_infos",
+    "geometry_columns_time", "geom_cols_ref_sys", "spatial_ref_sys", "spatial_ref_sys_aux", "spatial_ref_sys_all",
+    "spatialite_history", "sql_statements_log", "spatialindex", "elementarygeometries", "knn", "knn2",
+    "views_geometry_columns", "views_geometry_columns_auth", "views_geometry_columns_statistics",
+    "views_geometry_columns_field_infos", "virts_geometry_columns", "virts_geometry_columns_auth",
+    "virts_geometry_columns_statistics", "virts_geometry_columns_field_infos", "vector_layers",
+    "vector_layers_auth", "vector_layers_statistics", "vector_layers_field_infos", "data_licenses",
+    "rl2map_configurations", "se_external_graphics", "se_fonts", "se_raster_styled_layers",
+    "se_vector_styled_layers", "layer_statistics", "views_layer_statistics", "virts_layer_statistics",
+}
+_SYSTEM_PREFIXES = ("sqlite_", "idx_", "rtree_", "gpkg_", "gpkgext_")
+MAX_DATABASE_TABLES = 200
+
+
+def _blob_envelope(blob: bytes) -> tuple[int | None, tuple[float, float, float, float] | None]:
+    """(srid, (minx, miny, maxx, maxy)) from a SpatiaLite or GeoPackage geometry blob header."""
+    import struct
+
+    if not isinstance(blob, (bytes, bytearray)) or len(blob) < 8:
+        return None, None
+    if blob[:2] == b"GP":  # GeoPackage: magic, version, flags, srs_id, optional envelope
+        flags = blob[3]
+        order = "<" if flags & 1 else ">"
+        srid = struct.unpack(order + "i", blob[4:8])[0]
+        if (flags >> 1) & 7 == 0 or len(blob) < 40:
+            return srid, None
+        minx, maxx, miny, maxy = struct.unpack(order + "4d", blob[8:40])
+        return srid, (minx, miny, maxx, maxy)
+    if blob[0] == 0 and blob[1] in (0, 1) and len(blob) >= 38:  # SpatiaLite: start, endian, srid, MBR
+        order = "<" if blob[1] == 1 else ">"
+        srid = struct.unpack(order + "i", blob[2:6])[0]
+        return srid, struct.unpack(order + "4d", blob[6:38])
+    return None, None
+
+
+def _geometry_columns(con) -> dict[str, set[str]]:
+    """table -> its geometry column names, from SpatiaLite's or GeoPackage's registry."""
+    found: dict[str, set[str]] = {}
+    for query in ("select f_table_name, f_geometry_column from geometry_columns",
+                  "select table_name, column_name from gpkg_geometry_columns"):
+        try:
+            for table, column in con.execute(query):
+                found.setdefault(str(table).lower(), set()).add(str(column).lower())
+        except Exception:
+            continue
+    return found
+
+
+def database_tables(path: Path) -> list[str]:
+    """User tables and views of a SQLite database, in name order."""
+    import sqlite3
+
+    con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        names = [n for (n,) in con.execute("select name from sqlite_master where type in ('table', 'view') order by name")]
+    finally:
+        con.close()
+    return [n for n in names if n.lower() not in _SYSTEM_TABLES and not n.lower().startswith(_SYSTEM_PREFIXES)
+            ][:MAX_DATABASE_TABLES]
+
+
+def read_database_table(path: Path, table: str) -> Read:
+    """One table's rows; geometry blobs are left out and their extent becomes the bbox."""
+    import sqlite3
+
+    con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    quoted = '"' + table.replace('"', '""') + '"'
+    columns = [r[1] for r in con.execute(f"pragma table_info({quoted})")]
+    geometry = _geometry_columns(con).get(table.lower(), set())
+    kept = [c for c in columns if c.lower() not in geometry]
+    box, srid, types = None, None, None
+    for column in [c for c in columns if c.lower() in geometry][:1]:
+        for (blob,) in con.execute(f'select "{column}" from {quoted} where "{column}" is not null'):
+            blob_srid, env = _blob_envelope(blob)
+            if env is None:
+                continue
+            srid = srid or blob_srid
+            box = list(env) if box is None else [min(box[0], env[0]), min(box[1], env[1]),
+                                                 max(box[2], env[2]), max(box[3], env[3])]
+        types = "geometry"
+    bbox = to_lonlat(box, f"EPSG:{srid}" if srid and srid > 0 else None) if box else None
+
+    def rows() -> Iterator[tuple]:
+        try:
+            select = ", ".join('"' + c.replace('"', '""') + '"' for c in kept) or "1"
+            for row in con.execute(f"select {select} from {quoted}"):
+                yield tuple(v.hex() if isinstance(v, (bytes, bytearray)) else v for v in row)
+        finally:
+            con.close()
+
+    return Read(header=kept, rows=rows(), bbox=bbox, geometry_type=types)

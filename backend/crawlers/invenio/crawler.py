@@ -35,7 +35,8 @@ from crawlers.invenio.http import async_client
 
 LOGGER = logging.getLogger(__name__)
 
-TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz", "geojson", "dta"}
+# sqlite / gpkg: one database file, one dataset per table (transformer.profile_database).
+TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz", "geojson", "dta", "sqlite", "gpkg"}
 # Zips: small ones become one archive job (downloaded); large ones are listed in
 # place and each selected tabular member becomes its own job (see archives.py).
 ARCHIVE_EXTENSIONS = {"zip"}

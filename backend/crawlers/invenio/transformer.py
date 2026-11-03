@@ -49,7 +49,7 @@ from crawlers.invenio.archives import (
 )
 from crawlers.invenio.codebook import (MAX_DOC_BYTES, apply_value_labels, documentation_for, is_documentation,
                                        value_labels)
-from crawlers.invenio.formats import READERS
+from crawlers.invenio.formats import DATABASE_EXTENSIONS, READERS, database_tables, read_database_table
 from crawlers.invenio.http import async_client
 from crawlers.socrata.transformer import (
     SampleStats,
@@ -453,11 +453,97 @@ def profile_archive(path: Path, dataset_meta: dict[str, Any], *_unused) -> list[
         dataset_meta = {**dataset_meta, "_archive_documentation": zip_docs}
         for info in members:
             try:
+                if member_extension(info.filename) in DATABASE_EXTENSIONS:
+                    raw = _extract_member(archive, info)
+                    try:
+                        records += profile_database(raw, dataset_meta, member_dataset_id(archive_id, info.filename),
+                                                    f"{archive_key}/{info.filename}", archive_id)
+                    finally:
+                        shutil.rmtree(raw.parent, ignore_errors=True)
+                    continue
                 records.append(member_record(dataset_meta, archive_id, archive_key, info,
                                              *member_table(archive, info), totals))
             except Exception as exc:
                 LOGGER.warning("Skipping archive member %s: %r", info.filename, exc)
     return records
+
+
+def profile_database(path: Path, dataset_meta: dict[str, Any], database_id: str, database_key: str,
+                     parent_id: str | None = None) -> list[dict[str, Any]]:
+    """One catalog record per table of a SQLite / SpatiaLite / GeoPackage database.
+
+    Geometry columns aren't profiled; their extent (from the blob headers,
+    reprojected) is the table's box. Records are linked to `parent_id` (the zip, or
+    the database itself) so a re-run removes tables that disappeared.
+    """
+    tables = database_tables(path)
+    records = []
+    for name in tables:
+        table = None
+        try:
+            read = read_database_table(path, name)
+            out = Path(tempfile.NamedTemporaryFile(delete=False, suffix=".csv").name)
+            table = _write_table(read.header, read.rows, out)
+            table.geo_bbox, table.geometry_type = read.bbox, read.geometry_type
+            headers, rows, output, errors = profile_table(table)
+            meta = {**dataset_meta, "dataset_id": f"{database_id}:{hashlib.sha1(name.encode()).hexdigest()[:12]}",
+                    "file_key": f"{database_key}#{name}", "file_extension": member_extension(database_key)}
+            record = assemble_record(meta, table, headers, rows, output, errors)
+            record["archive_dataset_id"] = parent_id or database_id
+            record["source_record"]["database"] = {"file_key": database_key, "table": name, "tables": len(tables)}
+            records.append(record)
+        except Exception as exc:
+            LOGGER.warning("Skipping database table %s in %s: %r", name, database_key, exc)
+        finally:
+            if table is not None:
+                table.path.unlink(missing_ok=True)
+    return records
+
+
+def profile_database_job(dataset_meta: dict[str, Any]) -> list[dict[str, Any]]:
+    """A database job: a member of a large zip (read in place) or a loose file (downloaded)."""
+    if dataset_meta.get("zip_member"):
+        archive = dataset_meta["archive"]
+        with open_remote_zip(archive["url"], archive["size"]) as zf:
+            raw = _extract_member(zf, zf.getinfo(dataset_meta["zip_member"]))
+    else:
+        import httpx
+
+        from crawlers.invenio.http import USER_AGENT, ssl_context
+
+        folder = Path(tempfile.mkdtemp())
+        raw = folder / f"database.{dataset_meta.get('file_extension') or 'sqlite'}"
+        with httpx.Client(timeout=300, verify=ssl_context(), follow_redirects=True,
+                          headers={"User-Agent": USER_AGENT, "Accept": "*/*"}) as client:
+            with client.stream("GET", dataset_meta["file_url"]) as response:
+                response.raise_for_status()
+                copy_capped(_IterReader(response.iter_bytes()), raw, MAX_FILE_BYTES)
+    try:
+        return profile_database(raw, dataset_meta, dataset_meta["dataset_id"], dataset_meta["file_key"])
+    finally:
+        shutil.rmtree(raw.parent, ignore_errors=True)
+
+
+class _IterReader:
+    """A read() interface over an iterator of byte chunks (for copy_capped)."""
+
+    def __init__(self, chunks):
+        self._chunks, self._buffer = iter(chunks), b""
+
+    def read(self, size: int = -1) -> bytes:
+        while size < 0 or len(self._buffer) < size:
+            chunk = next(self._chunks, None)
+            if chunk is None:
+                break
+            self._buffer += chunk
+        data, self._buffer = (self._buffer, b"") if size < 0 else (self._buffer[:size], self._buffer[size:])
+        return data
+
+
+async def build_database_records(dataset_meta: dict[str, Any], **_unused) -> list[dict[str, Any]]:
+    """Profile every table of a database file off the event loop."""
+    async with PROFILER_SLOTS:
+        return await asyncio.to_thread(profile_database_job, dataset_meta)
 
 
 def profile_remote_member(dataset_meta: dict[str, Any], *_unused) -> dict[str, Any]:
