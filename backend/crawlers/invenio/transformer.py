@@ -25,6 +25,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import sys
 import tempfile
 import zipfile
@@ -39,6 +40,7 @@ from crawlers.coverage import (admin_bbox, bbox_from_profiler, geo_data, tempora
                                temporal_from_year_columns, zip_bbox)
 from crawlers.identifiers import mark_identifier_columns
 from crawlers.invenio.archives import (
+    SHAPEFILE_SIDECARS,
     SMALL_ARCHIVE_BYTES,
     member_dataset_id,
     member_extension,
@@ -47,6 +49,7 @@ from crawlers.invenio.archives import (
 )
 from crawlers.invenio.codebook import (MAX_DOC_BYTES, apply_value_labels, documentation_for, is_documentation,
                                        value_labels)
+from crawlers.invenio.formats import READERS
 from crawlers.invenio.http import async_client
 from crawlers.socrata.transformer import (
     SampleStats,
@@ -95,7 +98,9 @@ class Table:
     total_columns: int
     rows: int
     bytes: int
-    geo_bbox: list[float] | None = None  # from GeoParquet metadata, if any
+    geo_bbox: list[float] | None = None  # from GeoParquet metadata or a shapefile/GeoJSON extent
+    value_labels: dict[str, dict[str, str]] | None = None  # stored in the file (Stata)
+    geometry_type: str | None = None
 
     def stats(self) -> SampleStats:
         return SampleStats(sample_path=self.path, bytes_written=self.bytes, newline_count=self.rows,
@@ -178,6 +183,11 @@ def normalize_table(raw: Path, extension: str) -> Table:
     """Normalize a whole delimited file (plain or .gz), a Parquet file, or the first
     non-empty sheet of a workbook."""
     out = Path(tempfile.NamedTemporaryFile(delete=False, suffix=".csv").name)
+    if extension in READERS:  # shapefile, GeoJSON, Stata (crawlers/invenio/formats.py)
+        read = READERS[extension](raw)
+        table = _write_table(read.header, read.rows, out)
+        table.geo_bbox, table.value_labels, table.geometry_type = read.bbox, read.value_labels, read.geometry_type
+        return table
     if extension == "parquet":
         import pyarrow.parquet as pq
 
@@ -350,7 +360,10 @@ def assemble_record(dataset_meta: dict[str, Any], table: Table, headers: list[st
     inferred_bbox = infer_spatial_bbox(headers, rows)
 
     try:  # documentation never breaks profiling
-        documented = value_labels(documentation_for(dataset_meta), headers)
+        documented = {c: {"labels": labels, "source": "value labels in the file"}
+                      for c, labels in (table.value_labels or {}).items()}
+        for column, found in value_labels(documentation_for(dataset_meta), headers).items():
+            documented.setdefault(column, found)
         if documented:
             apply_value_labels(profiler_output, documented)
     except Exception as exc:
@@ -364,12 +377,16 @@ def assemble_record(dataset_meta: dict[str, Any], table: Table, headers: list[st
         profiler_output["attribute_keywords"] = list(profiler_output.get("attribute_keywords") or headers) + terms
     profiler_metadata = _merge_profiler_output(profiler_output, table.stats(), inferred_bbox, fallback_bbox=None)
     # ZIP codes before place names: a zip resolves to one place, a city name may not.
-    candidate_bbox = (bbox_from_profiler(profiler_output) or table.geo_bbox
+    # A layer's own extent (shapefile header, GeoJSON geometries) beats anything inferred from its columns.
+    candidate_bbox = ((table.geo_bbox if table.geometry_type else None) or bbox_from_profiler(profiler_output)
+                      or table.geo_bbox
                       or zip_bbox(profiler_output, rows, table.path)
                       or admin_bbox(profiler_output, rows, table.path) or inferred_bbox)
     real_bbox = [float(v) for v in candidate_bbox] if _valid_bbox(candidate_bbox) else None
     # _merge_profiler_output always fills a bbox (worst case the whole world); keep only a real one.
     profiler_metadata["spatial_bbox"] = real_bbox
+    if table.geometry_type:
+        profiler_metadata["geometry_type"] = table.geometry_type
 
     file_key = dataset_meta.get("file_key", "")
     record = {
@@ -400,17 +417,11 @@ def assemble_record(dataset_meta: dict[str, Any], table: Table, headers: list[st
 
 def member_table(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> tuple[Table, str]:
     """Extract one member (whole, within the size caps) and normalize it."""
-    ext = member_extension(info.filename)
-    limit = MAX_SPREADSHEET_BYTES if ext in SPREADSHEET_EXTENSIONS else MAX_FILE_BYTES
-    if info.file_size > limit:
-        raise ValueError(f"member is larger than the {limit}-byte limit")
-    raw = Path(tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}").name)
+    raw = _extract_member(archive, info)
     try:
-        with archive.open(info) as source:
-            copy_capped(source, raw, limit)
-        return normalize_table(raw, ext), ext
+        return normalize_table(raw, member_extension(info.filename)), member_extension(info.filename)
     finally:
-        raw.unlink(missing_ok=True)
+        shutil.rmtree(raw.parent, ignore_errors=True)
 
 
 def member_record(dataset_meta: dict[str, Any], archive_id: str, archive_key: str, info: zipfile.ZipInfo,
@@ -470,13 +481,27 @@ MAX_GROUP_FULL_PROFILES = int(os.getenv("MAX_GROUP_FULL_PROFILES", "5"))
 
 
 def _extract_member(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> Path:
+    """Copy a member into a fresh temp directory (the caller removes it). A shapefile
+    brings its sidecars (.dbf, .prj, ...) under the same stem, as the reader needs."""
     ext = member_extension(info.filename)
     limit = MAX_SPREADSHEET_BYTES if ext in SPREADSHEET_EXTENSIONS else MAX_FILE_BYTES
     if info.file_size > limit:
         raise ValueError(f"member is larger than the {limit}-byte limit")
-    raw = Path(tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}").name)
-    with archive.open(info) as source:
-        copy_capped(source, raw, limit)
+    folder = Path(tempfile.mkdtemp())
+    raw = folder / f"member.{ext}"
+    members = [(info, raw)]
+    if ext == "shp":
+        by_name = {i.filename.lower(): i for i in archive.infolist()}
+        stem = info.filename[:-3].lower()
+        members += [(by_name[stem + side], folder / f"member.{side}") for side in SHAPEFILE_SIDECARS
+                    if stem + side in by_name]
+    try:
+        for member, path in members:
+            with archive.open(member) as source:
+                copy_capped(source, path, limit)
+    except Exception:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
     return raw
 
 
@@ -639,7 +664,7 @@ def profile_member_group(dataset_meta: dict[str, Any], opener=open_remote_zip) -
                         LOGGER.warning("Skipping group part %s: %r", sample["member"], exc)
                     finally:
                         if raw is not None:
-                            raw.unlink(missing_ok=True)
+                            shutil.rmtree(raw.parent, ignore_errors=True)
                         if table is not None:
                             table.path.unlink(missing_ok=True)
         except Exception as exc:  # the zip itself couldn't be opened

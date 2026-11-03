@@ -23,18 +23,19 @@ import httpx
 from crawlers.invenio.archives import (
     MAX_ARCHIVE_MEMBERS,
     SMALL_ARCHIVE_BYTES,
+    drop_duplicate_formats,
     member_dataset_id,
     member_extension,
     member_pattern,
     open_remote_zip,
     tabular_members,
 )
-from crawlers.invenio.codebook import MAX_DOC_BYTES, is_documentation
+from crawlers.invenio.codebook import MAX_DOC_BYTES, is_documentation, is_labelled_data
 from crawlers.invenio.http import async_client
 
 LOGGER = logging.getLogger(__name__)
 
-TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz"}
+TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz", "geojson", "dta"}
 # Zips: small ones become one archive job (downloaded); large ones are listed in
 # place and each selected tabular member becomes its own job (see archives.py).
 ARCHIVE_EXTENSIONS = {"zip"}
@@ -97,7 +98,8 @@ def summarize_record(record: dict[str, Any], domain: str) -> dict[str, Any]:
             {"key": key, "url": f"https://{domain}/api/records/{record_id}/files/{quote(key)}/content",
              "size": entry.get("size")}
             for key, entry in ((record.get("files") or {}).get("entries") or {}).items()
-            if (record.get("access") or {}).get("files") == "public" and is_documentation(key)
+            if (record.get("access") or {}).get("files") == "public"
+            and (is_documentation(key) or is_labelled_data(key))
             and (entry.get("size") or 0) <= MAX_DOC_BYTES
         ],
     }
@@ -109,10 +111,18 @@ def file_entries(record: dict[str, Any], domain: str, max_file_bytes: int) -> li
         return []
 
     record_summary = summarize_record(record, domain)
+    files = (record.get("files") or {}).get("entries") or {}
+    # One table uploaded in several formats (KS_data.csv + KS_data.xlsx, a .dta next
+    # to its CSV) is indexed once; the .dta still serves as the CSV's codebook.
+    duplicates = drop_duplicate_formats([k for k in files if file_extension(k) in TABULAR_EXTENSIONS])
+    # NYU's Spatial Data Repository uploads each layer twice, in NY State Plane and
+    # reprojected ("nyu_2451_34500_PrivateSchools_2015.zip" and
+    # "nyu_2451_34500_WGS84_PrivateSchools_2015.zip"): index the WGS84 copy only.
+    duplicates |= {k.replace("_WGS84_", "_") for k in files if "_WGS84_" in k} & set(files)
     entries = []
-    for key, entry in ((record.get("files") or {}).get("entries") or {}).items():
+    for key, entry in files.items():
         extension = file_extension(key)
-        if extension not in TABULAR_EXTENSIONS | ARCHIVE_EXTENSIONS:
+        if extension not in TABULAR_EXTENSIONS | ARCHIVE_EXTENSIONS or key in duplicates:
             continue
         if extension not in ARCHIVE_EXTENSIONS and entry.get("size", 0) > max_file_bytes:
             LOGGER.info("Skipping %s/%s: %d bytes exceeds limit", record["id"], key, entry["size"])

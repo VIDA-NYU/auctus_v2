@@ -201,6 +201,7 @@ DATASETS_MAPPING = {
                     "nb_numerical_columns": {"type": "integer"},
                     "nb_categorical_columns": {"type": "integer"},
                     "attribute_keywords": {"type": "text", "analyzer": "standard"},
+                    "geometry_type": {"type": "keyword"},  # shapefile / GeoJSON layers
                     "columns": {
                         "type": "nested",
                         "properties": {

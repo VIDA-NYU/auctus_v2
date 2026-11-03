@@ -679,3 +679,84 @@ class LookupTests(unittest.TestCase):
         columns = {c["name"]: c for c in record["profiler_metadata"]["columns"]}
         self.assertEqual(columns["ISBN"]["identifier_scheme"], "ISBN")
         self.assertIn("ISBN", record["profiler_metadata"]["attribute_keywords"])
+
+
+class FormatTests(unittest.TestCase):
+    """Shapefiles (in zips), GeoJSON and Stata (crawlers/invenio/formats.py)."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def write_shapefile(self, stem: Path, epsg: int | None):
+        import shapefile
+        from pyproj import CRS, Transformer
+        with shapefile.Writer(str(stem), shapeType=shapefile.POINT) as w:
+            w.field("name", "C")
+            w.field("capacity", "N")
+            to_crs = Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}", always_xy=True) if epsg else None
+            for name, lon, lat, cap in (("PS 1", -74.0, 40.71, 300), ("PS 2", -73.9, 40.85, 450), ("PS 3", -73.95, 40.6, 120)):
+                x, y = to_crs.transform(lon, lat) if to_crs else (lon, lat)
+                w.point(x, y)
+                w.record(name, cap)
+        if epsg:
+            Path(str(stem) + ".prj").write_text(CRS.from_epsg(epsg).to_wkt())
+
+    def test_projected_shapefile_in_a_zip(self):  # NYU SDR layers are in NY State Plane (EPSG:2263, feet)
+        self.write_shapefile(self.tmp / "schools", 2263)
+        path = self.tmp / "layer.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            for ext in ("shp", "shx", "dbf", "prj"):
+                archive.write(self.tmp / f"schools.{ext}", f"nyu_2451_1/schools.{ext}")
+            archive.writestr("nyu_2451_1/schools_iso.xml", "<xml/>")
+        records = profile_archive(path, {"dataset_id": "t:layer", "file_key": "layer.zip", "record": {"title": "NYC"}})
+        self.assertEqual(len(records), 1)
+        pm = records[0]["profiler_metadata"]
+        self.assertEqual((pm["nb_rows"], pm["geometry_type"]), (3, "POINT"))
+        self.assertEqual([c["name"] for c in pm["columns"]], ["name", "capacity"])
+        west, south, east, north = pm["spatial_bbox"]
+        self.assertAlmostEqual(west, -74.0, places=3)
+        self.assertAlmostEqual(north, 40.85, places=3)
+
+    def test_shapefile_without_dbf_is_skipped(self):
+        path = self.tmp / "geom_only.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("a.shp", b"x")
+        with zipfile.ZipFile(path) as archive:
+            self.assertEqual(select_archive_members(archive)[1], 0)
+
+    def test_geojson(self):  # UltraViolet zamja-26h98
+        import json
+        features = [{"type": "Feature", "properties": {"city": "Austin", "jobs": 120},
+                     "geometry": {"type": "Polygon", "coordinates": [[[-97.8, 30.2], [-97.6, 30.2], [-97.6, 30.4], [-97.8, 30.2]]]}},
+                    {"type": "Feature", "properties": {"city": "Boston", "jobs": 90, "note": "x"},
+                     "geometry": {"type": "Point", "coordinates": [-71.06, 42.36]}}]
+        path = self.tmp / "centers.geojson"
+        path.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
+        record = profile_local_file(path)
+        pm = record["profiler_metadata"]
+        self.assertEqual(pm["nb_rows"], 2)
+        self.assertEqual([c["name"] for c in pm["columns"]], ["city", "jobs", "note"])
+        self.assertEqual(pm["spatial_bbox"], [-97.8, 30.2, -71.06, 42.36])
+
+    def test_stata_value_labels(self):  # UltraViolet d8z0p-brn64 ships a .dta next to its CSV
+        frame = pd.DataFrame({"marital": [1, 2, 3, 1] * 5, "visits": [0, 1, 2, 3] * 5})
+        frame.to_stata(self.tmp / "survey.dta", write_index=False,
+                       value_labels={"marital": {1: "Single", 2: "Married", 3: "Widowed"}})
+        record = profile_local_file(self.tmp / "survey.dta")
+        columns = {c["name"]: c for c in record["profiler_metadata"]["columns"]}
+        self.assertEqual(record["profiler_metadata"]["nb_rows"], 20)
+        self.assertEqual(columns["marital"]["value_labels_text"], "Single; Married; Widowed")
+        self.assertNotIn("value_labels", columns["visits"])
+        frame.to_csv(self.tmp / "survey.csv", index=False)  # the .dta as the CSV's codebook
+        record = profile_local_file(self.tmp / "survey.csv", {"local_documentation": [str(self.tmp / "survey.dta")]})
+        columns = {c["name"]: c for c in record["profiler_metadata"]["columns"]}
+        self.assertEqual(columns["marital"]["value_labels_source"], "survey.dta")
+
+    def test_one_table_in_several_formats_is_indexed_once(self):
+        record = invenio_record({"KS_data.csv": 10, "KS_data.xlsx": 10, "study.csv": 10, "study.dta": 10,
+                                 "bias.dta": 10, "nyu_2451_1_Roads.zip": 10, "nyu_2451_1_WGS84_Roads.zip": 10})
+        entries = file_entries(record, DOMAIN, max_file_bytes=10**6)
+        self.assertEqual(sorted(e["file_key"] for e in entries),
+                         ["KS_data.csv", "bias.dta", "nyu_2451_1_WGS84_Roads.zip", "study.csv"])
+        docs = {d["key"] for d in entries[0]["record"]["documentation"]}
+        self.assertTrue({"study.dta", "bias.dta"} <= docs)  # Stata files double as codebooks

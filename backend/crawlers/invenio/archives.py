@@ -16,7 +16,10 @@ import zipfile
 from contextlib import contextmanager
 from typing import Iterator
 
-ARCHIVE_TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz"}
+ARCHIVE_TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz", "geojson", "dta", "shp"}
+# A shapefile is several members: the .shp (geometry, the one we list) needs its .dbf
+# (attribute table); .shx, .prj (projection) and .cpg (encoding) are read when present.
+SHAPEFILE_SIDECARS = ("dbf", "shx", "prj", "cpg")
 # Two-part extensions recognized as one (data.csv.gz -> "csv.gz").
 COMPOUND_EXTENSIONS = ("csv.gz", "tsv.gz")
 SPREADSHEET_EXTENSIONS = {"xlsx", "xls"}
@@ -27,7 +30,7 @@ MAX_SPREADSHEET_MEMBER_BYTES = 25 * 1024 * 1024
 RANGE_BLOCK_BYTES = 256 * 1024
 # When a table exists in several formats under one name, profile only the first of
 # these (UAE Open Data ships SocialAssistance.xlsx next to SocialAssistance.xls).
-FORMAT_PREFERENCE = ("csv", "tsv", "csv.gz", "tsv.gz", "parquet", "xlsx", "xls")
+FORMAT_PREFERENCE = ("csv", "tsv", "csv.gz", "tsv.gz", "parquet", "xlsx", "xls", "geojson", "shp", "dta")
 
 
 def member_extension(name: str) -> str:
@@ -77,6 +80,7 @@ def tabular_members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
     to load, and copies of a table in a less preferred format.
     """
     tabular = []
+    names = {i.filename.lower() for i in archive.infolist()}
     for info in archive.infolist():
         base = info.filename.rsplit("/", 1)[-1]
         if info.is_dir() or info.filename.startswith("__MACOSX/") or base.startswith((".", "~$")):
@@ -86,6 +90,8 @@ def tabular_members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
             continue
         if ext in SPREADSHEET_EXTENSIONS and info.file_size > MAX_SPREADSHEET_MEMBER_BYTES:
             continue
+        if ext == "shp" and info.filename[:-3].lower() + "dbf" not in names:
+            continue  # geometry without its attribute table
         tabular.append(info)
     skip = drop_duplicate_formats([i.filename for i in tabular])
     return sorted((i for i in tabular if i.filename not in skip), key=lambda i: i.filename)

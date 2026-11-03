@@ -5,6 +5,9 @@ From the data alone a survey code ("6 = Widowed") can't be told from a count
 a column with value labels, that column is a category: this module finds those labels
 and marks the profiled column categorical, keeping the labels.
 
+Stata files carry their value labels (a .dta next to a CSV of the same table is
+its codebook); they are read exactly, before any parsed document.
+
 Layouts handled, all by one rule (we know the table's column names):
 - codebook tables (CSV/XLSX): a row naming a column, then that row and the following
   rows hold code/label pairs, the label on either side of the code (REDCap exports,
@@ -27,6 +30,8 @@ DOC_NAME = re.compile(r"read[_ -]?me|codebook|code[_ -]book|dictionar|variables?
                       r"|metadata|schema|legend|column", re.IGNORECASE)
 TABLE_DOC_EXTENSIONS = {"csv", "tsv", "xlsx", "xls"}
 TEXT_DOC_EXTENSIONS = {"txt", "md", "rst", ""}
+# Data files whose value labels are part of the format.
+LABELLED_DATA_EXTENSIONS = {"dta"}
 MAX_DOC_BYTES = 5 * 1024 * 1024
 MIN_LABELS = 2
 CATEGORICAL = "http://schema.org/Enumeration"
@@ -52,6 +57,30 @@ def is_documentation(name: str) -> bool:
     ext = doc_extension(name)
     return bool(DOC_NAME.search(base)) and ext in TABLE_DOC_EXTENSIONS | TEXT_DOC_EXTENSIONS \
         and not base.startswith((".", "~$"))
+
+
+def is_labelled_data(name: str) -> bool:
+    return doc_extension(name) in LABELLED_DATA_EXTENSIONS
+
+
+def labels_from_stata(source, columns: Iterable[str]) -> dict[str, dict[str, str]]:
+    """{column: {code: label}} from a Stata file's own value labels (path or bytes)."""
+    import pandas as pd
+
+    wanted = {_norm(c): c for c in columns if _norm(c)}
+    found: dict[str, dict[str, str]] = {}
+    with pd.read_stata(io.BytesIO(source) if isinstance(source, bytes) else source, iterator=True,
+                       convert_categoricals=False) as reader:
+        tables = reader.value_labels()
+        # pandas keeps the variable -> label-set mapping private; without it, skip.
+        pairs = zip(getattr(reader, "_varlist", []), getattr(reader, "_lbllist", []))
+        for variable, label_set in pairs:
+            column = wanted.get(_norm(variable))
+            labels = tables.get(label_set) if label_set else None
+            if column and labels and len(labels) >= MIN_LABELS:
+                found[column] = {str(int(code)) if float(code).is_integer() else str(code): str(label)
+                                 for code, label in labels.items()}
+    return found
 
 
 def rows_from_bytes(data: bytes, name: str) -> list[list[str]] | None:
@@ -125,7 +154,17 @@ def value_labels(docs: Iterable[tuple[str, bytes]], columns: list[str]) -> dict[
     """column -> {"labels": {code: label}, "source": doc name}; tabular docs win over text."""
     result: dict[str, dict[str, Any]] = {}
     text_docs = []
+    docs = list(docs)
+    for name, data in docs:  # exact labels first
+        if is_labelled_data(name):
+            try:
+                for column, labels in labels_from_stata(data, columns).items():
+                    result.setdefault(column, {"labels": labels, "source": name})
+            except Exception as exc:
+                LOGGER.info("Can't read value labels from %s: %r", name, exc)
     for name, data in docs:
+        if is_labelled_data(name):
+            continue
         try:
             rows = rows_from_bytes(data, name)
         except Exception as exc:  # unreadable doc: skip it
