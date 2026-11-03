@@ -454,6 +454,13 @@ class TransformerTests(unittest.TestCase):
         self.assert_profiled(record)
         self.assertIn("café – résumé", record["sample"])  # decoded, not replaced with U+FFFD
 
+    def test_legacy_encodings_are_told_apart(self):  # UltraViolet yz98y-nkk86: one record, three encodings
+        from crawlers.invenio.transformer import guess_encoding
+        text = "Municipios de la Cartografía Geoestadística, Querétaro, Michoacán de Ocampo\n" * 20
+        for encoding in ("cp1252", "mac_roman", "cp850"):
+            self.assertEqual(guess_encoding(text.encode(encoding)), encoding)
+        self.assertEqual(guess_encoding(text.encode("utf-8")), "utf-8-sig")
+
     def test_utf8_bom_csv(self):
         record = self.profile("bom.csv", lambda p: self.frame.to_csv(p, index=False, encoding="utf-8-sig"))
         self.assert_profiled(record)

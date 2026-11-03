@@ -138,15 +138,35 @@ def _write_table(header: list[str], records, out: Path) -> Table:
 ENCODING_SAMPLE_BYTES = 4 * 1024 * 1024
 
 
+# Legacy encodings seen in repository uploads; the Mexico census catalogs of one
+# UltraViolet record use all three (í is 0xED, 0x92 and 0xA1 respectively).
+LEGACY_ENCODINGS = ("cp1252", "mac_roman", "cp850")
+
+
+def _letter_score(text: str) -> int:
+    """Non-ASCII characters that are letters inside words ("Cartografía"), minus the
+    ones that aren't ("Cartograf’a", "Cartograf¡a")."""
+    score = 0
+    for i, ch in enumerate(text):
+        if ord(ch) < 128:
+            continue
+        inside = 0 < i < len(text) - 1 and text[i - 1].isalpha() and text[i + 1].isalpha()
+        score += 1 if ch.isalpha() and inside else -1 if inside else 0
+    return score
+
+
 def guess_encoding(head: bytes) -> str:
     """UTF-8 when the sample decodes as UTF-8 (a character cut at the sample's end
-    allowed), else Windows-1252, the usual legacy encoding of repository uploads
-    (UltraViolet's Mexico census catalogs: "Cartografía" was read as "Cartograf\ufffda")."""
+    allowed), else the legacy encoding whose decoding reads most like words.
+    Decoding as UTF-8 with replacement indexed "Cartografía" as "Cartograf\ufffda"."""
     try:
         head.decode("utf-8")
         return "utf-8-sig"
     except UnicodeDecodeError as exc:
-        return "utf-8-sig" if exc.start >= len(head) - 3 else "cp1252"
+        if exc.start >= len(head) - 3:
+            return "utf-8-sig"
+    scores = {enc: _letter_score(head.decode(enc, errors="replace")) for enc in LEGACY_ENCODINGS}
+    return max(LEGACY_ENCODINGS, key=lambda enc: scores[enc])  # ties keep cp1252
 
 
 def _open_text(path: Path, extension: str):
