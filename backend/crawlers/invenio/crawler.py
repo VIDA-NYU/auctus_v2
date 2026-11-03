@@ -181,6 +181,11 @@ def expand_archive(entry: dict[str, Any], unlisted: set[str] | None = None) -> l
     return members
 
 
+def _natural_key(name: str) -> list:
+    """part.2 before part.10."""
+    return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", name.lower())]
+
+
 def _total_hits(page: dict[str, Any]) -> int:
     total = (page.get("hits") or {}).get("total")
     return int(total.get("value", 0) if isinstance(total, dict) else total or 0)
@@ -241,9 +246,14 @@ def group_job(pattern: str, members: list[dict[str, Any]], max_samples: int = MA
                  and total_bytes <= (FULL_SCAN_BYTES if full_scan_bytes is None else full_scan_bytes))
     if full_scan:
         max_samples = len(members)
-    per_archive = max(1, max_samples // max(1, len(by_archive)))
+    else:
+        # At least the first and last part of every zip: tiles are numbered in space
+        # order, so a single part gives a city only a sliver of its box.
+        max_samples = max(max_samples, 2 * len(by_archive))
+    per_archive = max(2, max_samples // max(1, len(by_archive)))
     samples = []
     for archive_id, parts in by_archive.items():
+        parts.sort(key=lambda m: _natural_key(m["zip_member"]))
         samples += [{"archive": archive_id, "member": m["zip_member"], "file_size": m["file_size"],
                      "partition": m.pop("_partition")}
                     for m in (parts if full_scan else spread_sample(parts, per_archive))]
