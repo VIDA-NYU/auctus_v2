@@ -135,11 +135,27 @@ def _write_table(header: list[str], records, out: Path) -> Table:
                  rows=count, bytes=out.stat().st_size)
 
 
+ENCODING_SAMPLE_BYTES = 4 * 1024 * 1024
+
+
+def guess_encoding(head: bytes) -> str:
+    """UTF-8 when the sample decodes as UTF-8 (a character cut at the sample's end
+    allowed), else Windows-1252, the usual legacy encoding of repository uploads
+    (UltraViolet's Mexico census catalogs: "Cartografía" was read as "Cartograf\ufffda")."""
+    try:
+        head.decode("utf-8")
+        return "utf-8-sig"
+    except UnicodeDecodeError as exc:
+        return "utf-8-sig" if exc.start >= len(head) - 3 else "cp1252"
+
+
 def _open_text(path: Path, extension: str):
-    """Text handle on a delimited file, decompressing .gz; BOMs dropped, bad bytes replaced."""
-    if extension.endswith(".gz"):
-        return gzip.open(path, "rt", encoding="utf-8-sig", errors="replace", newline="")
-    return open(path, encoding="utf-8-sig", errors="replace", newline="")
+    """Text handle on a delimited file, decompressing .gz; BOMs dropped, the encoding
+    guessed from the first bytes, and bytes still undecodable replaced."""
+    opener = gzip.open if extension.endswith(".gz") else open
+    with opener(path, "rb") as fh:
+        encoding = guess_encoding(fh.read(ENCODING_SAMPLE_BYTES))
+    return opener(path, "rt", encoding=encoding, errors="replace", newline="")
 
 
 def _parquet_rows(path: Path, columns: list[str]):

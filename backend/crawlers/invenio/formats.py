@@ -62,8 +62,14 @@ def read_shapefile(shp: Path) -> Read:
     reprojected with the .prj. Sidecars must sit next to `shp` with the same stem."""
     import shapefile
 
-    cpg = shp.with_suffix(".cpg")
-    encoding = cpg.read_text(errors="replace").strip() if cpg.exists() else "utf-8"
+    cpg, dbf = shp.with_suffix(".cpg"), shp.with_suffix(".dbf")
+    if cpg.exists():
+        encoding = cpg.read_text(errors="replace").strip()
+    else:  # no declared encoding: UTF-8 if the attribute table decodes as such, else cp1252
+        from crawlers.invenio.transformer import ENCODING_SAMPLE_BYTES, guess_encoding
+
+        with open(dbf, "rb") as fh:
+            encoding = guess_encoding(fh.read(ENCODING_SAMPLE_BYTES)).removesuffix("-sig")
     if encoding.isdigit():  # "1252" in some .cpg files
         encoding = f"cp{encoding}"
     reader = shapefile.Reader(str(shp), encoding=encoding or "utf-8", encodingErrors="replace")

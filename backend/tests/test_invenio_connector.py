@@ -450,7 +450,9 @@ class TransformerTests(unittest.TestCase):
 
     def test_windows_1252_csv(self):  # found on UltraViolet (xwvc0-mse16)
         frame = self.frame.assign(note="café – résumé")
-        self.assert_profiled(self.profile("cp1252.csv", lambda p: frame.to_csv(p, index=False, encoding="cp1252")))
+        record = self.profile("cp1252.csv", lambda p: frame.to_csv(p, index=False, encoding="cp1252"))
+        self.assert_profiled(record)
+        self.assertIn("café – résumé", record["sample"])  # decoded, not replaced with U+FFFD
 
     def test_utf8_bom_csv(self):
         record = self.profile("bom.csv", lambda p: self.frame.to_csv(p, index=False, encoding="utf-8-sig"))
