@@ -186,7 +186,15 @@ class ArchiveTests(unittest.TestCase):
                      "file_extension": n.rsplit(".", 1)[1], "file_size": 1000, "zip_member": n, "archive": archive}
                     for n in names]
 
+        from unittest import mock
+        import crawlers.invenio.crawler as crawler
         jobs, report = self.run_discovery(record, fake_expand, limit=1000)
+        group = [j for j in jobs if j.get("member_group")][0]["member_group"]
+        self.assertEqual(len(group["samples"]), 150)  # small group: every part is read
+        self.assertTrue(group["full_scan"])
+        self.assertEqual(group["partitions"], {f"city_{i}": 30 for i in range(5)})  # one zip per city
+        with mock.patch.object(crawler, "FULL_SCAN_MEMBERS", 100):
+            jobs, report = self.run_discovery(record, fake_expand, limit=1000)
         groups = [j for j in jobs if j.get("member_group")]
         self.assertEqual(len(groups), 1)  # 150 tiles over 5 zips -> one dataset
         group = groups[0]["member_group"]
@@ -258,12 +266,50 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(record["profiler_metadata"]["nb_rows"], 18 * 50)  # all parts sampled: exact
         self.assertFalse(record["profiler_metadata"]["nb_rows_estimated"])
         self.assertEqual(record["source_record"]["member_group"]["total_members"], 18)
+        # Which zip holds which city, with each city's own box and time range.
+        partitions = {p["key"]: p for p in record["source_record"]["member_group"]["partitions"]}
+        self.assertEqual(sorted(partitions), ["boston", "denver", "houston"])
+        self.assertEqual(partitions["denver"]["parts"], 6)
+        self.assertEqual(partitions["denver"]["rows_sampled"], 300)
+        self.assertAlmostEqual(partitions["denver"]["bbox"][0], -105.0)
+        self.assertAlmostEqual(partitions["boston"]["bbox"][2], -70.7)
+        self.assertEqual(partitions["houston"]["start"], "2000-01-01")
+
+    def test_partitions_by_folder_in_one_zip(self):  # uMORPH: oceania/R066_C162.parquet
+        from crawlers.invenio.crawler import partition_labels
+        archive = {"file_key": "tiles.zip"}
+        members = [{"zip_member": n, "archive": archive} for n in
+                   ("data/oceania/r1.parquet", "data/oceania/r2.parquet", "data/europe/r1.parquet")]
+        self.assertEqual(partition_labels(members), ["oceania", "oceania", "europe"])
+        flat = [{"zip_member": f"parts/part.{i}.parquet", "archive": archive} for i in range(3)]
+        self.assertEqual(partition_labels(flat), [None, None, None])
+
+    def test_every_part_read_splits_rare_schemas(self):
+        """A part with other columns is its own dataset even when sampling would miss it."""
+        from crawlers.invenio.crawler import archive_member_entries, group_job
+        from crawlers.invenio.transformer import profile_member_group
+        path = Path(self.tmp.name) / "tables.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            for j in range(12):  # Table1..Table12: one has different columns
+                frame = pd.DataFrame({"region": ["a", "b"], "value": [1, 2]}) if j != 5 else \
+                    pd.DataFrame({"school": ["x", "y"], "enrolled": [10, 20], "year": [2020, 2021]})
+                archive.writestr(f"Table{j + 1}.csv", frame.to_csv(index=False))
+        entry = {"dataset_id": f"{DOMAIN}:t-rec:tables", "file_key": "tables.zip", "file_extension": "zip",
+                 "file_size": path.stat().st_size, "file_url": str(path), "record": {"title": "Tables"}}
+        with zipfile.ZipFile(path) as archive:
+            members = archive_member_entries(entry, archive)
+        sampled = group_job("table#.csv", members, max_samples=4, full_scan_members=0)
+        self.assertNotIn("Table6.csv", {s["member"] for s in sampled["member_group"]["samples"]})
+        records = profile_member_group(group_job("table#.csv", members), opener=lambda url, size: zipfile.ZipFile(url))
+        self.assertEqual(len(records), 2)
+        self.assertEqual(sorted(r["source_record"]["member_group"]["sampled_parts"] for r in records), [1, 11])
+        self.assertTrue(all(r["source_record"]["member_group"]["all_parts_read"] for r in records))
 
     def test_group_profile_from_a_sample_estimates_rows(self):
         from crawlers.invenio.crawler import group_job
         from crawlers.invenio.transformer import profile_member_group
         members = self.make_tile_zips([("austin", -97.7), ("miami", -80.2)])
-        job = group_job("part.#.parquet", members, max_samples=4)
+        job = group_job("part.#.parquet", members, max_samples=4, full_scan_members=0)
         record = profile_member_group(job, opener=lambda url, size: zipfile.ZipFile(url))[0]
         self.assertTrue(record["profiler_metadata"]["nb_rows_estimated"])
         self.assertAlmostEqual(record["profiler_metadata"]["nb_rows"], 12 * 50, delta=12 * 50 * 0.1)
@@ -592,8 +638,44 @@ class CodebookTests(unittest.TestCase):
         columns = {c["name"]: c for c in record["profiler_metadata"]["columns"]}
         self.assertIn("http://schema.org/Enumeration", columns["marital"]["semantic_types"])
         self.assertNotIn("value_labels", columns["visits"])
+        self.assertIn("Single; Married; Widowed", record["profiler_metadata"]["attribute_keywords"])  # searchable
 
     def test_discovery_lists_documentation(self):
         record = invenio_record({"data.csv": 10, "README.md": 10, "codebook.xlsx": 10, "paper.pdf": 10})
         docs = file_entries(record, DOMAIN, max_file_bytes=10**6)[0]["record"]["documentation"]
         self.assertEqual(sorted(d["key"] for d in docs), ["README.md", "codebook.xlsx"])
+
+
+class LookupTests(unittest.TestCase):
+    """Exact lookups: US ZIP codes to a box, identifier schemes by check digit."""
+
+    def test_zip_codes_give_a_bounding_box(self):  # UltraViolet avp10-a8h86: zips had no box
+        from crawlers.coverage import zip_bbox
+        output = {"columns": [{"name": "Zip Code"}, {"name": "cases"}]}
+        rows = [{"Zip Code": z, "cases": "10003"} for z in ("10003", "10011", "2139", "02139-4307")]
+        bbox = zip_bbox(output, rows)
+        self.assertTrue(-74.1 < bbox[0] < -73.9 and -71.2 < bbox[2] < -71.0)  # Manhattan to Cambridge, MA
+        self.assertTrue(40.6 < bbox[1] < 40.8 and 42.3 < bbox[3] < 42.5)
+
+    def test_zip_box_needs_a_zip_name_and_known_zips(self):
+        from crawlers.coverage import zip_bbox
+        self.assertIsNone(zip_bbox({"columns": [{"name": "count"}]}, [{"count": "10003"}] * 3))
+        self.assertIsNone(zip_bbox({"columns": [{"name": "zip"}]}, [{"zip": v} for v in ("00000", "99999", "x")]))
+
+    def test_identifier_schemes(self):
+        from crawlers.identifiers import identifier_scheme
+        self.assertEqual(identifier_scheme(["No ISBN", "0-306-40615-2", "978-3-16-148410-0", "0-19-852663-6"]), "ISBN")
+        self.assertEqual(identifier_scheme(["0317-8471", "2049-3630", "1050-124X"]), "ISSN")
+        self.assertEqual(identifier_scheme(["0000-0002-1825-0097", "0000-0001-5109-3700", "0000-0002-1694-233X"]), "ORCID")
+        self.assertEqual(identifier_scheme(["10.1000/xyz", "doi:10.5281/zenodo.1", "https://doi.org/10.1038/nphys1170"]), "DOI")
+        self.assertIsNone(identifier_scheme(["1", "2", "3", "4"]))
+        self.assertIsNone(identifier_scheme(["0-306-40615-3", "978-3-16-148410-1", "0-19-852663-7"]))  # bad check digits
+
+    def test_identifier_columns_are_searchable(self):
+        tmp = Path(tempfile.mkdtemp())
+        pd.DataFrame({"title": ["a", "b", "c"], "ISBN": ["0-306-40615-2", "978-3-16-148410-0", "0-19-852663-6"]}
+                     ).to_csv(tmp / "books.csv", index=False)
+        record = profile_local_file(tmp / "books.csv")
+        columns = {c["name"]: c for c in record["profiler_metadata"]["columns"]}
+        self.assertEqual(columns["ISBN"]["identifier_scheme"], "ISBN")
+        self.assertIn("ISBN", record["profiler_metadata"]["attribute_keywords"])

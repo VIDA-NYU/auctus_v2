@@ -9,10 +9,14 @@ fallback for when the profiler finds nothing.
 
 from __future__ import annotations
 
+import csv
+import gzip
 import logging
+import math
 import os
 import re
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from dateutil.parser import parse as parse_datetime
@@ -238,6 +242,60 @@ def admin_bbox(profiler_output: dict[str, Any], rows: list[dict[str, str]], path
     if bbox[2] - bbox[0] <= 0.01 or bbox[3] - bbox[1] <= 0.01:
         return None
     return [float(v) for v in bbox]
+
+
+ZCTA_PATH = Path(__file__).parent / "data" / "us_zcta_2023.csv.gz"
+# Share of a zip column's distinct values that must be known US ZIP codes.
+MIN_ZIP_SHARE = 0.6
+_ZIP_NAME_RE = re.compile(r"zip|postal|zcta", re.IGNORECASE)
+_ZIP_VALUE_RE = re.compile(r"(\d{3,5})(?:\.0+)?(?:-\d{4})?")
+_zcta: dict[str, tuple[float, float, float]] | None = None
+
+
+def zcta_centroids() -> dict[str, tuple[float, float, float]]:
+    """ZIP -> (lat, lon, half-width km) from the Census 2023 ZCTA gazetteer (public domain)."""
+    global _zcta
+    if _zcta is None:
+        with gzip.open(ZCTA_PATH, "rt", newline="") as fh:
+            _zcta = {r["zip"]: (float(r["lat"]), float(r["lon"]), float(r["half_km"])) for r in csv.DictReader(fh)}
+    return _zcta
+
+
+def _zip5(value: str) -> str | None:
+    """'2139', '02139', '02139-4307', '2139.0' -> '02139' (integer columns lose leading zeros)."""
+    match = _ZIP_VALUE_RE.fullmatch(value.strip())
+    return match.group(1).zfill(5) if match else None
+
+
+def zip_bbox(profiler_output: dict[str, Any], rows: list[dict[str, str]], path=None) -> list[float] | None:
+    """Bounding box of US ZIP code columns, from ZCTA centroids.
+
+    datamart-geo has no postal codes, so a zip column (the geo-classifier's zip5
+    label, which the profiler reports as an address) never got a box. A column counts
+    when its name says zip/postal and most distinct values are known ZIP codes;
+    numbers that merely look like zips (counts, IDs) fail one of the two.
+    """
+    boxes = []
+    for column in profiler_output.get("columns") or []:
+        name = column.get("name") or ""
+        if not _ZIP_NAME_RE.search(name):
+            continue
+        if path is not None and name in (rows[0] if rows else {}):
+            distinct = set(column_values(path, name, distinct=True))
+        else:
+            distinct = {str(r.get(name, "")).strip() for r in rows} - {""}
+        zips = {z for z in map(_zip5, distinct) if z}
+        known = [zcta_centroids()[z] for z in zips if z in zcta_centroids()]
+        if not distinct or len(known) < MIN_ZIP_SHARE * len(distinct):
+            continue
+        for lat, lon, half_km in known:
+            dlat = half_km / 111.0
+            dlon = half_km / (111.0 * max(0.1, math.cos(math.radians(lat))))
+            boxes.append((lon - dlon, lat - dlat, lon + dlon, lat + dlat))
+    if not boxes:
+        return None
+    return [float(min(b[0] for b in boxes)), float(min(b[1] for b in boxes)),
+            float(max(b[2] for b in boxes)), float(max(b[3] for b in boxes))]
 
 
 def bbox_from_profiler(profiler_output: dict[str, Any]) -> list[float] | None:

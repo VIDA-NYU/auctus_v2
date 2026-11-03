@@ -105,6 +105,8 @@ SOURCE_RECORD_MAPPING = {
                     "sampled_parts": {"type": "integer"},
                     "profiled_parts": {"type": "integer"},
                     "schemas": {"type": "integer"},
+                    "all_parts_read": {"type": "boolean"},
+                    "partitions": {"type": "object", "enabled": False},
                 },
             },
         },
@@ -213,6 +215,8 @@ DATASETS_MAPPING = {
                             "value_labels": {"type": "object", "enabled": False},
                             "value_labels_text": {"type": "text", "analyzer": "text_analyzer"},
                             "value_labels_source": {"type": "keyword"},
+                            # ISBN / ISSN / DOI / ORCID, from check digits (crawlers/identifiers.py).
+                            "identifier_scheme": {"type": "keyword"},
                         },
                     },
                 },

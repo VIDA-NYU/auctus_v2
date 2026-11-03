@@ -26,7 +26,7 @@ from atlas_profiler import process_dataset
 from dateutil.parser import parse as parse_datetime
 import httpx
 
-from crawlers.coverage import admin_bbox, bbox_from_profiler, geo_data, temporal_from_profiler
+from crawlers.coverage import admin_bbox, bbox_from_profiler, geo_data, temporal_from_profiler, zip_bbox
 
 LOGGER = logging.getLogger("crawlers.socrata.transformer")
 
@@ -463,7 +463,7 @@ async def build_validation_record(
         }
         errors.append(f"profiler_error: {exc}")
 
-    spatial_bbox = admin_bbox(profiler_output, rows) or spatial_bbox
+    spatial_bbox = zip_bbox(profiler_output, rows) or admin_bbox(profiler_output, rows) or spatial_bbox
     profiler_start, profiler_end = temporal_from_profiler(profiler_output, rows)
     if profiler_start:
         temporal_start, temporal_end = profiler_start, profiler_end

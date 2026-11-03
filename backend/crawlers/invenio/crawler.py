@@ -46,6 +46,11 @@ ARCHIVE_EXTENSIONS = {"zip"}
 MAX_ARCHIVE_MEMBERS_PER_RECORD = int(os.getenv("MAX_ARCHIVE_MEMBERS_PER_RECORD", "50"))
 MIN_GROUP_MEMBERS = int(os.getenv("MIN_GROUP_MEMBERS", "5"))
 MAX_GROUP_SAMPLES = int(os.getenv("MAX_GROUP_SAMPLES", "40"))
+# Groups up to this size (and total bytes) have every part read rather than a
+# sample, so parts with a different schema always become their own dataset and the
+# row count is exact. Bigger groups (tile sets of thousands) are sampled.
+FULL_SCAN_MEMBERS = int(os.getenv("GROUP_FULL_SCAN_MEMBERS", "200"))
+FULL_SCAN_BYTES = int(os.getenv("GROUP_FULL_SCAN_BYTES", str(500 * 1024 * 1024)))
 DEFAULT_PAGE_SIZE = 100
 DEFAULT_MAX_FILE_BYTES = 200 * 1024 * 1024
 TAG_RE = re.compile(r"<[^>]+>")
@@ -180,24 +185,54 @@ def group_dataset_id(member: dict[str, Any], pattern: str) -> str:
     return f"{prefix}:group:{hashlib.sha1(pattern.encode()).hexdigest()[:12]}"
 
 
-def group_job(pattern: str, members: list[dict[str, Any]], max_samples: int = MAX_GROUP_SAMPLES) -> dict[str, Any]:
-    """One job for all parts of a split table, with the parts to sample.
+def partition_labels(members: list[dict[str, Any]]) -> list[str | None]:
+    """What tells a group's parts apart, per member: the zip it's in when the parts
+    span several zips (one zip per city), else the first folder that differs
+    ("oceania/R066_C162.parquet"), else None (one folder of numbered parts)."""
+    archives = {m["archive"]["file_key"] for m in members}
+    if len(archives) > 1:
+        return [re.sub(r"\.zip$", "", m["archive"]["file_key"].rsplit("/", 1)[-1], flags=re.IGNORECASE)
+                for m in members]
+    dirs = [m["zip_member"].split("/")[:-1] for m in members]
+    for depth in range(max((len(d) for d in dirs), default=0)):
+        level = [d[depth] if depth < len(d) else "" for d in dirs]
+        if len(set(level)) > 1:
+            return [v or None for v in level]
+    return [None] * len(members)
 
-    Parts are sampled across every zip they're spread over (one per zip first, then
-    evenly within zips), so coverage reaches every zip, e.g. every city of a
-    per-city tile set.
+
+def group_job(pattern: str, members: list[dict[str, Any]], max_samples: int = MAX_GROUP_SAMPLES,
+              full_scan_members: int | None = None, full_scan_bytes: int | None = None) -> dict[str, Any]:
+    """One job for all parts of a split table, with the parts to read.
+
+    Small groups read every part. Large ones are sampled across every zip they're
+    spread over (one per zip first, then evenly within zips), so coverage reaches
+    every zip, e.g. every city of a per-city tile set.
     """
     archives: dict[str, dict[str, Any]] = {}
     by_archive: dict[str, list[dict[str, Any]]] = {}
-    for member in members:
+    labels = partition_labels(members)
+    partitions: dict[str, int] = {}
+    for member, label in zip(members, labels):
+        member["_partition"] = label
+        if label is not None:
+            partitions[label] = partitions.get(label, 0) + 1
         archive = member["archive"]
         archives.setdefault(archive["dataset_id"], {k: archive[k] for k in ("dataset_id", "file_key", "url", "size")})
         by_archive.setdefault(archive["dataset_id"], []).append(member)
+    total_bytes = sum(m["file_size"] or 0 for m in members)
+    full_scan = (len(members) <= (FULL_SCAN_MEMBERS if full_scan_members is None else full_scan_members)
+                 and total_bytes <= (FULL_SCAN_BYTES if full_scan_bytes is None else full_scan_bytes))
+    if full_scan:
+        max_samples = len(members)
     per_archive = max(1, max_samples // max(1, len(by_archive)))
     samples = []
     for archive_id, parts in by_archive.items():
-        samples += [{"archive": archive_id, "member": m["zip_member"], "file_size": m["file_size"]}
-                    for m in spread_sample(parts, per_archive)]
+        samples += [{"archive": archive_id, "member": m["zip_member"], "file_size": m["file_size"],
+                     "partition": m.pop("_partition")}
+                    for m in (parts if full_scan else spread_sample(parts, per_archive))]
+    for member in members:
+        member.pop("_partition", None)
     samples = spread_sample(samples, max_samples)
     first = members[0]
     extension = first["file_extension"]
@@ -214,6 +249,8 @@ def group_job(pattern: str, members: list[dict[str, Any]], max_samples: int = MA
             "total_bytes": sum(m["file_size"] or 0 for m in members),
             "archives": list(archives.values()),
             "samples": samples,
+            "full_scan": full_scan,
+            "partitions": partitions,  # label -> number of parts
         },
     }
 

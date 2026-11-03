@@ -35,7 +35,9 @@ from typing import Any
 import pandas as pd
 from atlas_profiler import process_dataset
 
-from crawlers.coverage import admin_bbox, bbox_from_profiler, geo_data, temporal_from_profiler, temporal_from_year_columns
+from crawlers.coverage import (admin_bbox, bbox_from_profiler, geo_data, temporal_from_profiler,
+                               temporal_from_year_columns, zip_bbox)
+from crawlers.identifiers import mark_identifier_columns
 from crawlers.invenio.archives import (
     SMALL_ARCHIVE_BYTES,
     member_dataset_id,
@@ -353,8 +355,17 @@ def assemble_record(dataset_meta: dict[str, Any], table: Table, headers: list[st
             apply_value_labels(profiler_output, documented)
     except Exception as exc:
         LOGGER.info("Skipping documentation for %s: %r", dataset_meta.get("dataset_id"), exc)
+    mark_identifier_columns(profiler_output, rows)
+    # Search reads attribute_keywords, not the nested columns: value labels ("Widowed")
+    # and identifier schemes ("ISBN") only become searchable once they're in it.
+    terms = [t for c in profiler_output.get("columns") or []
+             for t in (c.get("value_labels_text"), c.get("identifier_scheme")) if t]
+    if terms:
+        profiler_output["attribute_keywords"] = list(profiler_output.get("attribute_keywords") or headers) + terms
     profiler_metadata = _merge_profiler_output(profiler_output, table.stats(), inferred_bbox, fallback_bbox=None)
+    # ZIP codes before place names: a zip resolves to one place, a city name may not.
     candidate_bbox = (bbox_from_profiler(profiler_output) or table.geo_bbox
+                      or zip_bbox(profiler_output, rows, table.path)
                       or admin_bbox(profiler_output, rows, table.path) or inferred_bbox)
     real_bbox = [float(v) for v in candidate_bbox] if _valid_bbox(candidate_bbox) else None
     # _merge_profiler_output always fills a bbox (worst case the whole world); keep only a real one.
@@ -533,6 +544,21 @@ def _union_range(a: tuple, b: tuple) -> tuple:
     return (min(starts) if starts else None, max(ends) if ends else None)
 
 
+MAX_PARTITIONS_LISTED = 1000
+
+
+def partition_summary(sampled: dict[str, dict[str, Any]], totals: dict[str, int]) -> list[dict[str, Any]]:
+    """One entry per partition of a group: its parts, and the box and time range of
+    the parts that were read."""
+    out = []
+    for label in sorted(totals)[:MAX_PARTITIONS_LISTED]:
+        part = sampled.get(label) or {}
+        out.append({"key": label, "parts": totals[label], "sampled_parts": part.get("sampled_parts", 0),
+                    "rows_sampled": part.get("rows_sampled", 0), "bbox": part.get("bbox"),
+                    "start": (part.get("time") or (None, None))[0], "end": (part.get("time") or (None, None))[1]})
+    return out
+
+
 def profile_member_group(dataset_meta: dict[str, Any], opener=open_remote_zip) -> list[dict[str, Any]]:
     """Profile a table split into many zip members as one dataset (one record per schema).
 
@@ -557,14 +583,15 @@ def profile_member_group(dataset_meta: dict[str, Any], opener=open_remote_zip) -
                 "file_size": info.file_size}
         record = assemble_record(meta, table, headers, rows, output, errors)
         coverage = record["temporal_coverage"]
+        bbox, time = record["profiler_metadata"]["spatial_bbox"], (coverage["start"], coverage["end"])
         if key not in schemas:
-            schemas[key] = {"record": record, "output": output, "bbox": record["profiler_metadata"]["spatial_bbox"],
-                            "time": (coverage["start"], coverage["end"]), "rows": 0, "bytes": 0, "parts": 0, "profiled": 0}
+            schemas[key] = {"record": record, "output": output, "bbox": bbox, "time": time,
+                            "rows": 0, "bytes": 0, "parts": 0, "profiled": 0, "partitions": {}}
         state = schemas[key]
-        state["bbox"] = _union_bbox(state["bbox"], record["profiler_metadata"]["spatial_bbox"])
-        state["time"] = _union_range(state["time"], (coverage["start"], coverage["end"]))
+        state["bbox"] = _union_bbox(state["bbox"], bbox)
+        state["time"] = _union_range(state["time"], time)
         state["profiled"] += 1
-        return state
+        return bbox, time
 
     for archive_id, samples in samples_by_archive.items():
         archive = archives[archive_id]
@@ -572,6 +599,7 @@ def profile_member_group(dataset_meta: dict[str, Any], opener=open_remote_zip) -
             with opener(archive["url"], archive["size"]) as zf:
                 for sample in samples:
                     raw = table = None
+                    part_bbox, part_time = None, (None, None)
                     try:
                         info = zf.getinfo(sample["member"])
                         ext = member_extension(info.filename)
@@ -581,22 +609,32 @@ def profile_member_group(dataset_meta: dict[str, Any], opener=open_remote_zip) -
                             key = tuple(summary["columns"])
                             if key not in schemas:
                                 table = normalize_table(raw, ext)
-                                add_full(key, table, ext, archive, info)
+                                part_bbox, part_time = add_full(key, table, ext, archive, info)
                             state = schemas[key]
-                            state["bbox"] = _union_bbox(state["bbox"], _stats_bbox(summary["stats"], state["output"]))
-                            state["bbox"] = _union_bbox(state["bbox"], summary["geo_bbox"])
-                            state["time"] = _union_range(state["time"], _stats_dates(summary["stats"], state["output"]))
+                            part_bbox = _union_bbox(part_bbox, _stats_bbox(summary["stats"], state["output"]))
+                            part_bbox = _union_bbox(part_bbox, summary["geo_bbox"])
+                            part_time = _union_range(part_time, _stats_dates(summary["stats"], state["output"]))
+                            state["bbox"] = _union_bbox(state["bbox"], part_bbox)
+                            state["time"] = _union_range(state["time"], part_time)
                             rows = summary["rows"]
                         else:
                             table = normalize_table(raw, ext)
                             key = tuple(table.headers)
                             if key not in schemas or schemas[key]["profiled"] < MAX_GROUP_FULL_PROFILES:
-                                add_full(key, table, ext, archive, info)
+                                part_bbox, part_time = add_full(key, table, ext, archive, info)
                             state = schemas[key]
                             rows = table.rows
                         state["rows"] += rows
                         state["bytes"] += info.file_size
                         state["parts"] += 1
+                        label = sample.get("partition")
+                        if label is not None:
+                            part = state["partitions"].setdefault(label, {"sampled_parts": 0, "rows_sampled": 0,
+                                                                          "bbox": None, "time": (None, None)})
+                            part["sampled_parts"] += 1
+                            part["rows_sampled"] += rows
+                            part["bbox"] = _union_bbox(part["bbox"], part_bbox)
+                            part["time"] = _union_range(part["time"], part_time)
                     except Exception as exc:
                         LOGGER.warning("Skipping group part %s: %r", sample["member"], exc)
                     finally:
@@ -628,7 +666,11 @@ def profile_member_group(dataset_meta: dict[str, Any], opener=open_remote_zip) -
             "file_size": group["total_bytes"],
             "member_group": {"pattern": group["pattern"], "total_members": group["total_members"],
                              "archives": len(group["archives"]), "sampled_parts": state["parts"],
-                             "profiled_parts": state["profiled"], "schemas": len(schemas)},
+                             "profiled_parts": state["profiled"], "schemas": len(schemas),
+                             "all_parts_read": bool(group.get("full_scan")),
+                             # Which file holds which slice (city, region): Juliana's map
+                             # from the distinguishing feature to the files.
+                             "partitions": partition_summary(state["partitions"], group.get("partitions") or {})},
         })
         record.pop("spatial_coverage", None)
         if state["bbox"]:
