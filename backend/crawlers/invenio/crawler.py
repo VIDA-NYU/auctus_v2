@@ -53,6 +53,7 @@ MAX_GROUP_SAMPLES = int(os.getenv("MAX_GROUP_SAMPLES", "40"))
 FULL_SCAN_MEMBERS = int(os.getenv("GROUP_FULL_SCAN_MEMBERS", "200"))
 FULL_SCAN_BYTES = int(os.getenv("GROUP_FULL_SCAN_BYTES", str(500 * 1024 * 1024)))
 DEFAULT_PAGE_SIZE = 100
+UNFILTERED_MAX_RECORDS = int(os.getenv("INVENIO_UNFILTERED_MAX_RECORDS", "2000"))
 DEFAULT_MAX_FILE_BYTES = 200 * 1024 * 1024
 TAG_RE = re.compile(r"<[^>]+>")
 
@@ -178,6 +179,11 @@ def expand_archive(entry: dict[str, Any], unlisted: set[str] | None = None) -> l
     if (entry.get("file_size") or 0) < SMALL_ARCHIVE_BYTES:
         return [{**entry, "archive_tabular_members": members[0]["archive"]["tabular_members"]}]
     return members
+
+
+def _total_hits(page: dict[str, Any]) -> int:
+    total = (page.get("hits") or {}).get("total")
+    return int(total.get("value", 0) if isinstance(total, dict) else total or 0)
 
 
 def spread_sample(items: list[Any], k: int) -> list[Any]:
@@ -312,22 +318,32 @@ async def discover_invenio_datasets(
     `limit`) and "unlisted_archives" (zip ids that couldn't be listed); pruning
     stale docs is only safe on a complete crawl.
 
-    `query` is a Lucene query string; it is ANDed with a tabular file-type filter so
-    the crawl only pages through records worth profiling. Zenodo needs a narrow
-    query: it has ~184k datasets with tabular files and allows 25 results per page
-    and 30 requests per minute anonymously.
+    `query` is a Lucene query string. On large instances it is ANDed with a tabular
+    file-type filter so the crawl only pages through records worth profiling. Zenodo
+    needs a narrow query: it has ~184k datasets with tabular files and allows 25
+    results per page and 30 requests per minute anonymously. Instances with at most
+    UNFILTERED_MAX_RECORDS matching records are listed whole instead: the search
+    index's file types miss some files (UltraViolet's .geojson upload has none), and
+    the filter would drop those records silently.
     """
     # InvenioRDM indexes the last extension only (data.csv.gz -> "gz").
     searchable = {ext.rsplit(".", 1)[-1] for ext in TABULAR_EXTENSIONS | ARCHIVE_EXTENSIONS}
     type_filter = "files.types:(" + " OR ".join(sorted(searchable)) + ")"
-    full_query = f"({query}) AND {type_filter}" if query else type_filter
     url: str | None = f"https://{domain}/api/records"
-    params: dict[str, Any] | None = {"q": full_query, "size": page_size, "sort": "newest"}
 
     discovered: list[dict[str, Any]] = []
     unlisted: set[str] = set()
     failed = False
     async with async_client(http_timeout_seconds) as client:
+        filtered = True
+        try:
+            probe = await client.get(url, params={"q": query, "size": 1})
+            probe.raise_for_status()
+            filtered = _total_hits(probe.json()) > UNFILTERED_MAX_RECORDS
+        except Exception as exc:
+            LOGGER.warning("Could not count %s records (%r); using the file-type filter", domain, exc)
+        full_query = (f"({query}) AND {type_filter}" if query else type_filter) if filtered else query
+        params: dict[str, Any] | None = {"q": full_query, "size": page_size, "sort": "newest"}
         while url and len(discovered) < limit:
             try:
                 response = await client.get(url, params=params)

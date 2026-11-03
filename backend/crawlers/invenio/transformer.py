@@ -648,6 +648,10 @@ def profile_member_group(dataset_meta: dict[str, Any], opener=open_remote_zip) -
                             if key not in schemas or schemas[key]["profiled"] < MAX_GROUP_FULL_PROFILES:
                                 part_bbox, part_time = add_full(key, table, ext, archive, info)
                             state = schemas[key]
+                            # Layer formats know their extent without profiling (shapefile header).
+                            if table.geometry_type:
+                                part_bbox = _union_bbox(part_bbox, table.geo_bbox)
+                                state["bbox"] = _union_bbox(state["bbox"], table.geo_bbox)
                             rows = table.rows
                         state["rows"] += rows
                         state["bytes"] += info.file_size
