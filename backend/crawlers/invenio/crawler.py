@@ -31,6 +31,7 @@ from crawlers.invenio.archives import (
     tabular_members,
 )
 from crawlers.invenio.codebook import MAX_DOC_BYTES, is_documentation, is_labelled_data
+from crawlers.invenio.formats import SPECTRUM_EXTENSIONS
 from crawlers.invenio.http import async_client
 
 LOGGER = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ FULL_SCAN_BYTES = int(os.getenv("GROUP_FULL_SCAN_BYTES", str(500 * 1024 * 1024))
 DEFAULT_PAGE_SIZE = 100
 UNFILTERED_MAX_RECORDS = int(os.getenv("INVENIO_UNFILTERED_MAX_RECORDS", "2000"))
 DEFAULT_MAX_FILE_BYTES = 200 * 1024 * 1024
+MAX_SPECTRUM_BYTES = 20 * 1024 * 1024
 TAG_RE = re.compile(r"<[^>]+>")
 
 
@@ -139,6 +141,23 @@ def file_entries(record: dict[str, Any], domain: str, max_file_bytes: int) -> li
             "file_url": f"https://{domain}/api/records/{record['id']}/files/{quote(key)}/content",
             "source_updated_at": record.get("updated"),
             "record": record_summary,
+        })
+    # Spectra (FTIR from NYU's conservation lab: one .jdx per sample) are one dataset
+    # per record, a row per spectrum read from its header, rather than dozens of
+    # two-column wavenumber/absorbance tables.
+    spectra = sorted(k for k, e in files.items() if file_extension(k) in SPECTRUM_EXTENSIONS
+                     and (e.get("size") or 0) <= MAX_SPECTRUM_BYTES)
+    if spectra:
+        urls = [f"https://{domain}/api/records/{record['id']}/files/{quote(k)}/content" for k in spectra]
+        entries.append({
+            "dataset_id": f"{domain}:{record['id']}:spectra",
+            "file_key": f"{len(spectra)} spectra (JCAMP-DX)",
+            "file_extension": "jdx",
+            "file_size": sum(files[k].get("size") or 0 for k in spectra),
+            "file_url": urls[0],
+            "source_updated_at": record.get("updated"),
+            "record": record_summary,
+            "spectra": [{"key": k, "url": u, "size": files[k].get("size")} for k, u in zip(spectra, urls)],
         })
     return entries
 
@@ -338,7 +357,7 @@ async def discover_invenio_datasets(
     the filter would drop those records silently.
     """
     # InvenioRDM indexes the last extension only (data.csv.gz -> "gz").
-    searchable = {ext.rsplit(".", 1)[-1] for ext in TABULAR_EXTENSIONS | ARCHIVE_EXTENSIONS}
+    searchable = {ext.rsplit(".", 1)[-1] for ext in TABULAR_EXTENSIONS | ARCHIVE_EXTENSIONS | SPECTRUM_EXTENSIONS}
     type_filter = "files.types:(" + " OR ".join(sorted(searchable)) + ")"
     url: str | None = f"https://{domain}/api/records"
 

@@ -771,6 +771,42 @@ class FormatTests(unittest.TestCase):
         self.assertTrue({"study.dta", "bias.dta"} <= docs)  # Stata files double as codebooks
 
 
+class SpectrumTests(unittest.TestCase):
+    """JCAMP-DX spectra (NYU conservation FTIR): one dataset per record, a row per spectrum."""
+
+    NICOLET = (
+        "##TITLE=21-044 Item 4 Red Balloon (Fragment) Vulcanized Rubber?\r\n##JCAMP-DX=5.01  $$ Nicolet v. 970\r\n"
+        "##DATATYPE=INFRARED SPECTRUM\r\n##LONGDATE=2021/06/04\r\n##TIME=15:07:41\r\n"
+        "##SPECTROMETER/DATA SYSTEM=Nicolet iS5\r\n##DATA PROCESSING=\r\nRatio against background\r\n"
+        "%Transmittance->Absorbance\r\n##XUNITS=1/CM\r\n##FIRSTX=400.156891\r\n##NPOINTS=7468\r\n"
+        "##XYDATA=(X++(Y..Y))\r\n400.157 11383855 11386644\r\n##TITLE=not a header field\r\n##END=\r\n")
+
+    def test_header(self):
+        from crawlers.invenio.formats import read_jcamp_header, read_spectra
+        fields = read_jcamp_header(self.NICOLET)
+        self.assertEqual(fields["JCAMP-DX"], "5.01")  # $$ comment dropped
+        self.assertEqual(fields["DATA PROCESSING"], "Ratio against background; %Transmittance->Absorbance")
+        self.assertEqual(fields["TITLE"], "21-044 Item 4 Red Balloon (Fragment) Vulcanized Rubber?")  # data block not read
+        row = dict(zip(*[(r := read_spectra([("a.JDX", fields)])).header, list(r.rows)[0]]))
+        self.assertEqual((row["file"], row["measured"], row["x_units"], row["points"]),
+                         ("a.JDX", "2021-06-04T15:07:41", "1/CM", "7468"))
+
+    def test_spectra_are_one_entry_per_record(self):
+        entries = file_entries(invenio_record({"a.JDX": 10, "b.jdx": 10, "README.md": 10}), DOMAIN, max_file_bytes=10**6)
+        self.assertEqual([(e["file_key"], len(e["spectra"])) for e in entries], [("2 spectra (JCAMP-DX)", 2)])
+
+    def test_profiled_with_sample_names_searchable(self):
+        from crawlers.invenio.formats import read_jcamp_header
+        from crawlers.invenio.transformer import profile_spectra
+        second = self.NICOLET.replace("Red Balloon (Fragment) Vulcanized Rubber?", "yellow beads").replace("06/04", "06/16")
+        record = profile_spectra([("a.JDX", read_jcamp_header(self.NICOLET)), ("b.JDX", read_jcamp_header(second))],
+                                 {"dataset_id": "uv:r:spectra", "file_key": "2 spectra (JCAMP-DX)"})
+        self.assertEqual(record["profiler_metadata"]["nb_rows"], 2)
+        self.assertEqual(record["temporal_coverage"]["start"][:10], "2021-06-04")
+        self.assertEqual(record["temporal_coverage"]["end"][:10], "2021-06-16")
+        self.assertIn("21-044 Item 4 yellow beads", record["profiler_metadata"]["attribute_keywords"])
+
+
 class DatabaseTests(unittest.TestCase):
     """SQLite / SpatiaLite / GeoPackage: one dataset per table (formats.py, profile_database)."""
 

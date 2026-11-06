@@ -269,3 +269,60 @@ def read_database_table(path: Path, table: str) -> Read:
             con.close()
 
     return Read(header=kept, rows=rows(), bbox=bbox, geometry_type=types)
+
+
+# --- JCAMP-DX spectra -----------------------------------------------------------------
+
+SPECTRUM_EXTENSIONS = {"jdx", "dx"}
+# The data block starts at one of these; everything before it is the header.
+_JCAMP_DATA_LABELS = {"XYDATA", "XYPOINTS", "PEAK TABLE", "PEAKTABLE", "NTUPLES", "END"}
+# (column, JCAMP label): the header fields kept, one row per spectrum.
+SPECTRUM_COLUMNS = [
+    ("title", "TITLE"), ("data_type", "DATATYPE"), ("measured", None), ("instrument", "SPECTROMETER/DATA SYSTEM"),
+    ("origin", "ORIGIN"), ("x_units", "XUNITS"), ("y_units", "YUNITS"), ("first_x", "FIRSTX"), ("last_x", "LASTX"),
+    ("resolution", "RESOLUTION"), ("points", "NPOINTS"), ("data_processing", "DATA PROCESSING"),
+    ("comments", "COMMENTS"), ("sample_description", "SAMPLE DESCRIPTION"),
+]
+
+
+def read_jcamp_header(text: str) -> dict[str, str]:
+    """The labelled fields before the data block of a JCAMP-DX file.
+
+    Lines are `##LABEL=value`; a value continues on the lines that follow it
+    (Nicolet writes its processing steps one per line under DATA PROCESSING), and
+    `$$` starts a comment.
+    """
+    fields: dict[str, str] = {}
+    label = None
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("##"):
+            label, _, value = line[2:].partition("=")
+            label = label.strip().upper()
+            if label in _JCAMP_DATA_LABELS:
+                break
+            fields[label] = value.split("$$")[0].strip()
+        elif label and line and not line.startswith("$$"):
+            fields[label] = f"{fields[label]}; {line}" if fields[label] else line
+    return fields
+
+
+def _jcamp_date(fields: dict[str, str]) -> str:
+    """ISO date and time from LONGDATE (yyyy/mm/dd, v5) or DATE (yy/mm/dd, v4) and TIME."""
+    date = fields.get("LONGDATE") or ""
+    if not date and fields.get("DATE"):
+        yy, _, rest = fields["DATE"].partition("/")
+        date = f"{'19' if int(yy or 0) > 50 else '20'}{yy.zfill(2)}/{rest}" if yy.isdigit() else ""
+    date = date.split()[0].replace("/", "-") if date else ""
+    time = fields.get("TIME", "").strip()
+    return f"{date}T{time}" if date and time else date
+
+
+def spectrum_row(file_key: str, fields: dict[str, str]) -> tuple:
+    return (file_key, *(_jcamp_date(fields) if label is None else fields.get(label, "") for _, label in SPECTRUM_COLUMNS))
+
+
+def read_spectra(headers: list[tuple[str, dict[str, str]]]) -> Read:
+    """One row per spectrum file, from (file key, header fields) pairs."""
+    return Read(header=["file", *(name for name, _ in SPECTRUM_COLUMNS)],
+                rows=[spectrum_row(key, fields) for key, fields in headers])

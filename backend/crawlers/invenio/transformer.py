@@ -49,7 +49,8 @@ from crawlers.invenio.archives import (
 )
 from crawlers.invenio.codebook import (MAX_DOC_BYTES, apply_value_labels, documentation_for, is_documentation,
                                        value_labels)
-from crawlers.invenio.formats import DATABASE_EXTENSIONS, READERS, database_tables, read_database_table
+from crawlers.invenio.formats import (DATABASE_EXTENSIONS, READERS, database_tables, read_database_table,
+                                      read_jcamp_header, read_spectra)
 from crawlers.invenio.http import async_client
 from crawlers.socrata.transformer import (
     SampleStats,
@@ -306,6 +307,8 @@ async def build_invenio_record(
     if dataset_meta.get("zip_member"):
         async with PROFILER_SLOTS:
             return await asyncio.to_thread(profile_remote_member, dataset_meta)
+    if dataset_meta.get("spectra"):
+        return await build_spectra_record(dataset_meta, http_timeout_seconds)
 
     extension = dataset_meta.get("file_extension") or ""
     limit = MAX_SPREADSHEET_BYTES if extension in SPREADSHEET_EXTENSIONS else MAX_FILE_BYTES
@@ -327,6 +330,33 @@ async def build_invenio_record(
             return await asyncio.to_thread(profile_raw_file, raw, extension, dataset_meta)
     finally:
         raw.unlink(missing_ok=True)
+
+
+async def build_spectra_record(dataset_meta: dict[str, Any], http_timeout_seconds: float = 30.0) -> dict[str, Any]:
+    """One record for a record's spectrum files: a row per spectrum, from its header."""
+    headers = []
+    async with async_client(max(http_timeout_seconds, 120.0)) as client:
+        for spectrum in dataset_meta["spectra"]:
+            response = await client.get(spectrum["url"], headers={"Accept": "*/*"})
+            response.raise_for_status()
+            content = response.content
+            headers.append((spectrum["key"], read_jcamp_header(content.decode(guess_encoding(content), "replace"))))
+    async with PROFILER_SLOTS:
+        return await asyncio.to_thread(profile_spectra, headers, dataset_meta)
+
+
+def profile_spectra(headers: list[tuple[str, dict[str, str]]], dataset_meta: dict[str, Any]) -> dict[str, Any]:
+    read = read_spectra(headers)
+    table = _write_table(read.header, read.rows, Path(tempfile.NamedTemporaryFile(delete=False, suffix=".csv").name))
+    try:
+        columns, rows, output, errors = profile_table(table)
+        # The sample names ("Red Balloon (Fragment) Vulcanized Rubber?") are what
+        # someone would search for; search reads attribute_keywords.
+        titles = sorted({fields.get("TITLE", "") for _, fields in headers} - {""})
+        output["attribute_keywords"] = list(output.get("attribute_keywords") or columns) + titles
+        return assemble_record(dataset_meta, table, columns, rows, output, errors)
+    finally:
+        table.path.unlink(missing_ok=True)
 
 
 def profile_raw_file(raw: Path, extension: str, dataset_meta: dict[str, Any]) -> dict[str, Any]:
