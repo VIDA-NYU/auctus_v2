@@ -26,8 +26,8 @@ UV_DOMAIN = "ultraviolet.library.nyu.edu"
 INSTANCES = {"ultraviolet": UV_DOMAIN, "caltech": "data.caltech.edu"}
 PORTKEY_BASE_URL = os.getenv("PORTKEY_BASE_URL", "https://ai-gateway.apps.cloud.rt.nyu.edu/v1/")
 # AutoDDG generates with gemini-2.5-flash; judging with a different (stronger) model
-# avoids a model grading its own output. Only Gemini models are enabled on the NYU
-# gateway, so the judge is still the same model family; the report states this.
+# avoids a model grading its own output. (Until late 2026-10 only Gemini models were
+# enabled on the NYU gateway; Claude now works via @vertexai/anthropic.*.)
 JUDGE_MODEL = os.getenv("DESCRIPTION_EVAL_JUDGE", "@vertexai/gemini-2.5-pro")
 
 _client = None
@@ -62,11 +62,13 @@ def ask_json(prompt: str, model: str = JUDGE_MODEL, max_tokens: int = 16000) -> 
 
     last_error: Exception | None = None
     for _ in range(3):
+        # Newer Claude models reject `temperature`; Gemini runs keep temperature=0.
+        sampling = {} if "anthropic." in model else {"temperature": 0}
         response = llm_client().chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0,
             max_tokens=max_tokens,
+            **sampling,
         )
         content = response.choices[0].message.content or ""
         try:
