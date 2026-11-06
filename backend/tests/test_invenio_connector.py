@@ -805,6 +805,11 @@ class SpectrumTests(unittest.TestCase):
         self.assertEqual(record["temporal_coverage"]["start"][:10], "2021-06-04")
         self.assertEqual(record["temporal_coverage"]["end"][:10], "2021-06-16")
         self.assertIn("21-044 Item 4 yellow beads", record["profiler_metadata"]["attribute_keywords"])
+        reference = self.NICOLET.replace("2021/06/04", "2017/02/28")
+        record = profile_spectra([("a.JDX", read_jcamp_header(self.NICOLET)),
+                                  ("a_LibraryMatch.JDX", read_jcamp_header(reference))],
+                                 {"dataset_id": "uv:r:spectra", "file_key": "2 spectra (JCAMP-DX)"})
+        self.assertEqual(record["temporal_coverage"]["start"][:10], "2021-06-04")  # the library spectrum's 2017 date is left out
 
 
 class DatabaseTests(unittest.TestCase):

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Iterator
@@ -278,7 +279,7 @@ SPECTRUM_EXTENSIONS = {"jdx", "dx"}
 _JCAMP_DATA_LABELS = {"XYDATA", "XYPOINTS", "PEAK TABLE", "PEAKTABLE", "NTUPLES", "END"}
 # (column, JCAMP label): the header fields kept, one row per spectrum.
 SPECTRUM_COLUMNS = [
-    ("title", "TITLE"), ("data_type", "DATATYPE"), ("measured", None), ("instrument", "SPECTROMETER/DATA SYSTEM"),
+    ("title", "TITLE"), ("data_type", "DATATYPE"), ("measured", "LONGDATE"), ("instrument", "SPECTROMETER/DATA SYSTEM"),
     ("origin", "ORIGIN"), ("x_units", "XUNITS"), ("y_units", "YUNITS"), ("first_x", "FIRSTX"), ("last_x", "LASTX"),
     ("resolution", "RESOLUTION"), ("points", "NPOINTS"), ("data_processing", "DATA PROCESSING"),
     ("comments", "COMMENTS"), ("sample_description", "SAMPLE DESCRIPTION"),
@@ -318,11 +319,24 @@ def _jcamp_date(fields: dict[str, str]) -> str:
     return f"{date}T{time}" if date and time else date
 
 
+# NYU conservation uploads the closest spectral-library entry next to each sample
+# ("..._EarringsWrapper_LibraryMatch.JDX"). Its date is when the library spectrum was
+# measured (years earlier), so it's kept out of `measured` and the time range.
+_LIBRARY_MATCH = re.compile(r"library[ _-]?match", re.IGNORECASE)
+
+
 def spectrum_row(file_key: str, fields: dict[str, str]) -> tuple:
-    return (file_key, *(_jcamp_date(fields) if label is None else fields.get(label, "") for _, label in SPECTRUM_COLUMNS))
+    reference = bool(_LIBRARY_MATCH.search(file_key))
+    values = []
+    for name, label in SPECTRUM_COLUMNS:
+        if name == "measured":
+            values.append("" if reference else _jcamp_date(fields))
+        else:
+            values.append(fields.get(label, ""))
+    return (file_key, *values, "library match" if reference else "sample")
 
 
 def read_spectra(headers: list[tuple[str, dict[str, str]]]) -> Read:
     """One row per spectrum file, from (file key, header fields) pairs."""
-    return Read(header=["file", *(name for name, _ in SPECTRUM_COLUMNS)],
+    return Read(header=["file", *(name for name, _ in SPECTRUM_COLUMNS), "spectrum"],
                 rows=[spectrum_row(key, fields) for key, fields in headers])
