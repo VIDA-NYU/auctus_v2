@@ -83,6 +83,10 @@ PROFILER_SLOTS = asyncio.Semaphore(int(os.getenv("PROFILER_CONCURRENCY", "2")))
 MAX_PROFILED_COLUMNS = int(os.getenv("MAX_PROFILED_COLUMNS", "300"))
 
 
+class TooLarge(ValueError):
+    """A file over a size cap: retrying can't help, so the job counts as done."""
+
+
 @dataclass
 class Table:
     """A file normalized for profiling: UTF-8, comma-separated, at most MAX_PROFILED_COLUMNS.
@@ -259,7 +263,7 @@ def copy_capped(source, out: Path, limit: int) -> Path:
         while chunk := source.read(1024 * 1024):
             written += len(chunk)
             if written > limit:
-                raise ValueError(f"file is larger than the {limit}-byte limit")
+                raise TooLarge(f"file is larger than the {limit}-byte limit")
             fh.write(chunk)
     return out
 
@@ -322,7 +326,7 @@ async def build_invenio_record(
                     async for chunk in response.aiter_bytes():
                         written += len(chunk)
                         if written > limit:
-                            raise ValueError(f"file is larger than the {limit}-byte limit")
+                            raise TooLarge(f"file is larger than the {limit}-byte limit")
                         fh.write(chunk)
         # Normalizing and profiling are CPU-bound and synchronous; run them off the event
         # loop so the worker's other jobs keep downloading instead of timing out.
@@ -509,7 +513,7 @@ def profile_archive(path: Path, dataset_meta: dict[str, Any], *_unused) -> list[
     """Profile the tabular members of a local zip; one catalog record per member."""
     archive_id = dataset_meta["dataset_id"]
     archive_key = dataset_meta.get("file_key", Path(path).name)
-    records = []
+    records, too_large = [], []
     with zipfile.ZipFile(path) as archive:
         members, total = select_archive_members(archive)
         totals = {"tabular_members": total, "profiled_members": len(members)}
@@ -529,9 +533,37 @@ def profile_archive(path: Path, dataset_meta: dict[str, Any], *_unused) -> list[
                     continue
                 records.append(member_record(dataset_meta, archive_id, archive_key, info,
                                              *member_table(archive, info), totals))
+            except TooLarge as exc:
+                LOGGER.warning("Skipping archive member %s: %r", info.filename, exc)
+                too_large.append((info, str(exc)))
             except Exception as exc:
                 LOGGER.warning("Skipping archive member %s: %r", info.filename, exc)
+    if not records and too_large and len(too_large) == len(members):
+        # Nothing readable and nothing worth retrying (a 461 MB attribute table): the
+        # members stay findable through the record's metadata, and the stamped doc
+        # stops every later crawl from re-queuing the zip.
+        records = [too_large_record(dataset_meta, archive_id, archive_key, info, reason) for info, reason in too_large]
     return records
+
+
+def too_large_record(dataset_meta: dict[str, Any], archive_id: str, archive_key: str, info: zipfile.ZipInfo,
+                     reason: str) -> dict[str, Any]:
+    source_record = dataset_meta.get("record") or {}
+    file_key = f"{archive_key}/{info.filename}"
+    return {
+        "id": member_dataset_id(archive_id, info.filename),
+        "title": f"{source_record.get('title', '')}: {file_key}".strip(": "),
+        "description": source_record.get("description", ""),
+        "source": "InvenioRDM",
+        "download_url": dataset_meta.get("file_url"),
+        "landing_url": source_record.get("landing_url"),
+        "source_record": {**source_record, "file_key": file_key, "file_size": info.file_size,
+                          "archive": {"file_key": archive_key, "member": info.filename}},
+        "archive_dataset_id": archive_id,
+        "profiling": None,
+        "metrics": {},
+        "errors": [f"not profiled: {reason}"],
+    }
 
 
 def profile_database(path: Path, dataset_meta: dict[str, Any], database_id: str, database_key: str,
@@ -638,7 +670,7 @@ def _extract_member(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> Path:
     ext = member_extension(info.filename)
     limit = MAX_SPREADSHEET_BYTES if ext in SPREADSHEET_EXTENSIONS else MAX_FILE_BYTES
     if info.file_size > limit:
-        raise ValueError(f"member is larger than the {limit}-byte limit")
+        raise TooLarge(f"member is larger than the {limit}-byte limit")
     folder = Path(tempfile.mkdtemp())
     raw = folder / f"member.{ext}"
     members = [(info, raw)]
@@ -883,7 +915,7 @@ async def build_archive_records(dataset_meta: dict[str, Any], max_sample_rows: i
                     async for chunk in response.aiter_bytes():
                         downloaded += len(chunk)
                         if downloaded > SMALL_ARCHIVE_BYTES:
-                            raise ValueError(f"archive is larger than the {SMALL_ARCHIVE_BYTES}-byte download limit")
+                            raise TooLarge(f"archive is larger than the {SMALL_ARCHIVE_BYTES}-byte download limit")
                         tmp.write(chunk)
         async with PROFILER_SLOTS:
             return await asyncio.to_thread(profile_archive, path, dataset_meta)

@@ -914,3 +914,23 @@ class PdfCodebookTests(unittest.TestCase):
     def test_broken_pdf_is_skipped(self):
         from crawlers.invenio.codebook import value_labels
         self.assertEqual(value_labels([("README.pdf", b"%PDF-1.4 not really")], ["status"]), {})
+
+
+class TooLargeTests(unittest.TestCase):
+    """Members over the size cap are final: a stamped metadata-only doc, never re-queued."""
+
+    def test_zip_of_only_oversized_members_gives_metadata_docs(self):
+        from unittest import mock
+
+        from crawlers.invenio import transformer
+        path = Path(tempfile.mkdtemp()) / "sales.zip"
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr("sales/sales_2018.csv", "price,borough\n" + "100,1\n" * 500)
+        meta = {"dataset_id": "uv:r:sales", "file_key": "sales.zip", "file_url": "https://x/sales.zip",
+                "record": {"title": "Real Estate Sales", "landing_url": "https://x/r"}}
+        with mock.patch.object(transformer, "MAX_FILE_BYTES", 100), mock.patch.object(transformer, "MAX_SPREADSHEET_BYTES", 100):
+            records = profile_archive(path, meta)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["archive_dataset_id"], "uv:r:sales")
+        self.assertIn("not profiled", records[0]["errors"][0])
+        self.assertEqual(records[0]["title"], "Real Estate Sales: sales.zip/sales/sales_2018.csv")

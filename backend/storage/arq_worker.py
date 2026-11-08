@@ -16,7 +16,7 @@ import pandas as pd
 from arq.connections import RedisSettings
 
 from crawlers.invenio.formats import DATABASE_EXTENSIONS
-from crawlers.invenio.transformer import (build_archive_records, build_database_records, build_group_records,
+from crawlers.invenio.transformer import (TooLarge, build_archive_records, build_database_records, build_group_records,
                                           build_invenio_record)
 from crawlers.socrata.transformer import build_validation_record
 from storage.minio_client import PROFILE_BUCKET_NAME, get_heavy_profile_object, get_storage_client, upload_heavy_profile
@@ -473,7 +473,7 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
         ctx["embedding_model"] = embedding_model
 
     try:
-        profiled = True
+        profiled, final = True, False
         try:
             full_metadata_record = await build_full_record(
                 dataset_meta,
@@ -486,6 +486,8 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
             )
         except Exception as exc:
             profiled = False
+            # Over a size cap: deterministic, so stamp it like a success (below).
+            final = isinstance(exc, TooLarge)
             LOGGER.warning(
                 "⚠️ Profiler mathematical edge-case failed for dataset %s. Skipping profiling metrics. Error: %r",
                 dataset_id,
@@ -512,7 +514,9 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
         # of treating them as up to date.
         # This applies to Socrata's own timestamp too: stamped fallbacks matched the
         # portal's timestamp on every later run, so failed datasets were never retried.
-        source_updated_at = (socrata_updated_at or dataset_meta.get("source_updated_at")) if profiled else None
+        # Files over a size cap are the exception: retrying can't succeed, and leaving them
+        # unstamped re-queued the same 22 UltraViolet jobs on every crawl.
+        source_updated_at = (socrata_updated_at or dataset_meta.get("source_updated_at")) if profiled or final else None
         stamped_socrata_at = socrata_updated_at if profiled else None
         provider_type = str(dataset_meta.get("provider") or "socrata")
         domain_url = str(dataset_meta.get("domain") or base_url.replace("https://", "").replace("http://", ""))
