@@ -30,6 +30,8 @@ DOC_NAME = re.compile(r"read[_ -]?me|codebook|code[_ -]book|dictionar|variables?
                       r"|metadata|schema|legend|column", re.IGNORECASE)
 TABLE_DOC_EXTENSIONS = {"csv", "tsv", "xlsx", "xls"}
 TEXT_DOC_EXTENSIONS = {"txt", "md", "rst", ""}
+PDF_DOC_EXTENSIONS = {"pdf"}
+MAX_PDF_PAGES = 60
 # Data files whose value labels are part of the format.
 LABELLED_DATA_EXTENSIONS = {"dta"}
 MAX_DOC_BYTES = 5 * 1024 * 1024
@@ -55,7 +57,7 @@ def doc_extension(name: str) -> str:
 def is_documentation(name: str) -> bool:
     base = name.rsplit("/", 1)[-1]
     ext = doc_extension(name)
-    return bool(DOC_NAME.search(base)) and ext in TABLE_DOC_EXTENSIONS | TEXT_DOC_EXTENSIONS \
+    return bool(DOC_NAME.search(base)) and ext in TABLE_DOC_EXTENSIONS | TEXT_DOC_EXTENSIONS | PDF_DOC_EXTENSIONS \
         and not base.startswith((".", "~$"))
 
 
@@ -89,7 +91,8 @@ def rows_from_bytes(data: bytes, name: str) -> list[list[str]] | None:
     if ext in ("xlsx", "xls"):
         import pandas as pd
 
-        sheets = pd.read_excel(io.BytesIO(data), sheet_name=None, dtype=str, header=None,
+        # keep_default_na=False: codebooks list "NA" as a code ("NA = no answer").
+        sheets = pd.read_excel(io.BytesIO(data), sheet_name=None, dtype=str, header=None, keep_default_na=False,
                                engine="openpyxl" if ext == "xlsx" else "xlrd")
         return [[("" if v is None or str(v) == "nan" else str(v)) for v in row]
                 for frame in sheets.values() for row in frame.itertuples(index=False, name=None)]
@@ -133,6 +136,14 @@ def labels_from_rows(rows: list[list[str]], columns: Iterable[str]) -> dict[str,
     return {c: v for c, v in found.items() if len(v) >= MIN_LABELS}
 
 
+def pdf_text(data: bytes) -> str:
+    """Text of a PDF's first MAX_PDF_PAGES pages; scanned pages (no text layer) give nothing."""
+    from pypdf import PdfReader
+
+    reader = PdfReader(io.BytesIO(data))
+    return "\n".join((page.extract_text() or "") for page in reader.pages[:MAX_PDF_PAGES])
+
+
 def labels_from_text(text: str, columns: Iterable[str]) -> dict[str, dict[str, str]]:
     wanted = {_norm(c): c for c in columns if len(_norm(c)) >= 3}
     found: dict[str, dict[str, str]] = {}
@@ -146,8 +157,32 @@ def labels_from_text(text: str, columns: Iterable[str]) -> dict[str, dict[str, s
         if current is None:
             continue
         for code, label in _TEXT_PAIR.findall(line):
-            found[current].setdefault(code, label.strip())
-    return {c: v for c, v in found.items() if len(v) >= MIN_LABELS}
+            label = label.strip()
+            if label.endswith(")") and label.count(")") > label.count("("):  # "(1 = Yes, 0 = No)"
+                label = label[:-1].strip()
+            found[current].setdefault(code, label)
+    return {c: v for c, v in found.items() if len(v) >= MIN_LABELS and plausible_code_set(v)}
+
+
+MAX_TEXT_CODE = 20
+MAX_LABEL_WORDS = 6
+
+
+def plausible_code_set(labels: dict[str, str]) -> bool:
+    """Whether number/text pairs found in prose look like a codebook entry.
+
+    Prose is full of "<number> <words>" (PDF READMEs: "140 is included as an active
+    revenue station", "2-year college"), and a false label set would also retype the
+    column as categorical. A real code set has distinct small codes starting at 0 or
+    1 (negative missing-value codes aside), and short labels. Labels may repeat: a
+    grid-table README splits "1 (very uncertain) ... 10 (very certain)" so that only
+    "very" lands on the code's line.
+    """
+    codes = [int(c) for c in labels]
+    scale = sorted(c for c in codes if c >= 0)
+    texts = [t.strip(" .)") for t in labels.values()]
+    return (len(set(codes)) == len(codes) and len(scale) >= MIN_LABELS and scale[0] in (0, 1)
+            and scale[-1] <= MAX_TEXT_CODE and all(0 < len(t.split()) <= MAX_LABEL_WORDS for t in texts))
 
 
 def value_labels(docs: Iterable[tuple[str, bytes]], columns: list[str]) -> dict[str, dict[str, Any]]:
@@ -171,7 +206,12 @@ def value_labels(docs: Iterable[tuple[str, bytes]], columns: list[str]) -> dict[
             LOGGER.info("Can't read documentation %s: %r", name, exc)
             continue
         if rows is None:
-            text_docs.append((name, data.decode("utf-8", errors="replace")))
+            try:
+                text = pdf_text(data) if doc_extension(name) in PDF_DOC_EXTENSIONS else data.decode("utf-8", errors="replace")
+            except Exception as exc:  # broken or encrypted PDF
+                LOGGER.info("Can't read documentation %s: %r", name, exc)
+                continue
+            text_docs.append((name, text))
             continue
         for column, labels in labels_from_rows(rows, columns).items():
             result.setdefault(column, {"labels": labels, "source": name})

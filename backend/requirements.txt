@@ -35,6 +35,7 @@ xlrd>=2.0.1  # legacy XLS samples for InvenioRDM files
 pyarrow>=15  # Parquet files (read in row-group batches)
 pyshp>=2.3  # shapefiles inside zips (attribute table + layer extent)
 pyproj>=3.6  # reproject shapefile extents (NYU Spatial Data Repository uses NY State Plane)
+pypdf>=4  # text of PDF READMEs / codebooks (value labels)
 fsspec>=2024.2.0  # zip archives read in place over HTTP Range (crawlers/invenio/archives.py)
 aiohttp>=3.9  # HTTP backend for fsspec
 datamart-geo>=0.3.1  # place names -> bounding boxes in atlas-profiler (data: see docs/installation.md)
