@@ -339,13 +339,14 @@ AUTODDG_FIELDS = ("autoddg_description", "autoddg_search_description", "autoddg_
 
 
 def carry_over_autoddg(record: dict[str, Any], storage_client) -> dict[str, Any]:
-    """With AutoDDG off, keep the descriptions a re-profiled dataset already has.
+    """Keep the descriptions a re-profiled dataset already has when none were generated.
 
-    Indexing replaces the whole document, so a re-ingest without AutoDDG used to
-    wipe every generated description. They are copied from the stored full profile
-    (same file, same id); new datasets get none until a backfill.
+    Indexing replaces the whole document, so a re-ingest with AutoDDG off, or with
+    the gateway unreachable (off the NYU VPN), used to wipe every generated
+    description. They are copied from the stored full profile (same file, same id);
+    new datasets get none until a backfill.
     """
-    if get_autoddg() is not None or any(record.get(f) for f in AUTODDG_FIELDS):
+    if any(record.get(f) for f in AUTODDG_FIELDS):
         return record
     try:
         response, _ = get_heavy_profile_object(storage_client, record.get("id"))

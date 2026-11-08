@@ -862,3 +862,22 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual({r["archive_dataset_id"] for r in records}, {"t:gdb"})
         self.assertEqual(len({r["id"] for r in records}), 3)
         self.assertIsNotNone(by_table["stations"]["profiler_metadata"]["spatial_bbox"])
+
+
+class CarryOverTests(unittest.TestCase):
+    """A re-profiled dataset keeps its stored AutoDDG text when none was generated."""
+
+    def test_failed_generation_keeps_stored_text(self):
+        import io
+        import json
+        from unittest import mock
+
+        from storage import arq_worker
+
+        stored = io.BytesIO(json.dumps({"autoddg_description": "old text"}).encode())
+        stored.release_conn = lambda: None
+        with mock.patch.object(arq_worker, "get_heavy_profile_object", return_value=(stored, None)):
+            # AutoDDG on but the gateway failed: no fields on the new record.
+            self.assertEqual(arq_worker.carry_over_autoddg({"id": "x"}, None)["autoddg_description"], "old text")
+            fresh = arq_worker.carry_over_autoddg({"id": "x", "autoddg_description": "new"}, None)
+            self.assertEqual(fresh["autoddg_description"], "new")
