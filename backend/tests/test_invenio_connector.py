@@ -995,3 +995,12 @@ class DatabasePruneTests(unittest.TestCase):
                    {"id": "d:r2:f1:bbb", "archive_dataset_id": "d:r2:f1"},
                    {"id": "d:r3:gone:ccc", "archive_dataset_id": "d:r3:gone"}]
         self.assertEqual(stale_doc_ids(indexed, discovered), ["d:r3:gone:ccc"])
+
+
+class TooLargeDatabaseTests(unittest.TestCase):
+    def test_oversized_database_gets_a_linked_metadata_doc(self):
+        from crawlers.invenio.transformer import too_large_database_record
+        meta = {"dataset_id": "d:r:zip:m1", "file_key": "sales.zip/sales.sqlite", "record": {"title": "Sales"}}
+        doc = too_large_database_record(meta, "member is larger than the 200-byte limit")
+        self.assertEqual((doc["id"], doc["archive_dataset_id"]), ("d:r:zip:m1", "d:r:zip:m1"))
+        self.assertEqual(doc["title"], "Sales: sales.zip/sales.sqlite")

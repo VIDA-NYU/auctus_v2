@@ -17,7 +17,7 @@ from arq.connections import RedisSettings
 
 from crawlers.invenio.formats import DATABASE_EXTENSIONS
 from crawlers.invenio.transformer import (TooLarge, build_archive_records, build_database_records, build_group_records,
-                                          build_invenio_record)
+                                          build_invenio_record, too_large_database_record)
 from crawlers.socrata.transformer import build_validation_record
 from storage.minio_client import PROFILE_BUCKET_NAME, get_heavy_profile_object, get_storage_client, upload_heavy_profile
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
@@ -425,7 +425,10 @@ async def process_archive_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
         LOGGER.info("Group %s: %d dataset(s) from %d sampled parts", dataset_id, len(records),
                     len(dataset_meta["member_group"]["samples"]))
     elif dataset_meta.get("file_extension") in DATABASE_EXTENSIONS:
-        records = await build_database_records(dataset_meta, **settings)
+        try:
+            records = await build_database_records(dataset_meta, **settings)
+        except TooLarge as exc:  # final: index the metadata and stamp it, don't retry every crawl
+            records = [too_large_database_record(dataset_meta, str(exc))]
         LOGGER.info("Database %s: %d table(s) profiled", dataset_id, len(records))
     else:
         records = await build_archive_records(dataset_meta, **settings)

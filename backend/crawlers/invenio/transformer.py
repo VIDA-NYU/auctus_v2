@@ -549,6 +549,26 @@ def profile_archive(path: Path, dataset_meta: dict[str, Any], *_unused) -> list[
     return records
 
 
+def too_large_database_record(dataset_meta: dict[str, Any], reason: str) -> dict[str, Any]:
+    """Metadata-only doc for a database over the size cap, linked to its job so the
+    next crawl sees it as done (the 461 MB Real Estate Sales database)."""
+    source_record = dataset_meta.get("record") or {}
+    file_key = dataset_meta.get("file_key", "")
+    return {
+        "id": dataset_meta["dataset_id"],
+        "title": f"{source_record.get('title', '')}: {file_key}".strip(": "),
+        "description": source_record.get("description", ""),
+        "source": "InvenioRDM",
+        "download_url": dataset_meta.get("file_url"),
+        "landing_url": source_record.get("landing_url"),
+        "source_record": {**source_record, "file_key": file_key, "file_size": dataset_meta.get("file_size")},
+        "archive_dataset_id": dataset_meta["dataset_id"],
+        "profiling": None,
+        "metrics": {},
+        "errors": [f"not profiled: {reason}"],
+    }
+
+
 def too_large_record(dataset_meta: dict[str, Any], archive_id: str, archive_key: str, info: zipfile.ZipInfo,
                      reason: str) -> dict[str, Any]:
     source_record = dataset_meta.get("record") or {}
