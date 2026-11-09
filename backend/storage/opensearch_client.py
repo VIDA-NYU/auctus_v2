@@ -218,6 +218,9 @@ DATASETS_MAPPING = {
                             "value_labels_source": {"type": "keyword"},
                             # ISBN / ISSN / DOI / ORCID, from check digits (crawlers/identifiers.py).
                             "identifier_scheme": {"type": "keyword"},
+                            # What the column is ("US ZIP code"), from storage/semantic_types.py.
+                            "semantic_type_label": {"type": "text", "analyzer": "text_analyzer",
+                                                    "fields": {"raw": {"type": "keyword"}}},
                         },
                     },
                 },
@@ -399,6 +402,15 @@ def init_db():
                 )
             except Exception as exc:
                 logger.debug("Could not update dataset index mapping with portal fields: %s", exc)
+            # New per-column fields (semantic_type_label, identifier_scheme, ...) on an
+            # index created before them; put_mapping only adds fields.
+            try:
+                client.indices.put_mapping(
+                    index=AUCTUS_INDEX_NAME,
+                    body={"properties": {"profiler_metadata": DATASETS_MAPPING["mappings"]["properties"]["profiler_metadata"]}},
+                )
+            except Exception as exc:
+                logger.warning("Could not add new profiler fields to the %s mapping: %s", AUCTUS_INDEX_NAME, exc)
             # Pre-existing indices were created before the evaluation-arm description
             # fields existed. Without this, the first ingested document would create
             # them via dynamic mapping with the wrong analyzer (no English stopwords),

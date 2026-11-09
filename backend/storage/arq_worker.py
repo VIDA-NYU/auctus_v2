@@ -21,6 +21,7 @@ from crawlers.invenio.transformer import (TooLarge, build_archive_records, build
 from crawlers.socrata.transformer import build_validation_record
 from storage.minio_client import PROFILE_BUCKET_NAME, get_heavy_profile_object, get_storage_client, upload_heavy_profile
 from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
+from storage.semantic_types import apply_semantic_types, attach_semantic_types
 from run_pipeline_ingest import apply_socrata_timestamp, apply_source_timestamp, isolate_search_payload, load_runtime_config, sync_portal_metadata
 
 try:
@@ -105,6 +106,18 @@ def attach_embedding(document: dict[str, Any], model: Any | None = None) -> dict
         LOGGER.warning("Failed to generate embedding for document %s: %s", document.get("id"), exc)
 
     return document
+
+
+_llm_client = None
+
+
+def get_llm_client():
+    """The Portkey client for the semantic typer (SEMANTIC_TYPES_ENABLED=0 turns it off)."""
+    global _llm_client
+    if _llm_client is None and Portkey is not None and os.getenv("SEMANTIC_TYPES_ENABLED", "1") != "0" \
+            and os.getenv("PORTKEY_API_KEY"):
+        _llm_client = Portkey(base_url=PORTKEY_BASE_URL, api_key=os.environ["PORTKEY_API_KEY"])
+    return _llm_client
 
 
 def get_autoddg():
@@ -343,10 +356,12 @@ def carry_over_autoddg(record: dict[str, Any], storage_client) -> dict[str, Any]
 
     Indexing replaces the whole document, so a re-ingest with AutoDDG off, or with
     the gateway unreachable (off the NYU VPN), used to wipe every generated
-    description. They are copied from the stored full profile (same file, same id);
-    new datasets get none until a backfill.
+    description. They are copied from the stored full profile (same file, same id),
+    and so are the columns' semantic type labels; new datasets get none until a backfill.
     """
-    if any(record.get(f) for f in AUTODDG_FIELDS):
+    columns = (record.get("profiler_metadata") or {}).get("columns") or []
+    has_types = any(isinstance(c, dict) and c.get("semantic_type_label") for c in columns)
+    if any(record.get(f) for f in AUTODDG_FIELDS) and (has_types or not columns):
         return record
     try:
         response, _ = get_heavy_profile_object(storage_client, record.get("id"))
@@ -357,9 +372,14 @@ def carry_over_autoddg(record: dict[str, Any], storage_client) -> dict[str, Any]
             response.release_conn()
     except Exception:  # no stored profile: a new dataset
         return record
-    for field in AUTODDG_FIELDS:
-        if previous.get(field):
-            record[field] = previous[field]
+    if not any(record.get(f) for f in AUTODDG_FIELDS):
+        for field in AUTODDG_FIELDS:
+            if previous.get(field):
+                record[field] = previous[field]
+    if not has_types:
+        old = {c.get("name"): c.get("semantic_type_label")
+               for c in (previous.get("profiler_metadata") or {}).get("columns") or [] if isinstance(c, dict)}
+        apply_semantic_types(record, {k: v for k, v in old.items() if k and v})
     return record
 
 
@@ -375,6 +395,7 @@ async def persist_and_index(record: dict[str, Any], os_client, storage_client, e
     # is stored in MinIO and propagates into the trimmed search document.
     # Run in a thread: this makes several sequential blocking LLM calls, which
     # would otherwise stall every other task on the worker's event loop.
+    record = await asyncio.to_thread(attach_semantic_types, record, get_llm_client())
     record = await asyncio.to_thread(attach_autoddg_description, record)
     record = await asyncio.to_thread(carry_over_autoddg, record, storage_client)
 

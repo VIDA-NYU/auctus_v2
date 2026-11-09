@@ -153,7 +153,7 @@ def isolate_search_payload(comprehensive_record: dict[str, Any]) -> dict[str, An
 			profiler_metadata["columns"] = [
 				{
 					key: column[key]
-					for key in ("name", "structural_type", "semantic_types")
+					for key in ("name", "structural_type", "semantic_types", "semantic_type_label")
 					if key in column
 				}
 				for column in columns

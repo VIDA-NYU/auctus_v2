@@ -941,3 +941,32 @@ class Utf16CodebookTests(unittest.TestCase):
         from crawlers.invenio.codebook import value_labels
         doc = "status: 0 = Open, 1 = Closed\r\n".encode("utf-16")  # BOM + UTF-16LE, as Notepad writes it
         self.assertEqual(value_labels([("codebook.txt", doc)], ["status"])["status"]["labels"], {"0": "Open", "1": "Closed"})
+
+
+class SemanticTypeTests(unittest.TestCase):
+    def test_labels_on_columns_and_in_keywords(self):
+        from storage.semantic_types import apply_semantic_types, column_listing, parse_reply
+        labels = parse_reply('```json\n{"zip": "US ZIP code", "Score": "agreement scale 1-5"}\n```\nnote')
+        record = {"profiler_metadata": {"columns": [{"name": "zip"}, {"name": "score"}, {"name": "id"}],
+                                        "attribute_keywords": ["zip", "score", "id"]}}
+        self.assertEqual(apply_semantic_types(record, labels), 2)
+        cols = record["profiler_metadata"]["columns"]
+        self.assertEqual(cols[1]["semantic_type_label"], "agreement scale 1-5")  # matched case-insensitively
+        self.assertNotIn("semantic_type_label", cols[2])
+        self.assertIn("US ZIP code", record["profiler_metadata"]["attribute_keywords"])
+        self.assertIn("- zip: 10003, 11201", column_listing("zip,score\n10003,1\n11201,5\n10003,\n"))
+
+    def test_carry_over_keeps_type_labels(self):
+        import io
+        import json
+        from unittest import mock
+
+        from storage import arq_worker
+        previous = {"autoddg_description": "old", "profiler_metadata": {"columns": [{"name": "zip", "semantic_type_label": "US ZIP code"}]}}
+        stored = io.BytesIO(json.dumps(previous).encode())
+        stored.release_conn = lambda: None
+        record = {"id": "x", "autoddg_description": "new", "profiler_metadata": {"columns": [{"name": "zip"}]}}
+        with mock.patch.object(arq_worker, "get_heavy_profile_object", return_value=(stored, None)):
+            out = arq_worker.carry_over_autoddg(record, None)
+        self.assertEqual(out["autoddg_description"], "new")
+        self.assertEqual(out["profiler_metadata"]["columns"][0]["semantic_type_label"], "US ZIP code")
