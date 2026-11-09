@@ -36,7 +36,7 @@ import pandas as pd
 
 from eval.description_eval.arms import documentation_text, paired, pick_files
 from eval.description_eval.collect import load_profile, parse_semantic_profile
-from eval.description_eval.common import DATA_DIR, GOLD_DIR, ask_json, normalize_name, read_json, write_json
+from eval.description_eval.common import DATA_DIR, GOLD_DIR, INSTANCES, ask_json, normalize_name, read_json, write_json
 from eval.description_eval.compare import COLUMN_JUDGE
 
 ARMS = ("A0", "A", "B", "C")
@@ -66,7 +66,8 @@ Curator's record description:
 {curator}
 >>>
 
-Documentation excerpt and column list (for checking claims):
+Evidence for checking claims: documentation excerpt, a profile of every column computed over the
+whole file (type, range, number of distinct values), and the first rows of the data:
 <<<
 {context}
 >>>
@@ -81,12 +82,31 @@ Generated description of one file in this record ({file_key}):
    (who made it, why, how or where it was collected, funding, related publications). Say whether
    the generated description states it.
 2. List the generated description's factual claims (at most 10). For each, say whether the curator's
-   description, the documentation or the column list supports it.
+   description, the documentation or the data evidence supports it. A claim the data shows (a range,
+   a value every row has, a row count) is supported.
 
 Return JSON only:
 {{"curator_facts": [{{"fact": "...", "kind": "content|provenance", "covered": true|false}}],
   "generated_claims": [{{"claim": "...", "supported": true|false}}]}}
 """
+
+
+def data_evidence(profile: dict[str, Any], rows: int = 10) -> str:
+    """What the data says, for checking claims: per-column profile over the whole file, and the first rows."""
+    pm = profile.get("profiler_metadata") or {}
+    lines = [f"rows: {pm.get('nb_rows')}, columns: {pm.get('nb_columns')}"]
+    for col in (pm.get("columns") or [])[:MAX_COLUMNS]:
+        if not isinstance(col, dict):
+            continue
+        line = f"{col.get('name')}: {str(col.get('structural_type', '')).rsplit('/', 1)[-1]}"
+        ranges = [c.get("range") for c in col.get("coverage") or [] if isinstance(c, dict) and c.get("range")]
+        if ranges:
+            line += f", range {min(r['gte'] for r in ranges)} to {max(r['lte'] for r in ranges)}"
+        if col.get("num_distinct_values") is not None:
+            line += f", {col['num_distinct_values']} distinct"
+        lines.append(line)
+    sample = "\n".join((profile.get("sample") or "").splitlines()[: rows + 1])
+    return "Column profile:\n" + "\n".join(lines) + "\n\nFirst rows:\n" + sample
 
 
 def column_values(sample_csv: str) -> dict[str, list[str]]:
@@ -144,7 +164,7 @@ def generate(autoddg, profile: dict[str, Any], profile_text: str, use_semantic: 
 
 
 def judge_facts(curator: str, evidence: str, file_key: str, description: str) -> dict[str, Any]:
-    verdict = ask_json(FACTS_JUDGE.format(curator=curator[:6000], context=evidence[:14000], file_key=file_key,
+    verdict = ask_json(FACTS_JUDGE.format(curator=curator[:6000], context=evidence[:16000], file_key=file_key,
                                           generated=description[:6000]), model=JUDGE_MODEL)
     facts, claims = verdict.get("curator_facts") or [], verdict.get("generated_claims") or []
 
@@ -185,6 +205,7 @@ def mean(values: list) -> float | None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--per-record", type=int, default=4)
+    parser.add_argument("--instance", default="ultraviolet", choices=sorted(INSTANCES))
     parser.add_argument("--workers", type=int, default=8)
     args = parser.parse_args()
 
@@ -199,10 +220,12 @@ def main() -> None:
     files = []  # (gold, file, profile, curator, evidence)
     for gold_path in sorted(GOLD_DIR.glob("*.json")):
         gold = read_json(gold_path)
+        if gold.get("domain", INSTANCES["ultraviolet"]) != INSTANCES[args.instance]:
+            continue
         curator = (gold.get("curator") or {}).get("description")
         if not curator:
             continue
-        docs = documentation_text(gold["record_id"])
+        docs = documentation_text(gold["record_id"], args.instance)
         for f in pick_files(gold, args.per_record):
             try:
                 profile = load_profile(storage, f["dataset_id"])
@@ -210,8 +233,7 @@ def main() -> None:
                 continue
             if not profile.get("sample"):
                 continue
-            columns = ", ".join(c.get("name", "") for c in (profile.get("profiler_metadata") or {}).get("columns") or [])
-            evidence = "\n\n".join(x for x in (docs and f"Documentation:\n{docs}", f"Columns: {columns[:3000]}") if x)
+            evidence = "\n\n".join(x for x in (data_evidence(profile)[:6000], docs and f"Documentation:\n{docs}") if x)
             files.append((gold, f, profile, curator, evidence))
 
     with ThreadPoolExecutor(args.workers) as pool:
@@ -273,7 +295,7 @@ def main() -> None:
         if arm != "A":
             summary["arms"][arm]["vs_A"] = {m: paired(_rebase(rows, "A"), arm, m)
                                            for m in ("fact_recall", "content_recall", "unsupported_rate")}
-    write_json(OUT_DIR / "results.json", {"summary": summary, "rows": rows,
+    write_json(OUT_DIR / ("results.json" if args.instance == "ultraviolet" else f"results-{args.instance}.json"), {"summary": summary, "rows": rows,
                                           "typed": {f[1]["dataset_id"]: t for f, t in zip(files, typed_all)}})
     print(json.dumps(summary, indent=1))
 

@@ -65,8 +65,8 @@ def column_semantics(profile: dict[str, Any]) -> list[dict[str, Any]]:
     return out[:80]
 
 
-def documentation_text(record_id: str) -> str:
-    path = DATA_DIR / "sources" / "ultraviolet" / f"{record_id}.json"
+def documentation_text(record_id: str, instance: str = "ultraviolet") -> str:
+    path = DATA_DIR / "sources" / instance / f"{record_id}.json"
     if not path.exists():
         return ""
     parts, used = [], 0
