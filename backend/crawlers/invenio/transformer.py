@@ -50,7 +50,7 @@ from crawlers.invenio.archives import (
 from crawlers.invenio.codebook import (MAX_DOC_BYTES, apply_value_labels, documentation_for, is_documentation,
                                        value_labels)
 from crawlers.invenio.formats import (DATABASE_EXTENSIONS, READERS, database_tables, read_database_table,
-                                      read_jcamp_header, read_spectra)
+                                      read_jcamp_header, read_spectra, spectrum_peaks)
 from crawlers.invenio.http import async_client
 from crawlers.socrata.transformer import (
     SampleStats,
@@ -344,7 +344,10 @@ async def build_spectra_record(dataset_meta: dict[str, Any], http_timeout_second
             response = await client.get(spectrum["url"], headers={"Accept": "*/*"})
             response.raise_for_status()
             content = response.content
-            headers.append((spectrum["key"], read_jcamp_header(content.decode(guess_encoding(content), "replace"))))
+            text = content.decode(guess_encoding(content), "replace")
+            fields = read_jcamp_header(text)
+            fields["_PEAKS"] = spectrum_peaks(text, fields)
+            headers.append((spectrum["key"], fields))
     async with PROFILER_SLOTS:
         return await asyncio.to_thread(profile_spectra, headers, dataset_meta)
 

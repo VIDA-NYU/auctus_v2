@@ -283,7 +283,13 @@ SPECTRUM_COLUMNS = [
     ("origin", "ORIGIN"), ("x_units", "XUNITS"), ("y_units", "YUNITS"), ("first_x", "FIRSTX"), ("last_x", "LASTX"),
     ("resolution", "RESOLUTION"), ("points", "NPOINTS"), ("data_processing", "DATA PROCESSING"),
     ("comments", "COMMENTS"), ("sample_description", "SAMPLE DESCRIPTION"),
+    ("main_peaks", "_PEAKS"),  # computed from the data block, not a JCAMP label
 ]
+MAX_PEAKS = 8
+PEAK_SEPARATION = 20.0  # in x units (cm-1 for IR)
+PROMINENCE_WINDOW = 60.0
+IR_RANGE = (600.0, 3800.0)  # the ends of a mid-IR scan are detector noise
+IR_CO2_BAND = (2280.0, 2400.0)  # atmospheric CO2 doublet: an instrument artifact, not the sample
 
 
 def read_jcamp_header(text: str) -> dict[str, str]:
@@ -306,6 +312,59 @@ def read_jcamp_header(text: str) -> dict[str, str]:
         elif label and line and not line.startswith("$$"):
             fields[label] = f"{fields[label]}; {line}" if fields[label] else line
     return fields
+
+
+def spectrum_peaks(text: str, fields: dict[str, str]) -> str:
+    """The strongest peaks of an (X++(Y..Y)) spectrum, as x positions, strongest first.
+
+    Conservators identify materials by where the absorption bands are (a carbonyl near
+    1730 cm-1), so the peak positions describe the sample better than the curve does.
+    Only plain-number (AFFN) data is read; compressed ASDF data gives "".
+    """
+    block = text.split("##XYDATA", 1)
+    if len(block) < 2 or "(X++(Y..Y))" not in block[1][:40]:
+        return ""
+    try:
+        first, delta = float(fields["FIRSTX"]), float(fields.get("DELTAX") or 0)
+        xfactor = float(fields.get("XFACTOR") or 1)
+        yfactor = float(fields.get("YFACTOR") or 1)
+    except (KeyError, ValueError):
+        return ""
+    xs, ys = [], []
+    for line in block[1].split("\n")[1:]:
+        if line.startswith("##"):
+            break
+        parts = line.split()
+        if not parts:
+            continue
+        try:
+            x0, values = float(parts[0]) * xfactor, [float(v) * yfactor for v in parts[1:]]
+        except ValueError:
+            return ""  # ASDF-compressed or malformed
+        for k, y in enumerate(values):
+            xs.append(x0 + k * (delta if delta else 0))
+            ys.append(y)
+    if len(ys) < 10:
+        return ""
+    if "TRANSMITTANCE" in fields.get("YUNITS", "").upper():
+        ys = [-y for y in ys]  # bands are dips in transmittance
+    step = abs(xs[1] - xs[0]) or 1.0
+    window = max(1, int(PROMINENCE_WINDOW / step))
+    infrared = fields.get("XUNITS", "").upper() in ("1/CM", "CM-1", "1/CM-1")
+    prominence = {}
+    for k in range(window, len(ys) - window):
+        if ys[k] < max(ys[k - 1], ys[k + 1]) or (infrared and not IR_RANGE[0] <= xs[k] <= IR_RANGE[1]) \
+                or (infrared and IR_CO2_BAND[0] <= xs[k] <= IR_CO2_BAND[1]):
+            continue
+        # Height above the higher of the two lowest points around it: a band, not baseline drift.
+        prominence[k] = ys[k] - max(min(ys[k - window:k]), min(ys[k + 1:k + window + 1]))
+    picked: list[float] = []
+    for k in sorted(prominence, key=lambda k: -prominence[k]):
+        if all(abs(xs[k] - x) >= PEAK_SEPARATION for x in picked):
+            picked.append(xs[k])
+        if len(picked) == MAX_PEAKS:
+            break
+    return ", ".join(str(round(x)) for x in picked)
 
 
 def _jcamp_date(fields: dict[str, str]) -> str:

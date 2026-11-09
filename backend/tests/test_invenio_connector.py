@@ -970,3 +970,16 @@ class SemanticTypeTests(unittest.TestCase):
             out = arq_worker.carry_over_autoddg(record, None)
         self.assertEqual(out["autoddg_description"], "new")
         self.assertEqual(out["profiler_metadata"]["columns"][0]["semantic_type_label"], "US ZIP code")
+
+
+class SpectrumPeakTests(unittest.TestCase):
+    def test_peaks_from_affn_data(self):
+        import math
+        from crawlers.invenio.formats import read_jcamp_header, spectrum_peaks
+        xs = [400 + 2 * k for k in range(1801)]  # 400..4000 cm-1
+        ys = [0.1 + math.exp(-((x - 1730) / 8) ** 2) + 0.6 * math.exp(-((x - 2920) / 10) ** 2)
+              + 0.9 * math.exp(-((x - 2350) / 6) ** 2) for x in xs]  # 2350: CO2, ignored
+        lines = [f"{xs[k]} " + " ".join(str(round(y * 1e6)) for y in ys[k:k + 5]) for k in range(0, len(xs), 5)]
+        text = ("##TITLE=t\n##XUNITS=1/CM\n##YUNITS=ABSORBANCE\n##FIRSTX=400\n##DELTAX=2\n##YFACTOR=1E-6\n"
+                "##XYDATA=(X++(Y..Y))\n" + "\n".join(lines) + "\n##END=\n")
+        self.assertEqual(spectrum_peaks(text, read_jcamp_header(text)).split(", ")[:2], ["1730", "2920"])
