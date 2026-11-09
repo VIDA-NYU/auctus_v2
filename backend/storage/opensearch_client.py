@@ -407,7 +407,10 @@ def init_db():
             try:
                 client.indices.put_mapping(
                     index=AUCTUS_INDEX_NAME,
-                    body={"properties": {"profiler_metadata": DATASETS_MAPPING["mappings"]["properties"]["profiler_metadata"]}},
+                    # Only the nested columns: an older index may hold other profiler fields
+                    # under dynamic mappings (geometry_type as text), which fail the whole put.
+                    body={"properties": {"profiler_metadata": {"properties": {"columns": DATASETS_MAPPING["mappings"][
+                        "properties"]["profiler_metadata"]["properties"]["columns"]}}}},
                 )
             except Exception as exc:
                 logger.warning("Could not add new profiler fields to the %s mapping: %s", AUCTUS_INDEX_NAME, exc)
