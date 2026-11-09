@@ -97,7 +97,7 @@ def rows_from_bytes(data: bytes, name: str) -> list[list[str]] | None:
         return [[("" if v is None or str(v) == "nan" else str(v)) for v in row]
                 for frame in sheets.values() for row in frame.itertuples(index=False, name=None)]
     if ext in ("csv", "tsv"):
-        text = data.decode("utf-8-sig", errors="replace")
+        text = decode_text(data)
         return list(csv.reader(io.StringIO(text), delimiter="\t" if ext == "tsv" else ","))
     return None
 
@@ -134,6 +134,14 @@ def labels_from_rows(rows: list[list[str]], columns: Iterable[str]) -> dict[str,
         for code, label in _pairs_in_row(row):
             found[current].setdefault(code, label)
     return {c: v for c, v in found.items() if len(v) >= MIN_LABELS}
+
+
+def decode_text(data: bytes) -> str:
+    """Text of a plain-text doc. Windows tools write codebooks as UTF-16 with a BOM
+    (two UltraViolet codebook.txt files); everything else is read as UTF-8."""
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return data.decode("utf-16", errors="replace")
+    return data.decode("utf-8-sig", errors="replace")
 
 
 def pdf_text(data: bytes) -> str:
@@ -207,7 +215,7 @@ def value_labels(docs: Iterable[tuple[str, bytes]], columns: list[str]) -> dict[
             continue
         if rows is None:
             try:
-                text = pdf_text(data) if doc_extension(name) in PDF_DOC_EXTENSIONS else data.decode("utf-8", errors="replace")
+                text = pdf_text(data) if doc_extension(name) in PDF_DOC_EXTENSIONS else decode_text(data)
             except Exception as exc:  # broken or encrypted PDF
                 LOGGER.info("Can't read documentation %s: %r", name, exc)
                 continue

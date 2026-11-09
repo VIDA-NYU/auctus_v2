@@ -934,3 +934,10 @@ class TooLargeTests(unittest.TestCase):
         self.assertEqual(records[0]["archive_dataset_id"], "uv:r:sales")
         self.assertIn("not profiled", records[0]["errors"][0])
         self.assertEqual(records[0]["title"], "Real Estate Sales: sales.zip/sales/sales_2018.csv")
+
+
+class Utf16CodebookTests(unittest.TestCase):
+    def test_utf16_text_codebook(self):
+        from crawlers.invenio.codebook import value_labels
+        doc = "status: 0 = Open, 1 = Closed\r\n".encode("utf-16")  # BOM + UTF-16LE, as Notepad writes it
+        self.assertEqual(value_labels([("codebook.txt", doc)], ["status"])["status"]["labels"], {"0": "Open", "1": "Closed"})
