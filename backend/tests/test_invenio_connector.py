@@ -983,3 +983,15 @@ class SpectrumPeakTests(unittest.TestCase):
         text = ("##TITLE=t\n##XUNITS=1/CM\n##YUNITS=ABSORBANCE\n##FIRSTX=400\n##DELTAX=2\n##YFACTOR=1E-6\n"
                 "##XYDATA=(X++(Y..Y))\n" + "\n".join(lines) + "\n##END=\n")
         self.assertEqual(spectrum_peaks(text, read_jcamp_header(text)).split(", ")[:2], ["1730", "2920"])
+
+
+class DatabasePruneTests(unittest.TestCase):
+    def test_database_tables_are_not_stale(self):
+        """Tables hang off the database job's id (loose file, or member of a large zip)."""
+        from crawlers.invenio.crawler import stale_doc_ids
+        discovered = [{"dataset_id": "d:r:zip:m1", "file_extension": "sqlite", "zip_member": "nyc/gdb.sqlite"},
+                      {"dataset_id": "d:r2:f1", "file_extension": "gpkg"}]
+        indexed = [{"id": "d:r:zip:m1:aaa", "archive_dataset_id": "d:r:zip:m1"},
+                   {"id": "d:r2:f1:bbb", "archive_dataset_id": "d:r2:f1"},
+                   {"id": "d:r3:gone:ccc", "archive_dataset_id": "d:r3:gone"}]
+        self.assertEqual(stale_doc_ids(indexed, discovered), ["d:r3:gone:ccc"])

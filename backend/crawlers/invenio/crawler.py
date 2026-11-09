@@ -31,7 +31,7 @@ from crawlers.invenio.archives import (
     tabular_members,
 )
 from crawlers.invenio.codebook import MAX_DOC_BYTES, is_documentation, is_labelled_data
-from crawlers.invenio.formats import SPECTRUM_EXTENSIONS
+from crawlers.invenio.formats import DATABASE_EXTENSIONS, SPECTRUM_EXTENSIONS
 from crawlers.invenio.http import async_client
 
 LOGGER = logging.getLogger(__name__)
@@ -421,7 +421,8 @@ def stale_doc_ids(indexed: list[dict[str, Any]], discovered: list[dict[str, Any]
     `indexed` holds {"id", "archive_dataset_id"} per doc of one domain. A doc is
     kept if discovery produced its id, or it is a member of a small archive that
     was discovered (its members are chosen when the archive is profiled), one of a
-    discovered group's per-schema docs, or a member of an archive that couldn't be
+    discovered group's per-schema docs, one of a discovered database's per-table docs
+    (loose or inside a zip: they hang off the database job's id), or a member of an archive that couldn't be
     listed this time. Everything else (deleted or
     restricted records, files removed from a record, members beyond the caps) is
     stale.
@@ -429,7 +430,8 @@ def stale_doc_ids(indexed: list[dict[str, Any]], discovered: list[dict[str, Any]
     keep_ids = {entry["dataset_id"] for entry in discovered}
     keep_archives = {entry["dataset_id"] for entry in discovered
                      if (entry.get("file_extension") in ARCHIVE_EXTENSIONS and not entry.get("zip_member"))
-                     or entry.get("member_group")}  # a group's per-schema docs
+                     or entry.get("member_group")  # a group's per-schema docs
+                     or entry.get("file_extension") in DATABASE_EXTENSIONS}  # a database's per-table docs
     keep_archives |= set(unlisted_archives)
     return [doc["id"] for doc in indexed
             if doc["id"] not in keep_ids and doc.get("archive_dataset_id") not in keep_archives]

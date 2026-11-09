@@ -18,6 +18,7 @@ from dateutil.parser import parse as parse_datetime
 
 from crawlers.ckan.crawler import discover_ckan_datasets
 from crawlers.invenio.crawler import discover_invenio_datasets, stale_doc_ids
+from crawlers.invenio.formats import DATABASE_EXTENSIONS
 from crawlers.socrata.crawler import discover_socrata_datasets
 from storage.opensearch_client import AUCTUS_INDEX_NAME, AUCTUS_PORTALS_INDEX_NAME, get_client, init_db
 
@@ -543,8 +544,8 @@ async def main() -> None:
 							LOGGER.warning("Deduplication check failed for %s: %s. Proceeding with ingestion.", dataset_id, exc)
 					elif discovered_meta.get("source_updated_at") and not reingest:
 						try:
-							if discovered_meta.get("file_extension") == "zip":
-								# Archives aren't indexed themselves; their members carry archive_dataset_id.
+							if discovered_meta.get("file_extension") == "zip" or discovered_meta.get("file_extension") in DATABASE_EXTENSIONS:
+								# Archives and databases aren't indexed themselves; their members / tables carry archive_dataset_id.
 								found = os_client.search(index=AUCTUS_INDEX_NAME, size=1, body={
 									"query": {"term": {"archive_dataset_id": dataset_id}}})["hits"]["hits"]
 								existing_doc = found[0] if found else None
