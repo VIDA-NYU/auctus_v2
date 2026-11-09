@@ -67,7 +67,9 @@ def parse_reply(text: str) -> dict[str, str]:
 def infer_semantic_types(client, sample_csv: str, title: str, model: str = SEMANTIC_TYPES_MODEL) -> dict[str, str]:
     prompt = PROMPT.format(title=title, columns=column_listing(sample_csv))
     response = client.chat.completions.create(model=model, messages=[{"role": "user", "content": prompt}],
-                                              temperature=0, max_tokens=4000)
+                                              # Gemini 2.5 counts its thinking against max_tokens:
+                                              # 4000 cut 49 of 591 replies off mid-JSON.
+                                              temperature=0, max_tokens=16000)
     return parse_reply(response.choices[0].message.content or "")
 
 
