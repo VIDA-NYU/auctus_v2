@@ -218,7 +218,7 @@ def main() -> None:
     storage = get_storage_client()
 
     files = []  # (gold, file, profile, curator, evidence)
-    for gold_path in sorted(GOLD_DIR.glob("*.json")):
+    for gold_path in sorted(GOLD_DIR.glob("**/*.json")):  # caltech gold is in gold/caltech/
         gold = read_json(gold_path)
         if gold.get("domain", INSTANCES["ultraviolet"]) != INSTANCES[args.instance]:
             continue
