@@ -10,7 +10,7 @@ ingestion); only the profile string handed to AutoDDG's describe_dataset changes
   paper  + title and abstract of the paper the record links to (OpenAlex, by DOI)
   all    types + docs + paper
 
-Every description is graded with compare.DESCRIPTION_JUDGE against the curator's
+Every description is graded with semtypes.judge_facts (sees the data) against the curator's
 record description, with the same evidence for every arm (documentation, paper
 abstract, column list), so a claim backed by the README counts as supported in
 every arm, not only in the arm that saw it. Caveat: curators often write the
@@ -36,7 +36,6 @@ import httpx
 
 from eval.description_eval.collect import load_profile
 from eval.description_eval.common import DATA_DIR, GOLD_DIR, ask_json, read_json, write_json
-from eval.description_eval.compare import DESCRIPTION_JUDGE
 
 ARMS = ("base", "types", "docs", "paper", "all")
 ARMS_DIR = DATA_DIR / "arms"
