@@ -548,9 +548,13 @@ def profile_spectra(headers: list[tuple[str, dict[str, str]]], dataset_meta: dic
         # The sample names ("Red Balloon (Fragment) Vulcanized Rubber?") are what
         # someone would search for; search reads attribute_keywords.
         titles = sorted({fields.get("TITLE", "") for _, fields in headers} - {""})
-        # Suggested materials are searchable only when the match is at least "possible".
+        # Only "confident" suggestions are searchable: against the conservators' reports
+        # they were right (same or related material) for 22 of 24 spectra, "possible"
+        # ones for 4 of 17 (eval ftir_materials, 2026-11-10).
+        from crawlers.invenio.spectral_library import CONFIDENT
+
         materials = sorted({fields["_MATERIAL"] for _, fields in headers
-                            if fields.get("_MATERIAL") and float(fields.get("_MATCH_SCORE") or 0) >= 0.6})
+                            if fields.get("_MATERIAL") and float(fields.get("_MATCH_SCORE") or 0) >= CONFIDENT})
         output["attribute_keywords"] = list(output.get("attribute_keywords") or columns) + titles + materials
         record = assemble_record(dataset_meta, table, columns, rows, output, errors)
         # One entry per spectrum, so a search for "a peak near 1720 and one near 610" means
