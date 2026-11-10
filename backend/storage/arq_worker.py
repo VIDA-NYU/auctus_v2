@@ -348,7 +348,10 @@ async def build_full_record(dataset_meta: dict[str, Any], **settings: Any) -> di
     return await build_validation_record(dataset_meta["dataset_id"], **settings)
 
 
-AUTODDG_FIELDS = ("autoddg_description", "autoddg_search_description", "autoddg_topic", "autoddg_semantic_profile")
+# Generated text kept across re-profiles (carry_over_autoddg); image_description comes
+# from the vision-model run (eval image_descriptions), not from ingestion.
+AUTODDG_FIELDS = ("autoddg_description", "autoddg_search_description", "autoddg_topic", "autoddg_semantic_profile",
+                  "image_description")
 
 
 def carry_over_autoddg(record: dict[str, Any], storage_client) -> dict[str, Any]:

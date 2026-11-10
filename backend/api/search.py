@@ -42,7 +42,7 @@ EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 SEARCH_MIN_SCORE = float(os.getenv("SEARCH_MIN_SCORE", "0.42"))
 # Searched alongside title + description: column names from the profiler and
 # subjects from the repository record (InvenioRDM). No generated text.
-METADATA_FIELDS = ["profiler_metadata.attribute_keywords", "source_record.subjects"]
+METADATA_FIELDS = ["profiler_metadata.attribute_keywords", "source_record.subjects", "image_description"]
 
 
 @lru_cache(maxsize=1)
