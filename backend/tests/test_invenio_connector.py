@@ -1116,5 +1116,5 @@ class MergeImageSetTests(unittest.TestCase):
         merged = merge_image_sets(sets)
         self.assertEqual(len(merged), 1)
         self.assertEqual((merged[0]["dataset_id"], merged[0]["image_set"]["total"]), ("d:r:images", 24))
-        self.assertEqual({s["zip"] for s in merged[0]["image_set"]["samples"]}, set(range(6)))  # every zip sampled
+        self.assertEqual({s["zip"] for s in merged[0]["image_set"]["samples"]}, set(range(6)))  # spread over the zips
         self.assertEqual(len(merge_image_sets(sets[:2])), 2)

@@ -212,7 +212,10 @@ def merge_image_sets(sets: list[dict[str, Any]], min_group: int = MIN_GROUP_MEMB
     zips = [{"url": s["file_url"], "size": s["file_size"], "file_key": s["file_key"].split(" (", 1)[0]} for s in sets]
     per_zip = max(1, MAX_IMAGE_SAMPLES // len(sets))
     samples = [{"zip": k, "member": m} for k, s in enumerate(sets) for m in s["image_set"]["samples"][:per_zip]]
-    samples = spread_sample(samples, max(MAX_IMAGE_SAMPLES, len(sets)))
+    # Capped like a single zip: a TIFF header inside a compressed member can cost a
+    # full decompression (~30 s each for the Dublin orthophotos), so 12 spread across
+    # the zips, not one per zip.
+    samples = spread_sample(samples, MAX_IMAGE_SAMPLES)
     total = sum(s["image_set"]["total"] for s in sets)
     first = sets[0]
     record_prefix = first["dataset_id"].rsplit(":", 2)[0]  # domain:record
