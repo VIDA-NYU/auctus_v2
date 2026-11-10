@@ -393,7 +393,11 @@ def profile_remote_image_set(dataset_meta: dict[str, Any]) -> dict[str, Any]:
     else:
         pm.pop("geometry_type", None)
         record.pop("spatial_coverage", None)
-    pm["attribute_keywords"] = [f"{image_set['total']} TIFF images", *pm["attribute_keywords"][1:]]
+    # The first sample may lack georeferencing even when others have it: recompute the kind words.
+    total = image_set["total"]
+    rest = [k for k in pm["attribute_keywords"] if k not in ("GeoTIFF", "TIFF", "raster", "image")]
+    pm["attribute_keywords"] = [f"{total} TIFF image{'s' if total != 1 else ''}", kind,
+                                *(["GeoTIFF"] if boxes else []), *rest]
     if len(sizes) > 1:
         pm["attribute_keywords"] = [k for k in pm["attribute_keywords"] if not k.endswith(" pixels")] + sizes[:5]
     record["source_record"]["archive"] = {"file_key": dataset_meta.get("file_key"), "images": image_set["total"]}
