@@ -148,12 +148,11 @@ def pick_files(gold: dict[str, Any], per_record: int) -> list[dict[str, Any]]:
 
 
 def judge(curator: str, evidence: str, file_key: str, description: str) -> dict[str, Any]:
-    verdict = ask_json(DESCRIPTION_JUDGE.format(curator=curator[:6000], context=evidence[:14000],
-                                                file_key=file_key, generated=description[:6000]), model=JUDGE_MODEL)
-    facts, claims = verdict.get("curator_facts") or [], verdict.get("generated_claims") or []
-    return {"fact_recall": sum(bool(x.get("covered")) for x in facts) / len(facts) if facts else None,
-            "unsupported_rate": sum(not x.get("supported") for x in claims) / len(claims) if claims else None,
-            "facts": facts, "claims": claims}
+    """The data-aware judge of semtypes.py (2026-11-09): facts split content / provenance,
+    claims checked against the docs, the paper and the data."""
+    from eval.description_eval.semtypes import judge_facts
+
+    return judge_facts(curator, evidence, file_key, description)
 
 
 def paired(rows: list[dict], arm: str, metric: str) -> dict[str, Any]:
@@ -204,11 +203,12 @@ def main() -> None:
             if not profile.get("sample"):
                 continue
             base_text = build_profile_text(profile)
-            columns = ", ".join(c.get("name", "") for c in (profile.get("profiler_metadata") or {}).get("columns") or [])
+            from eval.description_eval.semtypes import data_evidence
+
             evidence = "\n\n".join(x for x in (
+                data_evidence(profile)[:6000],
                 docs and f"Documentation:\n{docs}",
-                paper and f"Linked paper: {paper['title']}\n{paper['abstract']}",
-                f"Columns: {columns[:3000]}") if x)
+                paper and f"Linked paper: {paper['title']}\n{paper['abstract']}") if x)
             for arm in args.arms:
                 text = arm_profile(base_text, arm, column_semantics(profile), docs, paper)
                 if text is not None:
@@ -236,12 +236,14 @@ def main() -> None:
         summary["arms"][arm] = {
             "files": len(mine), "errors": sum(1 for r in rows if r["arm"] == arm and r.get("error")),
             "mean_fact_recall": round(statistics.fmean(r["fact_recall"] for r in mine), 3) if mine else None,
+            "mean_content_recall": round(statistics.fmean(r["content_recall"] for r in mine if r.get("content_recall") is not None), 3) if mine else None,
+            "mean_provenance_recall": round(statistics.fmean(r["provenance_recall"] for r in mine if r.get("provenance_recall") is not None), 3) if mine else None,
             "mean_unsupported_rate": round(statistics.fmean(unsupported), 3) if unsupported else None,
             "median_words": statistics.median(r["words"] for r in mine) if mine else None,
             **({} if arm == "base" else {"vs_base_recall": paired(rows, arm, "fact_recall"),
                                          "vs_base_unsupported": paired(rows, arm, "unsupported_rate")}),
         }
-    write_json(ARMS_DIR / "results.json", {"summary": summary, "rows": rows})
+    write_json(ARMS_DIR / "results-v2.json", {"summary": summary, "rows": rows})  # v2 = data-aware judge
     print(json.dumps(summary, indent=1))
 
 
