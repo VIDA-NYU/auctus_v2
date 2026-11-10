@@ -66,6 +66,10 @@ class SearchQueryRequest(BaseModel):
     # title + original description at ingest time), so for a clean description-only
     # retrieval comparison use the pure-BM25 /search endpoint.
     description_source: Optional[str] = DEFAULT_DESCRIPTION_SOURCE
+    # Spectra (FTIR): datasets with a spectrum that has a peak within `peak_tolerance`
+    # of every listed position, e.g. [1720, 610] for plasticized PVC.
+    peaks: Optional[List[float]] = None
+    peak_tolerance: float = 10.0
 
 
 def get_client():
@@ -160,6 +164,12 @@ async def search(req: SearchQueryRequest):
     if req.temporal_end:
         # dataset.start <= temporal_end
         filter_clauses.append({"range": {"temporal_coverage.start": {"lte": req.temporal_end}}})
+
+    if req.peaks:
+        # All peaks in the SAME spectrum (nested), not spread over a record's spectra.
+        tol = abs(req.peak_tolerance)
+        filter_clauses.append({"nested": {"path": "profiler_metadata.spectra", "query": {"bool": {"filter": [
+            {"range": {"profiler_metadata.spectra.peaks": {"gte": p - tol, "lte": p + tol}}} for p in req.peaks]}}}})
 
     if req.bbox:
         try:

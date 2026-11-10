@@ -204,6 +204,10 @@ DATASETS_MAPPING = {
                     "geometry_type": {"type": "keyword"},  # shapefile / GeoJSON layers
                     "raster": {"type": "object", "enabled": False},  # TIFF header (size, bands, CRS)
                     "collection": {"type": "object", "enabled": False},  # zipped texts, model output, ...
+                    # FTIR spectra: peak positions per spectrum, for "a peak near 1720 cm-1" searches.
+                    "spectra": {"type": "nested", "properties": {
+                        "file": {"type": "keyword"}, "title": {"type": "text"}, "peaks": {"type": "float"},
+                        "suggested_material": {"type": "keyword"}, "match_score": {"type": "float"}}},
                     "columns": {
                         "type": "nested",
                         "properties": {
@@ -413,7 +417,7 @@ def init_db():
                     # under dynamic mappings (geometry_type as text), which fail the whole put.
                     body={"properties": {"profiler_metadata": {"properties": {
                         k: DATASETS_MAPPING["mappings"]["properties"]["profiler_metadata"]["properties"][k]
-                        for k in ("columns", "raster", "collection")}}}},
+                        for k in ("columns", "raster", "collection", "spectra")}}}},
                 )
             except Exception as exc:
                 logger.warning("Could not add new profiler fields to the %s mapping: %s", AUCTUS_INDEX_NAME, exc)

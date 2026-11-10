@@ -327,6 +327,9 @@ SPECTRUM_COLUMNS = [
     ("resolution", "RESOLUTION"), ("points", "NPOINTS"), ("data_processing", "DATA PROCESSING"),
     ("comments", "COMMENTS"), ("sample_description", "SAMPLE DESCRIPTION"),
     ("main_peaks", "_PEAKS"),  # computed from the data block, not a JCAMP label
+    # Suggestions from an open reference library (crawlers/invenio/spectral_library.py).
+    ("suggested_material", "_MATERIAL"), ("match_score", "_MATCH_SCORE"), ("match_confidence", "_MATCH_CONFIDENCE"),
+    ("other_candidates", "_CANDIDATES"),
 ]
 MAX_PEAKS = 8
 PEAK_SEPARATION = 20.0  # in x units (cm-1 for IR)
@@ -357,22 +360,18 @@ def read_jcamp_header(text: str) -> dict[str, str]:
     return fields
 
 
-def spectrum_peaks(text: str, fields: dict[str, str]) -> str:
-    """The strongest peaks of an (X++(Y..Y)) spectrum, as x positions, strongest first.
-
-    Conservators identify materials by where the absorption bands are (a carbonyl near
-    1730 cm-1), so the peak positions describe the sample better than the curve does.
-    Only plain-number (AFFN) data is read; compressed ASDF data gives "".
-    """
+def spectrum_xy(text: str, fields: dict[str, str]) -> tuple[list[float], list[float]]:
+    """The (x, y) points of an (X++(Y..Y)) spectrum, bands pointing up (transmittance
+    is flipped). Only plain-number (AFFN) data is read; compressed ASDF data gives ([], [])."""
     block = text.split("##XYDATA", 1)
     if len(block) < 2 or "(X++(Y..Y))" not in block[1][:40]:
-        return ""
+        return [], []
     try:
-        first, delta = float(fields["FIRSTX"]), float(fields.get("DELTAX") or 0)
+        delta = float(fields.get("DELTAX") or 0)
         xfactor = float(fields.get("XFACTOR") or 1)
         yfactor = float(fields.get("YFACTOR") or 1)
-    except (KeyError, ValueError):
-        return ""
+    except ValueError:
+        return [], []
     xs, ys = [], []
     for line in block[1].split("\n")[1:]:
         if line.startswith("##"):
@@ -383,14 +382,23 @@ def spectrum_peaks(text: str, fields: dict[str, str]) -> str:
         try:
             x0, values = float(parts[0]) * xfactor, [float(v) * yfactor for v in parts[1:]]
         except ValueError:
-            return ""  # ASDF-compressed or malformed
+            return [], []  # ASDF-compressed or malformed
         for k, y in enumerate(values):
-            xs.append(x0 + k * (delta if delta else 0))
+            xs.append(x0 + k * delta)
             ys.append(y)
-    if len(ys) < 10:
-        return ""
     if "TRANSMITTANCE" in fields.get("YUNITS", "").upper():
         ys = [-y for y in ys]  # bands are dips in transmittance
+    return xs, ys
+
+
+def peak_positions(xs: list[float], ys: list[float], fields: dict[str, str]) -> list[float]:
+    """The strongest peaks, as x positions, strongest first.
+
+    Conservators identify materials by where the absorption bands are (a carbonyl near
+    1730 cm-1), so the peak positions describe the sample better than the curve does.
+    """
+    if len(ys) < 10:
+        return []
     step = abs(xs[1] - xs[0]) or 1.0
     window = max(1, int(PROMINENCE_WINDOW / step))
     infrared = fields.get("XUNITS", "").upper() in ("1/CM", "CM-1", "1/CM-1")
@@ -407,7 +415,11 @@ def spectrum_peaks(text: str, fields: dict[str, str]) -> str:
             picked.append(xs[k])
         if len(picked) == MAX_PEAKS:
             break
-    return ", ".join(str(round(x)) for x in picked)
+    return picked
+
+
+def spectrum_peaks(text: str, fields: dict[str, str]) -> str:
+    return ", ".join(str(round(x)) for x in peak_positions(*spectrum_xy(text, fields), fields))
 
 
 def _jcamp_date(fields: dict[str, str]) -> str:

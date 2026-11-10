@@ -15,3 +15,6 @@ dist/
 
 # MkDocs build output
 site/
+
+# Built locally from Open Specy (license on OSF: "Other"); see crawlers/invenio/spectral_library.py
+backend/data/spectral/

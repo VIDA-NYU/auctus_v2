@@ -50,7 +50,8 @@ from crawlers.invenio.archives import (
 from crawlers.invenio.codebook import (MAX_DOC_BYTES, apply_value_labels, documentation_for, is_documentation,
                                        value_labels)
 from crawlers.invenio.formats import (DATABASE_EXTENSIONS, READERS, database_tables, read_database_table,
-                                      read_jcamp_header, read_spectra, read_tiff_header, spectrum_peaks,
+                                      peak_positions, read_jcamp_header, read_spectra, read_tiff_header,
+                                      spectrum_xy,
                                       tiff_bbox, tiff_epsg, to_lonlat, TIFF_EXTENSIONS)
 from crawlers.invenio.http import async_client
 from crawlers.socrata.transformer import (
@@ -516,10 +517,27 @@ async def build_spectra_record(dataset_meta: dict[str, Any], http_timeout_second
             content = response.content
             text = content.decode(guess_encoding(content), "replace")
             fields = read_jcamp_header(text)
-            fields["_PEAKS"] = spectrum_peaks(text, fields)
+            annotate_spectrum(text, fields)
             headers.append((spectrum["key"], fields))
     async with PROFILER_SLOTS:
         return await asyncio.to_thread(profile_spectra, headers, dataset_meta)
+
+
+def annotate_spectrum(text: str, fields: dict[str, Any]) -> None:
+    """Main peaks and material suggestions, as `_`-keys next to the header fields."""
+    from crawlers.invenio.spectral_library import confidence, suggest
+
+    xs, ys = spectrum_xy(text, fields)
+    peaks = peak_positions(xs, ys, fields)
+    fields["_PEAKS"] = ", ".join(str(round(x)) for x in peaks)
+    fields["_PEAK_LIST"] = [round(x, 1) for x in peaks]
+    infrared = fields.get("XUNITS", "").upper() in ("1/CM", "CM-1", "1/CM-1")
+    matches = suggest(xs, ys) if infrared and xs else []
+    if matches:
+        fields["_MATERIAL"], score = matches[0]
+        fields["_MATCH_SCORE"] = f"{score:.2f}"
+        fields["_MATCH_CONFIDENCE"] = confidence(score)
+        fields["_CANDIDATES"] = "; ".join(f"{name} ({s:.2f})" for name, s in matches[1:])
 
 
 def profile_spectra(headers: list[tuple[str, dict[str, str]]], dataset_meta: dict[str, Any]) -> dict[str, Any]:
@@ -530,8 +548,19 @@ def profile_spectra(headers: list[tuple[str, dict[str, str]]], dataset_meta: dic
         # The sample names ("Red Balloon (Fragment) Vulcanized Rubber?") are what
         # someone would search for; search reads attribute_keywords.
         titles = sorted({fields.get("TITLE", "") for _, fields in headers} - {""})
-        output["attribute_keywords"] = list(output.get("attribute_keywords") or columns) + titles
-        return assemble_record(dataset_meta, table, columns, rows, output, errors)
+        # Suggested materials are searchable only when the match is at least "possible".
+        materials = sorted({fields["_MATERIAL"] for _, fields in headers
+                            if fields.get("_MATERIAL") and float(fields.get("_MATCH_SCORE") or 0) >= 0.6})
+        output["attribute_keywords"] = list(output.get("attribute_keywords") or columns) + titles + materials
+        record = assemble_record(dataset_meta, table, columns, rows, output, errors)
+        # One entry per spectrum, so a search for "a peak near 1720 and one near 610" means
+        # the same spectrum (api/search.py, `peaks`).
+        record["profiler_metadata"]["spectra"] = [
+            {"file": key, "title": fields.get("TITLE", ""), "peaks": fields.get("_PEAK_LIST") or [],
+             "suggested_material": fields.get("_MATERIAL"),
+             "match_score": float(fields["_MATCH_SCORE"]) if fields.get("_MATCH_SCORE") else None}
+            for key, fields in headers]
+        return record
     finally:
         table.path.unlink(missing_ok=True)
 

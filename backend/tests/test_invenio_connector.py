@@ -1155,3 +1155,29 @@ class CollectionTests(unittest.TestCase):
             jobs = collection_jobs({"dataset_id": "d:r:z", "file_key": "z.zip", "file_url": "u", "file_size": 1}, z)
         totals = {j["collection"]["kind"]: j["collection"]["total"] for j in jobs}
         self.assertEqual(totals, {"texts": 26, "code": 4})  # checkpoints skipped
+
+
+class SpectralMatchTests(unittest.TestCase):
+    def test_suggest_from_a_small_library(self):
+        import math
+
+        import numpy as np
+
+        from crawlers.invenio import spectral_library as sl
+
+        def band(xs, centers):
+            return [sum(math.exp(-((x - c) / 12) ** 2) for c in centers) for x in xs]
+        refs = {"PVC with plasticizer": [1720, 1255, 610], "polyethylene": [1450, 2920], "cellulose": [1600, 3300]}
+        library = (np.vstack([sl.preprocess(sl.GRID, band(sl.GRID, c)) for c in refs.values()]), list(refs))
+        xs = [400 + 2 * k for k in range(1801)]  # a sample on its own grid, peaks a little off
+        matches = sl.suggest(xs, band(xs, [1722, 1256, 612]), library=library)
+        self.assertEqual(matches[0][0], "PVC with plasticizer")
+        self.assertEqual(sl.confidence(matches[0][1]), "confident")
+        self.assertEqual(len(matches), 3)
+
+    def test_too_little_overlap_gives_nothing(self):
+        import numpy as np
+
+        from crawlers.invenio import spectral_library as sl
+        library = (np.zeros((1, len(sl.GRID))), ["x"])
+        self.assertEqual(sl.suggest([700, 800, 900], [1, 2, 1], library=library), [])
