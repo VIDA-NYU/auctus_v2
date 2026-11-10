@@ -1212,5 +1212,7 @@ class CompendiumTests(unittest.TestCase):
         self.assertEqual([(k["column"], len(k["datasets"])) for k in keys], [("GEOID", 2)])  # OBJECTID is no key
         reads = {r["reads"]: r["part"] for r in c["relations"]["code_reads"]}
         self.assertEqual(reads, {"tracts.csv": "d:r:t1", "missing.csv": None})
-        self.assertEqual(c["relations"]["related_records"], [{"record_id": "abcde-12345", "relation": "continues", "indexed": True}])
+        self.assertEqual(c["relations"]["related_records"],
+                         [{"record_id": "abcde-12345", "relation": "continues", "relation_words": "continues", "indexed": True}])
+        self.assertIn("3 tables", c["summary"])
         self.assertEqual(len(c["relations"]["publications"]), 1)

@@ -51,6 +51,26 @@ NOT_KEYS = re.compile(r"^(objectid\d*|fid|oid|rowid|index|unnamed.*|id)$", re.I)
 MAX_TABLES_FOR_KEYS = 300
 
 
+def plural(role: str, n: int) -> str:
+    if n == 1 or role in ("documentation", "code", "model output", "spectra", "point clouds", "3D meshes"):
+        return role
+    return {"copy of an indexed layer": "copies of indexed layers", "text corpus": "text corpora"}.get(role, role + "s")
+
+
+# InvenioRDM relation ids ("issupplementto") as words.
+RELATION_WORDS = {"issupplementto": "is a supplement to", "issupplementedby": "is supplemented by",
+                  "continues": "continues", "iscontinuedby": "is continued by", "isidenticalto": "is identical to",
+                  "references": "references", "isreferencedby": "is referenced by", "cites": "cites",
+                  "iscitedby": "is cited by", "isnewversionof": "is a new version of",
+                  "ispreviousversionof": "is a previous version of", "ispartof": "is part of", "haspart": "has part",
+                  "isdescribedby": "is described by", "describes": "describes", "documents": "documents",
+                  "isdocumentedby": "is documented by", "isderivedfrom": "is derived from", "issourceof": "is source of"}
+
+
+def relation_words(kind: str | None) -> str:
+    return RELATION_WORDS.get(str(kind or "").lower(), str(kind or "related to"))
+
+
 def norm(name: str) -> str:
     return re.sub(r"[^a-z0-9]", "", str(name).lower())
 
@@ -129,7 +149,9 @@ def code_links(code_rows: dict[str, list[dict[str, str]]], parts: list[dict[str,
 
 def build_compendium(record: dict[str, Any], docs: list[dict[str, Any]], domain: str,
                      code_rows: dict[str, list[dict[str, str]]] | None = None,
-                     instance_records: set[str] | None = None) -> dict[str, Any]:
+                     instance_records: dict[str, str] | set[str] | None = None) -> dict[str, Any]:
+    """`instance_records`: the instance's indexed record ids (a dict maps them to their titles)."""
+    titles = instance_records if isinstance(instance_records, dict) else {}
     rid = record["id"]
     metadata = record.get("metadata") or {}
     indexed_keys = set()
@@ -170,9 +192,12 @@ def build_compendium(record: dict[str, Any], docs: list[dict[str, Any]], domain:
         ident, kind = str(rel.get("identifier", "")), (rel.get("relation_type") or {}).get("id")
         target = ident.rsplit("/", 1)[-1] if rel.get("scheme") == "doi" and ident.startswith("10.58153/") else None
         if target:
-            related.append({"record_id": target, "relation": kind, "indexed": bool(instance_records and target in instance_records)})
+            related.append({"record_id": target, "relation": kind, "relation_words": relation_words(kind),
+                            "indexed": bool(instance_records and target in instance_records),
+                            **({"title": titles[target]} if target in titles else {})})
         elif (rel.get("resource_type") or {}).get("id", "").startswith("publication"):
-            papers.append({"identifier": ident, "scheme": rel.get("scheme"), "relation": kind})
+            papers.append({"identifier": ident, "scheme": rel.get("scheme"), "relation": kind,
+                           "relation_words": relation_words(kind)})
 
     relations = {
         "partitions": [{"dataset_id": p["dataset_id"], "parts": p["partitions"]} for p in parts if p.get("partitions")],
@@ -183,7 +208,7 @@ def build_compendium(record: dict[str, Any], docs: list[dict[str, Any]], domain:
         "publications": papers,
     }
     roles = Counter(p["role"] for p in parts)
-    summary_bits = [", ".join(f"{n} {r}" for r, n in roles.most_common())]
+    summary_bits = [", ".join(f"{n} {plural(r, n)}" for r, n in roles.most_common())]
     if relations["join_keys"]:
         k = relations["join_keys"][0]
         summary_bits.append(f"tables join on {k['column']} ({len(k['datasets'])} tables)")
@@ -192,9 +217,9 @@ def build_compendium(record: dict[str, Any], docs: list[dict[str, Any]], domain:
         summary_bits.append(f"code reads {len({c['part'] for c in reads})} of the record's datasets")
     if related:
         kinds = Counter(r["relation"] for r in related)
-        summary_bits.append("; ".join(f"{k} {n} other record(s)" for k, n in kinds.items()))
+        summary_bits.append("; ".join(f"{relation_words(k)} {n} other record{'s' if n > 1 else ''}" for k, n in kinds.items()))
     if papers:
-        summary_bits.append(f"{len(papers)} linked publication(s)")
+        summary_bits.append(f"{len(papers)} linked publication{'s' if len(papers) > 1 else ''}")
     return {
         "record_id": rid, "domain": domain, "title": metadata.get("title", rid),
         "description": re.sub(r"<[^>]+>", " ", metadata.get("description") or "")[:5000],
@@ -233,7 +258,7 @@ def build_all(domain: str) -> dict[str, Any]:
             if rid:
                 docs_by_record[rid].append({"id": h["_id"], **h["_source"]})
         after = hits[-1]["sort"]
-    records = set(docs_by_record)
+    records = {rid: ((docs[0].get("source_record") or {}).get("title") or rid) for rid, docs in docs_by_record.items()}
     built, parents = 0, defaultdict(list)
     with httpx.Client(verify=ssl_context(), timeout=60, follow_redirects=True) as client:
         compendia = []

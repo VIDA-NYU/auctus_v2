@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { useDatasetProfile } from '../hooks/useDatasetProfile.js'
 
 function parseCsvString(csv) {
@@ -129,6 +130,14 @@ export default function DatasetDetail({ dataset }) {
       <div>
         <h2 className="text-lg font-semibold text-slate-900">{dataset.title || dataset.name || dataset.id}</h2>
         <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">{dataset.description || dataset.summary || 'The source record has no description.'}</p>
+        {dataset.source_record?.record_id && (
+          <Link
+            to={`/records/${dataset.source_record.record_id}?domain=${encodeURIComponent(dataset.domain || '')}`}
+            className="mt-2 inline-block text-sm font-medium text-[#64518c] hover:underline"
+          >
+            View the whole record: all its parts and how they relate
+          </Link>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
