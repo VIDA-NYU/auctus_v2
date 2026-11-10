@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 from collections import defaultdict
 from typing import Any
@@ -56,7 +57,12 @@ ARMS: dict[str, dict[str, Any]] = {
     "all": {"fields": ["title", "description", "source_record.subjects", "autoddg_description",
                        "autoddg_search_description"],
             "nested": ["profiler_metadata.columns.name", "profiler_metadata.columns.semantic_type_label"]},
+    # The real search endpoint (keyword + vector), with each ranking it offers.
+    "api:legacy": {"api": "legacy"},
+    "api:weighted": {"api": "weighted"},
+    "api:hybrid": {"api": "hybrid"},
 }
+API_URL = os.getenv("AUCTUS_API", "http://backend:8000/api/v1/search")
 
 
 def arm_query(text: str, arm: dict[str, Any], domain: str) -> dict[str, Any]:
@@ -85,6 +91,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--instance", default="ultraviolet", choices=sorted(INSTANCES))
     parser.add_argument("--k", type=int, default=10)
+    parser.add_argument("--arms", nargs="+", help="only these arms")
     args = parser.parse_args()
 
     from storage.opensearch_client import AUCTUS_INDEX_NAME, get_client
@@ -100,17 +107,24 @@ def main() -> None:
             queries.append({"record": rid, "kind": ("keyword", "content", "natural")[n], "text": q})
     print(f"{len(recs)} records, {len(queries)} queries")
 
+    import httpx
+
     rows = []
+    arms = {k: v for k, v in ARMS.items() if not args.arms or k in args.arms}
     for q in queries:
-        for name, arm in ARMS.items():
-            hits = os_client.search(index=AUCTUS_INDEX_NAME, body={
-                "size": 100, "_source": ["source_record.record_id"], "query": arm_query(q["text"], arm, domain)})["hits"]["hits"]
-            ranked = list(dict.fromkeys((h["_source"].get("source_record") or {}).get("record_id") for h in hits))
+        for name, arm in arms.items():
+            if arm.get("api"):
+                docs = httpx.post(API_URL, json={"keywords": q["text"], "source": [domain], "limit": 50,
+                                                 "ranking": arm["api"]}, timeout=60).json().get("results", [])
+            else:
+                docs = [h["_source"] for h in os_client.search(index=AUCTUS_INDEX_NAME, body={
+                    "size": 100, "_source": ["source_record.record_id"], "query": arm_query(q["text"], arm, domain)})["hits"]["hits"]]
+            ranked = list(dict.fromkeys((d.get("source_record") or {}).get("record_id") for d in docs))
             rank = ranked.index(q["record"]) + 1 if q["record"] in ranked else None
             rows.append({**q, "arm": name, "rank": rank})
 
     summary: dict[str, Any] = {"instance": args.instance, "records": len(recs), "queries": len(queries), "k": args.k, "arms": {}}
-    for name in ARMS:
+    for name in arms:
         mine = [r for r in rows if r["arm"] == name]
         by_kind = defaultdict(list)
         for r in mine:
@@ -120,7 +134,8 @@ def main() -> None:
             f"hit@{args.k}": hit(mine), "hit@1": round(sum(1 for r in mine if r["rank"] == 1) / len(mine), 3),
             "mrr": round(statistics.fmean(1 / r["rank"] if r["rank"] else 0 for r in mine), 3),
             **{f"hit@{args.k}_{k}": hit(v) for k, v in by_kind.items()}}
-    write_json(DATA_DIR / "results" / f"known-item-{args.instance}.json", {"summary": summary, "rows": rows})
+    tag = "-api" if all(a.startswith("api:") for a in arms) else ""
+    write_json(DATA_DIR / "results" / f"known-item-{args.instance}{tag}.json", {"summary": summary, "rows": rows})
     print(json.dumps(summary, indent=1))
 
 
