@@ -353,14 +353,24 @@ def profile_remote_tiff(dataset_meta: dict[str, Any]) -> dict[str, Any]:
 def profile_remote_image_set(dataset_meta: dict[str, Any]) -> dict[str, Any]:
     """One record for a zip's TIFF images, from a spread-out sample of their headers."""
     image_set = dataset_meta["image_set"]
+    # One zip ("samples" are member names) or a record's many zips ({"zip": k, "member": name}).
+    zips = image_set.get("zips") or [{"url": dataset_meta["file_url"], "size": dataset_meta["file_size"]}]
+    by_zip: dict[int, list[str]] = {}
+    for sample in image_set["samples"]:
+        k, name = (sample["zip"], sample["member"]) if isinstance(sample, dict) else (0, sample)
+        by_zip.setdefault(k, []).append(name)
     sampled: list[dict[str, Any]] = []
-    with open_remote_zip(dataset_meta["file_url"], dataset_meta["file_size"]) as zf:
-        for name in image_set["samples"]:
-            try:
-                with zf.open(name) as fh:
-                    sampled.append(read_tiff_header(fh))
-            except Exception as exc:  # one unreadable image doesn't sink the set
-                LOGGER.info("Skipping image %s: %r", name, exc)
+    for k, names in by_zip.items():
+        try:
+            with open_remote_zip(zips[k]["url"], zips[k]["size"]) as zf:
+                for name in names:
+                    try:
+                        with zf.open(name) as fh:
+                            sampled.append(read_tiff_header(fh))
+                    except Exception as exc:  # one unreadable image doesn't sink the set
+                        LOGGER.info("Skipping image %s: %r", name, exc)
+        except Exception as exc:
+            LOGGER.info("Skipping zip %s: %r", zips[k].get("file_key"), exc)
     if not sampled:
         raise ValueError("no readable TIFF header in the sample")
     record = tiff_record(dataset_meta, sampled[0])

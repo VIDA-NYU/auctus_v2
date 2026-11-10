@@ -1106,3 +1106,15 @@ def contextmanager_from_path(path):
                 yield z
         return opener
     return wrap
+
+
+class MergeImageSetTests(unittest.TestCase):
+    def test_many_image_zips_in_a_record_are_one_set(self):
+        from crawlers.invenio.crawler import merge_image_sets
+        sets = [{"dataset_id": f"d:r:z{k}:images", "file_key": f"tile_{k}.zip (4 TIFF images)", "file_url": f"u{k}",
+                 "file_size": 10, "image_set": {"total": 4, "samples": [f"t{k}/a.tif", f"t{k}/b.tif"]}} for k in range(6)]
+        merged = merge_image_sets(sets)
+        self.assertEqual(len(merged), 1)
+        self.assertEqual((merged[0]["dataset_id"], merged[0]["image_set"]["total"]), ("d:r:images", 24))
+        self.assertEqual({s["zip"] for s in merged[0]["image_set"]["samples"]}, set(range(6)))  # every zip sampled
+        self.assertEqual(len(merge_image_sets(sets[:2])), 2)

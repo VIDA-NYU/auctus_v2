@@ -204,6 +204,25 @@ def image_set_job(entry: dict[str, Any], archive: zipfile.ZipFile) -> dict[str, 
                           "folders": dict(sorted(folders.items(), key=lambda kv: -kv[1])[:50])}}
 
 
+def merge_image_sets(sets: list[dict[str, Any]], min_group: int = MIN_GROUP_MEMBERS) -> list[dict[str, Any]]:
+    """A record's image zips as one set when there are many (a survey's 55 tile zips),
+    sampled across every zip; a few zips stay one set each."""
+    if len(sets) < min_group:
+        return sets
+    zips = [{"url": s["file_url"], "size": s["file_size"], "file_key": s["file_key"].split(" (", 1)[0]} for s in sets]
+    per_zip = max(1, MAX_IMAGE_SAMPLES // len(sets))
+    samples = [{"zip": k, "member": m} for k, s in enumerate(sets) for m in s["image_set"]["samples"][:per_zip]]
+    samples = spread_sample(samples, max(MAX_IMAGE_SAMPLES, len(sets)))
+    total = sum(s["image_set"]["total"] for s in sets)
+    first = sets[0]
+    record_prefix = first["dataset_id"].rsplit(":", 2)[0]  # domain:record
+    return [{**first, "dataset_id": f"{record_prefix}:images",
+             "file_key": f"{total} TIFF images in {len(sets)} zips",
+             "file_size": sum(s["file_size"] or 0 for s in sets),
+             "image_set": {"total": total, "zips": zips, "samples": samples,
+                           "folders": {z["file_key"]: s["image_set"]["total"] for z, s in zip(zips, sets)}}}]
+
+
 def expand_archive(entry: dict[str, Any], unlisted: set[str] | None = None,
                    image_sets: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """List an archive in place (HTTP Range).
@@ -425,17 +444,18 @@ async def discover_invenio_datasets(
                 # Tile sets come split over many zips (an UltraViolet record has 35
                 # zips of Parquet tiles, one per city), so members of all of a
                 # record's large zips are planned together.
-                large_members = []
+                large_members, image_sets = [], []
                 for entry in file_entries(record, domain, max_file_bytes):
                     if entry["file_extension"] not in ARCHIVE_EXTENSIONS:
                         discovered.append(entry)
                         continue
-                    jobs = await asyncio.to_thread(expand_archive, entry, unlisted, discovered)
+                    jobs = await asyncio.to_thread(expand_archive, entry, unlisted, image_sets)
                     if jobs and not jobs[0].get("zip_member"):  # one small-archive job
                         discovered.extend(jobs)
                     else:
                         large_members.extend(jobs)
                 discovered.extend(plan_member_jobs(large_members))
+                discovered.extend(merge_image_sets(image_sets))
 
             # links.next already carries the query string.
             url, params = (page.get("links") or {}).get("next"), None
