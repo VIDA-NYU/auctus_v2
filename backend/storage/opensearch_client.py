@@ -203,6 +203,7 @@ DATASETS_MAPPING = {
                     "attribute_keywords": {"type": "text", "analyzer": "standard"},
                     "geometry_type": {"type": "keyword"},  # shapefile / GeoJSON layers
                     "raster": {"type": "object", "enabled": False},  # TIFF header (size, bands, CRS)
+                    "collection": {"type": "object", "enabled": False},  # zipped texts, model output, ...
                     "columns": {
                         "type": "nested",
                         "properties": {
@@ -412,7 +413,7 @@ def init_db():
                     # under dynamic mappings (geometry_type as text), which fail the whole put.
                     body={"properties": {"profiler_metadata": {"properties": {
                         k: DATASETS_MAPPING["mappings"]["properties"]["profiler_metadata"]["properties"][k]
-                        for k in ("columns", "raster")}}}},
+                        for k in ("columns", "raster", "collection")}}}},
                 )
             except Exception as exc:
                 logger.warning("Could not add new profiler fields to the %s mapping: %s", AUCTUS_INDEX_NAME, exc)

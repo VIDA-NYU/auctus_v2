@@ -1118,3 +1118,40 @@ class MergeImageSetTests(unittest.TestCase):
         self.assertEqual((merged[0]["dataset_id"], merged[0]["image_set"]["total"]), ("d:r:images", 24))
         self.assertEqual({s["zip"] for s in merged[0]["image_set"]["samples"]}, set(range(6)))  # spread over the zips
         self.assertEqual(len(merge_image_sets(sets[:2])), 2)
+
+
+class CollectionTests(unittest.TestCase):
+    """Zipped texts, MITgcm output, LAS point clouds, meshes, code (crawlers/invenio/collections.py)."""
+
+    def test_readers(self):
+        import struct
+        from crawlers.invenio import collections as c
+        meta = c.read_mitgcm_meta(io.BytesIO(b" nDims = [ 3 ];\n dimList = [\n 20, 1, 20,\n 100, 1, 100,\n 80, 1, 80\n ];\n"
+                                             b" dataprec = [ 'float32' ];\n timeStepNumber = [ 565000 ];\n"), "neg/T.0000565000.meta")
+        self.assertEqual((meta["variable"], meta["time_step"], meta["grid"]), ("T", 565000, "20 x 100 x 80"))
+        text = c.read_text(io.BytesIO("AN GAOḊAL\nThe paper of the Irish language in America.\n".encode()), "p1.txt")
+        self.assertEqual((text["script"], text["words"]), ("Gaelic script", 10))
+        las = bytearray(375)
+        las[:4] = b"LASF"; las[24], las[25] = 1, 2
+        struct.pack_into("<HII", las, 94, 227, 227, 0)
+        struct.pack_into("<I", las, 107, 455405)
+        struct.pack_into("<6d", las, 179, 10.0, 1.0, 20.0, 2.0, 3.0, -1.0)
+        row = c.read_las(io.BytesIO(bytes(las)), "t.las")
+        self.assertEqual((row["points"], row["min_x"], row["max_y"], row["epsg"]), (455405, 1.0, 20.0, None))
+        code = c.read_code(io.BytesIO(b"import pandas as pd\nfrom scipy import stats\ndf = pd.read_csv('data/deaths.csv')\n"), "a.py")
+        self.assertEqual((code["libraries"], code["data_files_read"]), ("pandas, scipy", "deaths.csv"))
+
+    def test_collection_jobs_from_a_zip(self):
+        from crawlers.invenio.crawler import collection_jobs
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            for k in range(25):
+                z.writestr(f"ocr/page_{k}.txt", "text")
+            z.writestr("README.txt", "x")
+            for k in range(4):
+                z.writestr(f"code/s{k}.py", "import os")
+                z.writestr(f"code/.ipynb_checkpoints/s{k}-checkpoint.ipynb", "{}")
+        with zipfile.ZipFile(buf) as z:
+            jobs = collection_jobs({"dataset_id": "d:r:z", "file_key": "z.zip", "file_url": "u", "file_size": 1}, z)
+        totals = {j["collection"]["kind"]: j["collection"]["total"] for j in jobs}
+        self.assertEqual(totals, {"texts": 26, "code": 4})  # checkpoints skipped

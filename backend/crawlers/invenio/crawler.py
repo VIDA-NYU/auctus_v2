@@ -31,6 +31,7 @@ from crawlers.invenio.archives import (
     tabular_members,
 )
 from crawlers.invenio.codebook import MAX_DOC_BYTES, is_documentation, is_labelled_data
+from crawlers.invenio import collections as member_collections
 from crawlers.invenio.formats import DATABASE_EXTENSIONS, SPECTRUM_EXTENSIONS, TIFF_EXTENSIONS
 from crawlers.invenio.http import async_client
 
@@ -204,6 +205,65 @@ def image_set_job(entry: dict[str, Any], archive: zipfile.ZipFile) -> dict[str, 
                           "folders": dict(sorted(folders.items(), key=lambda kv: -kv[1])[:50])}}
 
 
+def collection_jobs(entry: dict[str, Any], archive: zipfile.ZipFile) -> list[dict[str, Any]]:
+    """One job per kind of non-tabular collection in a zip (crawlers/invenio/collections.py)."""
+    by_kind: dict[str, list[str]] = {}
+    for info in archive.infolist():
+        base = info.filename.rsplit("/", 1)[-1]
+        kind = member_collections.kind_of(member_extension(info.filename))
+        # Notebook checkpoints and macOS forks are copies, not members.
+        if kind and not info.is_dir() and not base.startswith((".", "~$")) \
+                and not any(p in info.filename for p in ("/.ipynb_checkpoints/", "__MACOSX/")):
+            by_kind.setdefault(kind, []).append(info.filename)
+    jobs = []
+    for kind, names in by_kind.items():
+        if len(names) < member_collections.MIN_MEMBERS[kind]:
+            continue
+        names.sort(key=_natural_key)
+        folders: dict[str, int] = {}
+        for name in names:
+            folder = name.rsplit("/", 1)[0] if "/" in name else ""
+            folders[folder] = folders.get(folder, 0) + 1
+        jobs.append({**entry, "dataset_id": f"{entry['dataset_id']}:{kind}",
+                     "file_key": f"{entry['file_key']} ({len(names)} {member_collections.LABELS[kind]})",
+                     "file_extension": kind,
+                     "collection": {"kind": kind, "total": len(names),
+                                    "samples": spread_sample(names, member_collections.SAMPLES[kind]),
+                                    "folders": dict(sorted(folders.items(), key=lambda kv: -kv[1])[:50]),
+                                    "from_names": member_collections.summary_from_names(kind, names)}})
+    return jobs
+
+
+def merge_collections(jobs: list[dict[str, Any]], min_group: int = MIN_GROUP_MEMBERS) -> list[dict[str, Any]]:
+    """A record's collections of one kind spread over many zips (76 LiDAR tile zips) as one."""
+    by_kind: dict[str, list[dict[str, Any]]] = {}
+    for job in jobs:
+        by_kind.setdefault(job["collection"]["kind"], []).append(job)
+    out = []
+    for kind, group in by_kind.items():
+        if len(group) < min_group:
+            out += group
+            continue
+        zips = [{"url": j["file_url"], "size": j["file_size"], "file_key": j["file_key"].split(" (", 1)[0]} for j in group]
+        cap = member_collections.SAMPLES[kind]
+        per_zip = max(1, cap // len(group))
+        samples = [{"zip": k, "member": m} for k, j in enumerate(group) for m in j["collection"]["samples"][:per_zip]]
+        total = sum(j["collection"]["total"] for j in group)
+        first = group[0]
+        out.append({**first, "dataset_id": f"{first['dataset_id'].rsplit(':', 2)[0]}:{kind}",
+                    "file_key": f"{total} {member_collections.LABELS[kind]} in {len(group)} zips",
+                    "file_size": sum(j["file_size"] or 0 for j in group),
+                    "collection": {"kind": kind, "total": total, "zips": zips, "samples": spread_sample(samples, cap),
+                                   "folders": {z["file_key"]: j["collection"]["total"] for z, j in zip(zips, group)},
+                                   "from_names": first["collection"].get("from_names", {})}})
+    return out
+
+
+def merge_extras(extras: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return (merge_image_sets([e for e in extras if e.get("image_set")])
+            + merge_collections([e for e in extras if e.get("collection")]))
+
+
 def merge_image_sets(sets: list[dict[str, Any]], min_group: int = MIN_GROUP_MEMBERS) -> list[dict[str, Any]]:
     """A record's image zips as one set when there are many (a survey's 55 tile zips),
     sampled across every zip; a few zips stay one set each."""
@@ -240,8 +300,8 @@ def expand_archive(entry: dict[str, Any], unlisted: set[str] | None = None,
         with open_remote_zip(entry["file_url"], entry["file_size"]) as archive:
             members = archive_member_entries(entry, archive)
             images = image_set_job(entry, archive)
-            if images and image_sets is not None:
-                image_sets.append(images)
+            if image_sets is not None:
+                image_sets += ([images] if images else []) + collection_jobs(entry, archive)
     except Exception as exc:  # split archives, unsupported compression, network errors
         LOGGER.warning("Could not list archive %s: %r", entry["file_key"], exc)
         if unlisted is not None:
@@ -458,7 +518,7 @@ async def discover_invenio_datasets(
                     else:
                         large_members.extend(jobs)
                 discovered.extend(plan_member_jobs(large_members))
-                discovered.extend(merge_image_sets(image_sets))
+                discovered.extend(merge_extras(image_sets))
 
             # links.next already carries the query string.
             url, params = (page.get("links") or {}).get("next"), None

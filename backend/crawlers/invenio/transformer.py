@@ -51,7 +51,7 @@ from crawlers.invenio.codebook import (MAX_DOC_BYTES, apply_value_labels, docume
                                        value_labels)
 from crawlers.invenio.formats import (DATABASE_EXTENSIONS, READERS, database_tables, read_database_table,
                                       read_jcamp_header, read_spectra, read_tiff_header, spectrum_peaks,
-                                      tiff_bbox, tiff_epsg, TIFF_EXTENSIONS)
+                                      tiff_bbox, tiff_epsg, to_lonlat, TIFF_EXTENSIONS)
 from crawlers.invenio.http import async_client
 from crawlers.socrata.transformer import (
     SampleStats,
@@ -314,6 +314,9 @@ async def build_invenio_record(
             return await asyncio.to_thread(profile_remote_member, dataset_meta)
     if dataset_meta.get("spectra"):
         return await build_spectra_record(dataset_meta, http_timeout_seconds)
+    if dataset_meta.get("collection"):
+        async with PROFILER_SLOTS:
+            return await asyncio.to_thread(profile_remote_collection, dataset_meta)
     if dataset_meta.get("image_set"):
         return await asyncio.to_thread(profile_remote_image_set, dataset_meta)
     if (dataset_meta.get("file_extension") or "") in TIFF_EXTENSIONS:
@@ -348,6 +351,62 @@ def profile_remote_tiff(dataset_meta: dict[str, Any]) -> dict[str, Any]:
     with open_remote_file(dataset_meta["file_url"], dataset_meta["file_size"]) as fh:
         tags = read_tiff_header(fh)
     return tiff_record(dataset_meta, tags)
+
+
+def profile_remote_collection(dataset_meta: dict[str, Any]) -> dict[str, Any]:
+    """A collection's sampled members as a table (one row per file), profiled like any table."""
+    from crawlers.invenio import collections as member_collections
+
+    coll = dataset_meta["collection"]
+    kind, read = coll["kind"], member_collections.READERS[coll["kind"]]
+    zips = coll.get("zips") or [{"url": dataset_meta["file_url"], "size": dataset_meta["file_size"]}]
+    by_zip: dict[int, list[str]] = {}
+    for sample in coll["samples"]:
+        k, name = (sample["zip"], sample["member"]) if isinstance(sample, dict) else (0, sample)
+        by_zip.setdefault(k, []).append(name)
+    rows: list[dict[str, Any]] = []
+    for k, names in by_zip.items():
+        try:
+            with open_remote_zip(zips[k]["url"], zips[k]["size"]) as zf:
+                for name in names:
+                    try:
+                        with zf.open(name) as fh:
+                            rows.append(read(fh, name))
+                    except Exception as exc:
+                        LOGGER.info("Skipping %s: %r", name, exc)
+        except Exception as exc:
+            LOGGER.info("Skipping zip %s: %r", zips[k].get("file_key"), exc)
+    if not rows:
+        raise ValueError(f"no readable member in the {kind} sample")
+    header = list(dict.fromkeys(key for row in rows for key in row))
+    table = _write_table(header, [tuple("" if row.get(h) is None else row.get(h) for h in header) for row in rows],
+                         Path(tempfile.NamedTemporaryFile(delete=False, suffix=".csv").name))
+    try:
+        columns, prow, output, errors = profile_table(table)
+        label = member_collections.LABELS[kind]
+        extra = [f"{coll['total']} {label}"]
+        extra += list((coll.get("from_names") or {}).get("variables", {}))[:20]
+        for key in ("language", "libraries", "script", "format"):
+            extra += sorted({part.strip() for row in rows for part in str(row.get(key) or "").split(",") if part.strip()})[:30]
+        output["attribute_keywords"] = list(output.get("attribute_keywords") or columns) + extra
+        if kind == "point_clouds":
+            # The sampled tiles' extent, reprojected (the LAS header's GeoKeys give the CRS).
+            box = None
+            for row in rows:
+                if row.get("epsg"):
+                    native = [row["min_x"], row["min_y"], row["max_x"], row["max_y"]]
+                    lonlat = to_lonlat(native, f"EPSG:{row['epsg']}")
+                    box = lonlat if box is None else (_union_bbox(box, lonlat) if lonlat else box)
+            table.geo_bbox, table.geometry_type = box, ("point cloud" if box else None)
+        record = assemble_record(dataset_meta, table, columns, prow, output, errors)
+    finally:
+        table.path.unlink(missing_ok=True)
+    record["profiler_metadata"]["collection"] = {
+        "kind": kind, "total": coll["total"], "sampled": len(rows),
+        "folders": dict(list((coll.get("folders") or {}).items())[:20]), **(coll.get("from_names") or {})}
+    if kind == "point_clouds":
+        record["profiler_metadata"]["collection"]["points_sampled"] = sum(int(r.get("points") or 0) for r in rows)
+    return record
 
 
 def profile_remote_image_set(dataset_meta: dict[str, Any]) -> dict[str, Any]:
