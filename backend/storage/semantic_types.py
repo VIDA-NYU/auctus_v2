@@ -64,9 +64,33 @@ def parse_reply(text: str) -> dict[str, str]:
             for k, v in reply.items() if isinstance(v, (str, int, float)) and str(v).strip()}
 
 
+RETRY = """Your keys didn't match the table's columns. Use exactly these column names as keys, one per
+column, typing the column itself (if the table is a data dictionary, its columns are things like
+"variable name" or "value labels", not the variables it describes):
+{names}
+"""
+
+
+def _norm(name: str) -> str:
+    return " ".join(str(name).split()).casefold()
+
+
 def infer_semantic_types(client, sample_csv: str, title: str, model: str = SEMANTIC_TYPES_MODEL) -> dict[str, str]:
-    prompt = PROMPT.format(title=title, columns=column_listing(sample_csv))
-    response = client.chat.completions.create(model=model, messages=[{"role": "user", "content": prompt}],
+    """Labels keyed by column name. A reply whose keys mostly miss the columns (it typed
+    the rows of a data dictionary instead) gets one retry with the names spelled out."""
+    columns = list(pd.read_csv(io.StringIO(sample_csv), dtype=str, keep_default_na=False, nrows=0).columns)[:MAX_COLUMNS]
+    messages = [{"role": "user", "content": PROMPT.format(title=title, columns=column_listing(sample_csv))}]
+    labels = _ask(client, model, messages)
+    wanted = {_norm(c) for c in columns}
+    if columns and sum(_norm(k) in wanted for k in labels) < len(columns) / 2:
+        messages += [{"role": "assistant", "content": json.dumps(labels)},
+                     {"role": "user", "content": RETRY.format(names=json.dumps(columns, ensure_ascii=False))}]
+        labels = _ask(client, model, messages)
+    return labels
+
+
+def _ask(client, model: str, messages: list[dict[str, str]]) -> dict[str, str]:
+    response = client.chat.completions.create(model=model, messages=messages,
                                               # Gemini 2.5 counts its thinking against max_tokens:
                                               # 4000 cut 49 of 591 replies off mid-JSON.
                                               temperature=0, max_tokens=16000)
@@ -78,11 +102,11 @@ def apply_semantic_types(record: dict[str, Any], labels: dict[str, str]) -> int:
     pm = record.get("profiler_metadata")
     if not isinstance(pm, dict) or not labels:
         return 0
-    by_name = {k.strip().lower(): v for k, v in labels.items()}
+    by_name = {_norm(k): v for k, v in labels.items()}
     matched = []
     for column in pm.get("columns") or []:
         if isinstance(column, dict):
-            label = by_name.get(str(column.get("name", "")).strip().lower())
+            label = by_name.get(_norm(column.get("name", "")))
             if label:
                 column["semantic_type_label"] = label
                 matched.append(label)
