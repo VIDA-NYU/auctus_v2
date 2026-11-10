@@ -15,6 +15,7 @@ from storage.opensearch_client import (
 )
 from api.search import router as search_router
 from api.datasets import router as datasets_router
+from api.compendia import router as compendia_router
 from app.api.endpoints.portals import router as portals_router
 
 # Configure logging
@@ -47,6 +48,7 @@ app = FastAPI(title="Auctus v2 API", lifespan=lifespan)
 # Include API routers
 app.include_router(search_router)
 app.include_router(datasets_router)
+app.include_router(compendia_router)
 app.include_router(portals_router)
 
 # --- CORS Configuration ---

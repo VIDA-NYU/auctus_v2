@@ -1181,3 +1181,36 @@ class SpectralMatchTests(unittest.TestCase):
         from crawlers.invenio import spectral_library as sl
         library = (np.zeros((1, len(sl.GRID))), ["x"])
         self.assertEqual(sl.suggest([700, 800, 900], [1, 2, 1], library=library), [])
+
+
+class CompendiumTests(unittest.TestCase):
+    def test_parts_roles_and_relations(self):
+        from crawlers.invenio.compendium import build_compendium
+        col = lambda name, label="": {"name": name, "semantic_type_label": label}  # noqa: E731
+        docs = [
+            {"id": "d:r:t1", "source_record": {"file_key": "data.zip/tracts.csv"},
+             "profiler_metadata": {"columns": [col("GEOID", "US Census geographic identifier"), col("pop")], "nb_rows": 10}},
+            {"id": "d:r:t2", "source_record": {"file_key": "data.zip/income.csv"},
+             "profiler_metadata": {"columns": [col("geoid"), col("OBJECTID"), col("income")], "nb_rows": 10}},
+            {"id": "d:r:t3", "source_record": {"file_key": "data.zip/other.csv"},
+             "profiler_metadata": {"columns": [col("OBJECTID"), col("x")], "nb_rows": 5}},
+            {"id": "d:r:z:code", "source_record": {"file_key": "code.zip (3 code files)"},
+             "profiler_metadata": {"collection": {"kind": "code"}, "columns": []}},
+        ]
+        record = {"id": "r", "parent": {"id": "p"}, "metadata": {"title": "T", "related_identifiers": [
+            {"identifier": "10.58153/abcde-12345", "scheme": "doi", "relation_type": {"id": "continues"}},
+            {"identifier": "10.1038/x", "scheme": "doi", "relation_type": {"id": "issupplementto"},
+             "resource_type": {"id": "publication-article"}}]},
+            "files": {"entries": {"data.zip": {"size": 1}, "code.zip": {"size": 1}, "Report.pdf": {"size": 1}}}}
+        code_rows = {"d:r:z:code": [{"file": "code/fit.py", "data_files_read": "tracts.csv, missing.csv"}]}
+        c = build_compendium(record, docs, "d", code_rows, {"abcde-12345"})
+        roles = {p["file_key"]: p["role"] for p in c["parts"]}
+        self.assertEqual(roles["Report.pdf"], "documentation")
+        self.assertNotIn("data.zip", roles)  # covered by its indexed members
+        self.assertEqual(roles["code.zip (3 code files)"], "code")
+        keys = c["relations"]["join_keys"]
+        self.assertEqual([(k["column"], len(k["datasets"])) for k in keys], [("GEOID", 2)])  # OBJECTID is no key
+        reads = {r["reads"]: r["part"] for r in c["relations"]["code_reads"]}
+        self.assertEqual(reads, {"tracts.csv": "d:r:t1", "missing.csv": None})
+        self.assertEqual(c["relations"]["related_records"], [{"record_id": "abcde-12345", "relation": "continues", "indexed": True}])
+        self.assertEqual(len(c["relations"]["publications"]), 1)
