@@ -44,6 +44,25 @@ SEARCH_MIN_SCORE = float(os.getenv("SEARCH_MIN_SCORE", "0.42"))
 # subjects from the repository record (InvenioRDM). No generated text.
 METADATA_FIELDS = ["profiler_metadata.attribute_keywords", "source_record.subjects", "image_description"]
 
+# Rankings:
+#   legacy    raw BM25 (title^2, description, metadata fields) + raw kNN score, summed
+#   weighted  field weights (curator text first, generated text next, column words last) + raw kNN
+#   hybrid    the weighted BM25 and the kNN each min-max normalized, then blended (search pipeline)
+RANKINGS = ("legacy", "weighted", "hybrid")
+DEFAULT_RANKING = os.getenv("SEARCH_RANKING", "hybrid")  # eval known_item, 2026-11-10: MRR +0.10 UV, +0.16 Caltech
+WEIGHTED_FIELDS = ["title^3", "description^2", "source_record.subjects^1.5", "autoddg_search_description^1",
+                   "image_description^1", "profiler_metadata.attribute_keywords^0.5"]
+HYBRID_PIPELINE = "auctus-hybrid"
+HYBRID_WEIGHTS = [float(w) for w in os.getenv("SEARCH_HYBRID_WEIGHTS", "0.7,0.3").split(",")]
+
+
+def ensure_hybrid_pipeline(client, weights: list[float] = HYBRID_WEIGHTS, name: str = HYBRID_PIPELINE) -> None:
+    client.transport.perform_request("PUT", f"/_search/pipeline/{name}", body={
+        "description": "Auctus: min-max normalize keyword and vector scores, then blend",
+        "phase_results_processors": [{"normalization-processor": {
+            "normalization": {"technique": "min_max"},
+            "combination": {"technique": "arithmetic_mean", "parameters": {"weights": weights}}}}]})
+
 
 @lru_cache(maxsize=1)
 def get_embedding_model():
@@ -70,6 +89,8 @@ class SearchQueryRequest(BaseModel):
     # of every listed position, e.g. [1720, 610] for plasticized PVC.
     peaks: Optional[List[float]] = None
     peak_tolerance: float = 10.0
+    # How keyword and vector scores combine (see RANKINGS); eval/known_item.py compares them.
+    ranking: Optional[str] = None
 
 
 def get_client():
@@ -189,20 +210,38 @@ async def search(req: SearchQueryRequest):
             }
         )
 
-    if req.keywords:
+    ranking = req.ranking or DEFAULT_RANKING
+    if ranking not in RANKINGS:
+        raise HTTPException(status_code=400, detail=f"Unknown ranking {ranking!r}; expected one of {list(RANKINGS)}")
+    if req.keywords and ranking in ("weighted", "hybrid"):
+        keyword_query = {"multi_match": {"query": req.keywords, "fields": WEIGHTED_FIELDS,
+                                         "type": "best_fields", "tie_breaker": 0.3}}
+    elif req.keywords:
         try:
             description_fields = description_fields_for(req.description_source)
         except ValueError as exc:
             # A typo'd source must not silently fall back to the default arm.
             raise HTTPException(status_code=400, detail=str(exc))
-        should_clauses.append(
-            {
-                "multi_match": {
-                    "query": req.keywords,
-                    "fields": description_fields + METADATA_FIELDS,
-                }
-            }
-        )
+        keyword_query = {"multi_match": {"query": req.keywords, "fields": description_fields + METADATA_FIELDS}}
+    if req.keywords and ranking == "hybrid":
+        # Each half filtered on its own; the pipeline normalizes and blends their scores.
+        payload = {
+            "query": {"hybrid": {"queries": [
+                {"bool": {"filter": filter_clauses, "must": [keyword_query]}},
+                {"bool": {"filter": filter_clauses, "must": [{"knn": {"dataset_vector": {"vector": query_vector, "k": 100}}}]}},
+            ]}},
+            "aggs": {"sources_count": {"terms": {"field": "domain"}}, "types_count": {"terms": {"field": "types"}}},
+        }
+        try:
+            resp = client.search(index="auctus_catalog_master", body=payload, size=req.limit, from_=req.offset,
+                                 params={"search_pipeline": HYBRID_PIPELINE})
+        except Exception:
+            ensure_hybrid_pipeline(client)
+            resp = client.search(index="auctus_catalog_master", body=payload, size=req.limit, from_=req.offset,
+                                 params={"search_pipeline": HYBRID_PIPELINE})
+        return format_response(resp)
+    if req.keywords:
+        should_clauses.append(keyword_query)
         should_clauses.append(
             {
                 "knn": {
@@ -234,6 +273,10 @@ async def search(req: SearchQueryRequest):
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Search backend error: {exc}")
 
+    return format_response(resp)
+
+
+def format_response(resp: dict) -> dict:
     hits = resp.get("hits", {}).get("hits", [])
     total = resp.get("hits", {}).get("total")
     if isinstance(total, dict):
