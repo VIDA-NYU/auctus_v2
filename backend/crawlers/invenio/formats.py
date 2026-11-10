@@ -171,7 +171,50 @@ def read_stata(path: Path) -> Read:
     return Read(header=header, rows=rows(), value_labels=labels)
 
 
-READERS: dict[str, Any] = {"shp": read_shapefile, "geojson": read_geojson, "dta": read_stata}
+# --- KML -------------------------------------------------------------------------------
+
+_KML_GEOMETRIES = ("Point", "LineString", "LinearRing", "Polygon", "MultiGeometry", "Track")
+
+
+def read_kml(path: Path) -> Read:
+    """Placemarks as rows (name, description, ExtendedData fields), the extent of all
+    their coordinates as the box. KML is always lon/lat (WGS84)."""
+    import xml.etree.ElementTree as ET
+
+    root = ET.parse(path).getroot()
+    local = lambda el: el.tag.rsplit("}", 1)[-1]  # noqa: E731  (namespaced tags)
+    rows, fields, kinds = [], [], {}
+    box = [float("inf"), float("inf"), float("-inf"), float("-inf")]
+    for placemark in (el for el in root.iter() if local(el) == "Placemark"):
+        row: dict[str, str] = {}
+        for el in placemark.iter():
+            tag = local(el)
+            if tag in ("name", "description") and el.text and tag not in row:
+                row[tag] = el.text.strip()
+            elif tag in ("Data", "SimpleData") and el.get("name"):
+                value = el.text if tag == "SimpleData" else next((c.text for c in el if local(c) == "value"), None)
+                row[el.get("name")] = (value or "").strip()
+            elif tag in _KML_GEOMETRIES:
+                kinds[tag] = kinds.get(tag, 0) + 1
+            elif tag == "coordinates" and el.text:
+                for triple in el.text.split():
+                    parts = triple.split(",")
+                    try:
+                        lon, lat = float(parts[0]), float(parts[1])
+                    except (ValueError, IndexError):
+                        continue
+                    box = [min(box[0], lon), min(box[1], lat), max(box[2], lon), max(box[3], lat)]
+        for key in row:
+            if key not in fields:
+                fields.append(key)
+        rows.append(row)
+    bbox = box if box[0] != float("inf") and _plausible_lonlat(box) else None
+    geometry = max(kinds, key=kinds.get) if kinds else None
+    return Read(header=fields, rows=[tuple(r.get(f, "") for f in fields) for r in rows], bbox=bbox,
+                geometry_type=geometry)
+
+
+READERS: dict[str, Any] = {"shp": read_shapefile, "geojson": read_geojson, "dta": read_stata, "kml": read_kml}
 
 
 # --- SQLite / SpatiaLite / GeoPackage -------------------------------------------------

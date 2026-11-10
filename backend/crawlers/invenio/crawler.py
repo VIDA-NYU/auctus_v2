@@ -37,7 +37,7 @@ from crawlers.invenio.http import async_client
 LOGGER = logging.getLogger(__name__)
 
 # sqlite / gpkg: one database file, one dataset per table (transformer.profile_database).
-TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz", "geojson", "dta", "sqlite", "gpkg"}
+TABULAR_EXTENSIONS = {"csv", "tsv", "xlsx", "xls", "parquet", "csv.gz", "tsv.gz", "geojson", "dta", "sqlite", "gpkg", "kml"}
 # Zips: small ones become one archive job (downloaded); large ones are listed in
 # place and each selected tabular member becomes its own job (see archives.py).
 ARCHIVE_EXTENSIONS = {"zip"}
@@ -182,17 +182,44 @@ def archive_member_entries(entry: dict[str, Any], archive: zipfile.ZipFile) -> l
     } for info in members]
 
 
-def expand_archive(entry: dict[str, Any], unlisted: set[str] | None = None) -> list[dict[str, Any]]:
+MAX_IMAGE_SAMPLES = int(os.getenv("MAX_IMAGE_SAMPLES", "12"))
+
+
+def image_set_job(entry: dict[str, Any], archive: zipfile.ZipFile) -> dict[str, Any] | None:
+    """One job for a zip's TIFF images (microscopy stacks, scans, GeoTIFF tiles): their
+    headers are sampled, so 6,198 images are one search result, like a tile set."""
+    names = sorted((i.filename for i in archive.infolist()
+                    if not i.is_dir() and member_extension(i.filename) in TIFF_EXTENSIONS
+                    and not i.filename.rsplit("/", 1)[-1].startswith((".", "._"))), key=_natural_key)
+    if not names:
+        return None
+    folders: dict[str, int] = {}
+    for name in names:
+        folder = name.rsplit("/", 1)[0] if "/" in name else ""
+        folders[folder] = folders.get(folder, 0) + 1
+    return {**entry, "dataset_id": f"{entry['dataset_id']}:images",
+            "file_key": f"{entry['file_key']} ({len(names)} TIFF image{'s' if len(names) > 1 else ''})",
+            "file_extension": "tif",
+            "image_set": {"total": len(names), "samples": spread_sample(names, MAX_IMAGE_SAMPLES),
+                          "folders": dict(sorted(folders.items(), key=lambda kv: -kv[1])[:50])}}
+
+
+def expand_archive(entry: dict[str, Any], unlisted: set[str] | None = None,
+                   image_sets: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """List an archive in place (HTTP Range).
 
     No tabular members: []. Small archive: one job that downloads it and profiles its
     members. Large archive: one entry per tabular member, to be grouped or capped by
     plan_member_jobs. Archives that can't be listed are added to `unlisted`, so their
-    already-indexed members aren't treated as stale.
+    already-indexed members aren't treated as stale. A zip's TIFF images become one
+    image-set job, added to `image_sets`.
     """
     try:
         with open_remote_zip(entry["file_url"], entry["file_size"]) as archive:
             members = archive_member_entries(entry, archive)
+            images = image_set_job(entry, archive)
+            if images and image_sets is not None:
+                image_sets.append(images)
     except Exception as exc:  # split archives, unsupported compression, network errors
         LOGGER.warning("Could not list archive %s: %r", entry["file_key"], exc)
         if unlisted is not None:
@@ -403,7 +430,7 @@ async def discover_invenio_datasets(
                     if entry["file_extension"] not in ARCHIVE_EXTENSIONS:
                         discovered.append(entry)
                         continue
-                    jobs = await asyncio.to_thread(expand_archive, entry, unlisted)
+                    jobs = await asyncio.to_thread(expand_archive, entry, unlisted, discovered)
                     if jobs and not jobs[0].get("zip_member"):  # one small-archive job
                         discovered.extend(jobs)
                     else:

@@ -314,6 +314,8 @@ async def build_invenio_record(
             return await asyncio.to_thread(profile_remote_member, dataset_meta)
     if dataset_meta.get("spectra"):
         return await build_spectra_record(dataset_meta, http_timeout_seconds)
+    if dataset_meta.get("image_set"):
+        return await asyncio.to_thread(profile_remote_image_set, dataset_meta)
     if (dataset_meta.get("file_extension") or "") in TIFF_EXTENSIONS:
         return await asyncio.to_thread(profile_remote_tiff, dataset_meta)
 
@@ -346,6 +348,46 @@ def profile_remote_tiff(dataset_meta: dict[str, Any]) -> dict[str, Any]:
     with open_remote_file(dataset_meta["file_url"], dataset_meta["file_size"]) as fh:
         tags = read_tiff_header(fh)
     return tiff_record(dataset_meta, tags)
+
+
+def profile_remote_image_set(dataset_meta: dict[str, Any]) -> dict[str, Any]:
+    """One record for a zip's TIFF images, from a spread-out sample of their headers."""
+    image_set = dataset_meta["image_set"]
+    sampled: list[dict[str, Any]] = []
+    with open_remote_zip(dataset_meta["file_url"], dataset_meta["file_size"]) as zf:
+        for name in image_set["samples"]:
+            try:
+                with zf.open(name) as fh:
+                    sampled.append(read_tiff_header(fh))
+            except Exception as exc:  # one unreadable image doesn't sink the set
+                LOGGER.info("Skipping image %s: %r", name, exc)
+    if not sampled:
+        raise ValueError("no readable TIFF header in the sample")
+    record = tiff_record(dataset_meta, sampled[0])
+    pm = record["profiler_metadata"]
+    boxes = [b for b in (tiff_bbox(t)[1] for t in sampled) if b]
+    bbox = boxes[0] if boxes else None
+    for b in boxes[1:]:
+        bbox = _union_bbox(bbox, b)
+    sizes = sorted({f"{t.get('width')} x {t.get('height')}" for t in sampled})
+    pm["raster"].update({"images": image_set["total"], "sampled": len(sampled), "sizes": sizes[:10],
+                         "folders": image_set.get("folders"), "georeferenced": len(boxes)})
+    pm["raster"].pop("datetime", None)  # one sample's time isn't the set's
+    kind = "raster" if boxes else "image"
+    pm["types"] = record["types"] = [kind]
+    pm["spatial_bbox"] = bbox
+    if boxes:
+        pm["geometry_type"] = "raster"
+        record["spatial_coverage"] = {"label": "", "bbox": {"type": "envelope",
+                                                            "coordinates": [[bbox[0], bbox[3]], [bbox[2], bbox[1]]]}}
+    else:
+        pm.pop("geometry_type", None)
+        record.pop("spatial_coverage", None)
+    pm["attribute_keywords"] = [f"{image_set['total']} TIFF images", *pm["attribute_keywords"][1:]]
+    if len(sizes) > 1:
+        pm["attribute_keywords"] = [k for k in pm["attribute_keywords"] if not k.endswith(" pixels")] + sizes[:5]
+    record["source_record"]["archive"] = {"file_key": dataset_meta.get("file_key"), "images": image_set["total"]}
+    return record
 
 
 def tiff_record(dataset_meta: dict[str, Any], tags: dict[str, Any]) -> dict[str, Any]:

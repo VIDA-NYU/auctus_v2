@@ -177,7 +177,7 @@ class ArchiveTests(unittest.TestCase):
         letters = "abcdefghijklmnopqrstuvwxyz"
         record = invenio_record({f"city_{i}.zip": 10**9 for i in range(5)})
 
-        def fake_expand(entry, unlisted=None):  # each zip: 30 tiles of one table + 20 distinct tables
+        def fake_expand(entry, unlisted=None, image_sets=None):  # each zip: 30 tiles of one table + 20 distinct tables
             i = int(entry["file_key"].split("_")[1].split(".")[0])
             archive = {"dataset_id": entry["dataset_id"], "file_key": entry["file_key"], "url": entry["file_url"],
                        "size": entry["file_size"], "tabular_members": 50}
@@ -209,7 +209,7 @@ class ArchiveTests(unittest.TestCase):
     def test_small_zips_are_not_capped_per_record(self):  # UAE Open Data: 60 small zips of distinct tables
         record = invenio_record({f"table_{i}.zip": 1000 for i in range(60)})
 
-        def fake_expand(entry, unlisted=None):
+        def fake_expand(entry, unlisted=None, image_sets=None):
             return [{**entry, "archive_tabular_members": 3}]
 
         jobs, _ = self.run_discovery(record, fake_expand, limit=1000)
@@ -1054,3 +1054,55 @@ class DocxCodebookTests(unittest.TestCase):
         self.assertTrue(is_documentation("Codebook.docx"))
         found = value_labels([("Codebook.docx", buf.getvalue())], ["status"])
         self.assertEqual(found["status"]["labels"], {"1": "Active", "2": "Closed & archived"})
+
+
+class KmlAndImageSetTests(unittest.TestCase):
+    def test_kml_placemarks_and_extent(self):
+        from crawlers.invenio.formats import read_kml
+        path = Path(tempfile.mkdtemp()) / "sites.kml"
+        path.write_text('<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document>'
+                        '<Placemark><name>Site A</name><ExtendedData><Data name="pop"><value>120</value></Data>'
+                        '</ExtendedData><Point><coordinates>38.74,9.03,0</coordinates></Point></Placemark>'
+                        '<Placemark><name>Site B</name><Point><coordinates>39.47,8.55</coordinates></Point></Placemark>'
+                        '</Document></kml>')
+        read = read_kml(path)
+        self.assertEqual(read.header, ["name", "pop"])
+        self.assertEqual(list(read.rows), [("Site A", "120"), ("Site B", "")])
+        self.assertEqual((read.bbox, read.geometry_type), ([38.74, 8.55, 39.47, 9.03], "Point"))
+
+    def test_zip_images_become_one_image_set(self):
+        from unittest import mock
+
+        from crawlers.invenio import crawler, transformer
+        path = Path(tempfile.mkdtemp()) / "scans.zip"
+        with zipfile.ZipFile(path, "w") as z:
+            for k in range(30):
+                z.writestr(f"stack/slice_{k}.tif", minimal_geotiff(lon=-74.1 + k * 0.01))
+            z.writestr("stack/._slice_0.tif", b"resource fork")
+        entry = {"dataset_id": "d:r:scans", "file_key": "scans.zip", "file_url": "x", "file_size": path.stat().st_size}
+
+        @contextmanager_from_path(path)
+        def fake_open(url, size): ...
+
+        sets: list = []
+        with mock.patch.object(crawler, "open_remote_zip", fake_open):
+            crawler.expand_archive(entry, None, sets)
+        self.assertEqual((len(sets), sets[0]["image_set"]["total"]), (1, 30))
+        with mock.patch.object(transformer, "open_remote_zip", fake_open):
+            record = transformer.profile_remote_image_set(sets[0])
+        pm = record["profiler_metadata"]
+        self.assertEqual((pm["raster"]["images"], pm["types"]), (30, ["raster"]))
+        self.assertAlmostEqual(pm["spatial_bbox"][2], -74.1 + 29 * 0.01 + 0.1, places=6)  # union of the sampled tiles
+
+
+def contextmanager_from_path(path):
+    """A stand-in for open_remote_zip that opens a local zip."""
+    from contextlib import contextmanager
+
+    def wrap(_fn):
+        @contextmanager
+        def opener(url, size):
+            with zipfile.ZipFile(path) as z:
+                yield z
+        return opener
+    return wrap
