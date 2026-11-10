@@ -1004,3 +1004,53 @@ class TooLargeDatabaseTests(unittest.TestCase):
         doc = too_large_database_record(meta, "member is larger than the 200-byte limit")
         self.assertEqual((doc["id"], doc["archive_dataset_id"]), ("d:r:zip:m1", "d:r:zip:m1"))
         self.assertEqual(doc["title"], "Sales: sales.zip/sales.sqlite")
+
+
+def minimal_geotiff(width=10, height=5, lon=-74.1, lat=40.9, step=0.01) -> bytes:
+    """A little-endian GeoTIFF header (no pixel data needed for header reading), WGS84."""
+    import struct
+    short = [(256, width), (257, height), (277, 1), (258, 32), (339, 3)]
+    blobs = [(33550, 12, [step, step, 0.0]), (33922, 12, [0, 0, 0, lon, lat, 0]),
+             (34735, 3, [1, 1, 0, 1, 2048, 0, 1, 4326])]
+    n = len(short) + len(blobs)
+    data_off, body, entries = 8 + 2 + n * 12 + 4, b"", []
+    for tag, value in short:
+        entries.append((tag, struct.pack("<HHI", tag, 3, 1) + struct.pack("<H", value) + b"\0\0"))
+    for tag, typ, values in blobs:
+        blob = struct.pack("<" + {12: "d", 3: "H"}[typ] * len(values), *values)
+        entries.append((tag, struct.pack("<HHII", tag, typ, len(values), data_off + len(body))))
+        body += blob
+    ifd = b"".join(e for _, e in sorted(entries))
+    return b"II" + struct.pack("<HI", 42, 8) + struct.pack("<H", n) + ifd + b"\0\0\0\0" + body
+
+
+class TiffTests(unittest.TestCase):
+    def test_geotiff_header_gives_a_raster_with_extent(self):
+        from crawlers.invenio.formats import read_tiff_header
+        from crawlers.invenio.transformer import tiff_record
+        tags = read_tiff_header(io.BytesIO(minimal_geotiff()))
+        record = tiff_record({"dataset_id": "d:r:f", "file_key": "heights.tif", "record": {"title": "Heights"}}, tags)
+        pm = record["profiler_metadata"]
+        self.assertEqual((pm["raster"]["width"], pm["raster"]["epsg"], pm["geometry_type"]), (10, 4326, "raster"))
+        self.assertEqual([round(v, 2) for v in pm["spatial_bbox"]], [-74.1, 40.85, -74.0, 40.9])
+        self.assertIn("32-bit floating point", pm["attribute_keywords"])
+
+    def test_scan_and_georeferenced_copy_indexed_once(self):
+        entries = file_entries(invenio_record({"map_original.tif": 10, "map_georeferenced.tif": 10, "photo.TIF": 10}),
+                               DOMAIN, max_file_bytes=1)
+        self.assertEqual(sorted(e["file_key"] for e in entries), ["map_georeferenced.tif", "photo.TIF"])
+
+
+class DocxCodebookTests(unittest.TestCase):
+    def test_labels_from_a_word_codebook(self):
+        from crawlers.invenio.codebook import is_documentation, value_labels
+        body = ("<w:document><w:body><w:p><w:r><w:t>Variables</w:t></w:r></w:p>"
+                "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>status</w:t></w:r></w:p></w:tc>"
+                "<w:tc><w:p><w:r><w:t>1 = Active, 2 = Closed &amp; archived</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+                "</w:body></w:document>")
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("word/document.xml", body)
+        self.assertTrue(is_documentation("Codebook.docx"))
+        found = value_labels([("Codebook.docx", buf.getvalue())], ["status"])
+        self.assertEqual(found["status"]["labels"], {"1": "Active", "2": "Closed & archived"})

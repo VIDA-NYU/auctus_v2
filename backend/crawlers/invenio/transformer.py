@@ -50,7 +50,8 @@ from crawlers.invenio.archives import (
 from crawlers.invenio.codebook import (MAX_DOC_BYTES, apply_value_labels, documentation_for, is_documentation,
                                        value_labels)
 from crawlers.invenio.formats import (DATABASE_EXTENSIONS, READERS, database_tables, read_database_table,
-                                      read_jcamp_header, read_spectra, spectrum_peaks)
+                                      read_jcamp_header, read_spectra, read_tiff_header, spectrum_peaks,
+                                      tiff_bbox, tiff_epsg, TIFF_EXTENSIONS)
 from crawlers.invenio.http import async_client
 from crawlers.socrata.transformer import (
     SampleStats,
@@ -313,6 +314,8 @@ async def build_invenio_record(
             return await asyncio.to_thread(profile_remote_member, dataset_meta)
     if dataset_meta.get("spectra"):
         return await build_spectra_record(dataset_meta, http_timeout_seconds)
+    if (dataset_meta.get("file_extension") or "") in TIFF_EXTENSIONS:
+        return await asyncio.to_thread(profile_remote_tiff, dataset_meta)
 
     extension = dataset_meta.get("file_extension") or ""
     limit = MAX_SPREADSHEET_BYTES if extension in SPREADSHEET_EXTENSIONS else MAX_FILE_BYTES
@@ -334,6 +337,58 @@ async def build_invenio_record(
             return await asyncio.to_thread(profile_raw_file, raw, extension, dataset_meta)
     finally:
         raw.unlink(missing_ok=True)
+
+
+def profile_remote_tiff(dataset_meta: dict[str, Any]) -> dict[str, Any]:
+    """A raster (GeoTIFF) or image (TIFF) record from the file's header, read in place."""
+    from crawlers.invenio.archives import open_remote_file
+
+    with open_remote_file(dataset_meta["file_url"], dataset_meta["file_size"]) as fh:
+        tags = read_tiff_header(fh)
+    return tiff_record(dataset_meta, tags)
+
+
+def tiff_record(dataset_meta: dict[str, Any], tags: dict[str, Any]) -> dict[str, Any]:
+    """No rows to profile: the size, bands, data type, CRS and extent describe a raster;
+    the camera and capture time describe an image (a VLM description would come later)."""
+    native, bbox = tiff_bbox(tags)
+    epsg = tiff_epsg(tags)
+    geo = native is not None
+    bits = tags.get("bits_per_sample")
+    bits = bits[0] if isinstance(bits, list) else bits
+    sample_format = tags.get("sample_format")
+    sample_format = sample_format[0] if isinstance(sample_format, list) else sample_format
+    dtype = {1: "unsigned integer", 2: "signed integer", 3: "floating point"}.get(sample_format or 1, "")
+    raster = {k: tags[k] for k in ("width", "height", "bands", "make", "model", "software", "datetime", "nodata")
+              if tags.get(k) not in (None, "")}
+    raster.update({"bits_per_sample": bits, "data_type": dtype, "epsg": epsg,
+                   "crs_name": str(tags.get("geo_ascii") or "").strip("|") or None, "native_bbox": native})
+    size = f"{tags.get('width')} x {tags.get('height')} pixels"
+    keywords = ["GeoTIFF", "raster", size] if geo else ["TIFF", "image", size]
+    keywords += [f"{tags.get('bands') or 1} band(s)", f"{bits}-bit {dtype}".strip()]
+    keywords += [str(v) for v in (raster.get("crs_name"), tags.get("make"), tags.get("model")) if v]
+    source_record = dataset_meta.get("record") or {}
+    file_key = dataset_meta.get("file_key", "")
+    record = {
+        "id": dataset_meta["dataset_id"],
+        "title": f"{source_record.get('title', '')}: {file_key}".strip(": "),
+        "description": source_record.get("description", ""),
+        "source": "InvenioRDM",
+        "publisher": source_record.get("publisher", ""),
+        "download_url": dataset_meta.get("file_url"),
+        "landing_url": source_record.get("landing_url"),
+        "source_record": {**source_record, "file_key": file_key, "file_size": dataset_meta.get("file_size")},
+        "types": ["raster" if geo else "image"],
+        "temporal_coverage": {"start": None, "end": None},
+        "profiler_metadata": {"types": ["raster" if geo else "image"], "columns": [], "nb_columns": tags.get("bands"),
+                              "attribute_keywords": keywords, "raster": raster, "spatial_bbox": bbox,
+                              **({"geometry_type": "raster"} if geo else {})},
+        "errors": [],
+    }
+    if bbox:
+        record["spatial_coverage"] = {"label": "", "bbox": {"type": "envelope",
+                                                            "coordinates": [[bbox[0], bbox[3]], [bbox[2], bbox[1]]]}}
+    return record
 
 
 async def build_spectra_record(dataset_meta: dict[str, Any], http_timeout_seconds: float = 30.0) -> dict[str, Any]:

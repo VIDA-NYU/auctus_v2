@@ -202,6 +202,7 @@ DATASETS_MAPPING = {
                     "nb_categorical_columns": {"type": "integer"},
                     "attribute_keywords": {"type": "text", "analyzer": "standard"},
                     "geometry_type": {"type": "keyword"},  # shapefile / GeoJSON layers
+                    "raster": {"type": "object", "enabled": False},  # TIFF header (size, bands, CRS)
                     "columns": {
                         "type": "nested",
                         "properties": {
@@ -409,8 +410,9 @@ def init_db():
                     index=AUCTUS_INDEX_NAME,
                     # Only the nested columns: an older index may hold other profiler fields
                     # under dynamic mappings (geometry_type as text), which fail the whole put.
-                    body={"properties": {"profiler_metadata": {"properties": {"columns": DATASETS_MAPPING["mappings"][
-                        "properties"]["profiler_metadata"]["properties"]["columns"]}}}},
+                    body={"properties": {"profiler_metadata": {"properties": {
+                        k: DATASETS_MAPPING["mappings"]["properties"]["profiler_metadata"]["properties"][k]
+                        for k in ("columns", "raster")}}}},
                 )
             except Exception as exc:
                 logger.warning("Could not add new profiler fields to the %s mapping: %s", AUCTUS_INDEX_NAME, exc)

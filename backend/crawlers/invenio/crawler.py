@@ -31,7 +31,7 @@ from crawlers.invenio.archives import (
     tabular_members,
 )
 from crawlers.invenio.codebook import MAX_DOC_BYTES, is_documentation, is_labelled_data
-from crawlers.invenio.formats import DATABASE_EXTENSIONS, SPECTRUM_EXTENSIONS
+from crawlers.invenio.formats import DATABASE_EXTENSIONS, SPECTRUM_EXTENSIONS, TIFF_EXTENSIONS
 from crawlers.invenio.http import async_client
 
 LOGGER = logging.getLogger(__name__)
@@ -123,12 +123,16 @@ def file_entries(record: dict[str, Any], domain: str, max_file_bytes: int) -> li
     # reprojected ("nyu_2451_34500_PrivateSchools_2015.zip" and
     # "nyu_2451_34500_WGS84_PrivateSchools_2015.zip"): index the WGS84 copy only.
     duplicates |= {k.replace("_WGS84_", "_") for k in files if "_WGS84_" in k} & set(files)
+    # Scanned maps come as the scan and its georeferenced copy ("..._original.tif" and
+    # "..._georeferenced.tif"): index the georeferenced one.
+    duplicates |= {k.replace("_georeferenced.", "_original.") for k in files if "_georeferenced." in k} & set(files)
     entries = []
     for key, entry in files.items():
         extension = file_extension(key)
-        if extension not in TABULAR_EXTENSIONS | ARCHIVE_EXTENSIONS or key in duplicates:
+        if extension not in TABULAR_EXTENSIONS | ARCHIVE_EXTENSIONS | TIFF_EXTENSIONS or key in duplicates:
             continue
-        if extension not in ARCHIVE_EXTENSIONS and entry.get("size", 0) > max_file_bytes:
+        # Zips and TIFFs are read in place (byte ranges), so their size doesn't matter.
+        if extension not in ARCHIVE_EXTENSIONS | TIFF_EXTENSIONS and entry.get("size", 0) > max_file_bytes:
             LOGGER.info("Skipping %s/%s: %d bytes exceeds limit", record["id"], key, entry["size"])
             continue
         file_id = entry.get("id") or key
@@ -357,7 +361,8 @@ async def discover_invenio_datasets(
     the filter would drop those records silently.
     """
     # InvenioRDM indexes the last extension only (data.csv.gz -> "gz").
-    searchable = {ext.rsplit(".", 1)[-1] for ext in TABULAR_EXTENSIONS | ARCHIVE_EXTENSIONS | SPECTRUM_EXTENSIONS}
+    searchable = {ext.rsplit(".", 1)[-1] for ext in TABULAR_EXTENSIONS | ARCHIVE_EXTENSIONS | SPECTRUM_EXTENSIONS
+                  | TIFF_EXTENSIONS}
     type_filter = "files.types:(" + " OR ".join(sorted(searchable)) + ")"
     url: str | None = f"https://{domain}/api/records"
 

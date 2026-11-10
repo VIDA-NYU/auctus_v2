@@ -113,6 +113,14 @@ def select_archive_members(archive: zipfile.ZipFile,
 @contextmanager
 def open_remote_zip(url: str, size: int) -> Iterator[zipfile.ZipFile]:
     """A ZipFile over a remote archive, reading only the byte ranges it needs."""
+    with open_remote_file(url, size) as remote:
+        with zipfile.ZipFile(remote) as archive:
+            yield archive
+
+
+@contextmanager
+def open_remote_file(url: str, size: int):
+    """A seekable file over HTTP, fetching only the byte ranges that are read."""
     import aiohttp
     import fsspec
 
@@ -125,5 +133,4 @@ def open_remote_zip(url: str, size: int) -> Iterator[zipfile.ZipFile]:
 
     fs = fsspec.filesystem("http", get_client=get_client, skip_instance_cache=True)
     with fs.open(url, "rb", size=size, block_size=RANGE_BLOCK_BYTES) as remote:
-        with zipfile.ZipFile(remote) as archive:
-            yield archive
+        yield remote

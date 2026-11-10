@@ -19,9 +19,11 @@ Layouts handled, all by one rule (we know the table's column names):
 from __future__ import annotations
 
 import csv
+import html
 import io
 import logging
 import re
+import zipfile
 from typing import Any, Iterable
 
 LOGGER = logging.getLogger(__name__)
@@ -31,6 +33,7 @@ DOC_NAME = re.compile(r"read[_ -]?me|codebook|code[_ -]book|dictionar|variables?
 TABLE_DOC_EXTENSIONS = {"csv", "tsv", "xlsx", "xls"}
 TEXT_DOC_EXTENSIONS = {"txt", "md", "rst", ""}
 PDF_DOC_EXTENSIONS = {"pdf"}
+WORD_DOC_EXTENSIONS = {"docx"}
 MAX_PDF_PAGES = 60
 # Data files whose value labels are part of the format.
 LABELLED_DATA_EXTENSIONS = {"dta"}
@@ -58,6 +61,7 @@ def is_documentation(name: str) -> bool:
     base = name.rsplit("/", 1)[-1]
     ext = doc_extension(name)
     return bool(DOC_NAME.search(base)) and ext in TABLE_DOC_EXTENSIONS | TEXT_DOC_EXTENSIONS | PDF_DOC_EXTENSIONS \
+        | WORD_DOC_EXTENSIONS \
         and not base.startswith((".", "~$"))
 
 
@@ -144,6 +148,18 @@ def decode_text(data: bytes) -> str:
     return data.decode("utf-8-sig", errors="replace")
 
 
+def docx_text(data: bytes) -> str:
+    """Text of a Word document: paragraphs on their own lines, table cells tab-separated,
+    so "1 = Yes" pairs and variable names land on the same line as in a text README."""
+    with zipfile.ZipFile(io.BytesIO(data)) as docx:
+        xml = docx.read("word/document.xml").decode("utf-8", errors="replace")
+    xml = re.sub(r"</w:p>", "\n", xml)
+    xml = re.sub(r"</w:tc>", "\t", xml)
+    xml = re.sub(r"<w:tab/>", "\t", xml)
+    text = re.sub(r"<[^>]+>", "", xml)
+    return html.unescape(text)
+
+
 def pdf_text(data: bytes) -> str:
     """Text of a PDF's first MAX_PDF_PAGES pages; scanned pages (no text layer) give nothing."""
     from pypdf import PdfReader
@@ -215,7 +231,9 @@ def value_labels(docs: Iterable[tuple[str, bytes]], columns: list[str]) -> dict[
             continue
         if rows is None:
             try:
-                text = pdf_text(data) if doc_extension(name) in PDF_DOC_EXTENSIONS else decode_text(data)
+                ext = doc_extension(name)
+                text = (pdf_text(data) if ext in PDF_DOC_EXTENSIONS else docx_text(data) if ext in WORD_DOC_EXTENSIONS
+                        else decode_text(data))
             except Exception as exc:  # broken or encrypted PDF
                 LOGGER.info("Can't read documentation %s: %r", name, exc)
                 continue

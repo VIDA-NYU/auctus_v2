@@ -399,3 +399,99 @@ def read_spectra(headers: list[tuple[str, dict[str, str]]]) -> Read:
     """One row per spectrum file, from (file key, header fields) pairs."""
     return Read(header=["file", *(name for name, _ in SPECTRUM_COLUMNS), "spectrum"],
                 rows=[spectrum_row(key, fields) for key, fields in headers])
+
+
+# --- TIFF / GeoTIFF -------------------------------------------------------------------
+
+TIFF_EXTENSIONS = {"tif", "tiff"}
+_TIFF_TYPES = {1: ("B", 1), 2: ("s", 1), 3: ("H", 2), 4: ("I", 4), 5: ("II", 8), 6: ("b", 1), 7: ("B", 1),
+               8: ("h", 2), 9: ("i", 4), 10: ("ii", 8), 11: ("f", 4), 12: ("d", 8), 16: ("Q", 8), 17: ("q", 8),
+               18: ("Q", 8)}
+_TIFF_TAGS = {256: "width", 257: "height", 258: "bits_per_sample", 259: "compression", 270: "description",
+              271: "make", 272: "model", 277: "bands", 305: "software", 306: "datetime", 339: "sample_format",
+              33550: "pixel_scale", 33922: "tiepoint", 34264: "transform", 34735: "geokeys", 34737: "geo_ascii",
+              42113: "nodata"}
+_MAX_TAG_BYTES = 1 << 20
+
+
+def read_tiff_header(fh) -> dict[str, Any]:
+    """The first image's tags of a TIFF or BigTIFF, read with a few seeks (works on a
+    remote file opened with byte-range requests: a 4.9 GB GeoTIFF costs a few KB)."""
+    import struct
+
+    head = fh.read(16)
+    order = {b"II": "<", b"MM": ">"}.get(head[:2])
+    if order is None:
+        raise ValueError("not a TIFF file")
+    magic = struct.unpack(order + "H", head[2:4])[0]
+    big = magic == 43
+    if magic not in (42, 43):
+        raise ValueError("not a TIFF file")
+    offset = struct.unpack(order + ("Q" if big else "I"), head[8:16] if big else head[4:8])[0]
+    fh.seek(offset)
+    count_size, entry_size, field = (8, 20, 8) if big else (2, 12, 4)
+    count = struct.unpack(order + ("Q" if big else "H"), fh.read(count_size))[0]
+    entries = fh.read(count * entry_size)
+    tags: dict[str, Any] = {}
+    for k in range(count):
+        entry = entries[k * entry_size:(k + 1) * entry_size]
+        tag, typ = struct.unpack(order + "HH", entry[:4])
+        if tag not in _TIFF_TAGS or typ not in _TIFF_TYPES:
+            continue
+        n = struct.unpack(order + ("Q" if big else "I"), entry[4:4 + field])[0]
+        code, width = _TIFF_TYPES[typ]
+        size = width * n
+        if size > _MAX_TAG_BYTES:
+            continue
+        raw = entry[4 + field:4 + 2 * field]
+        if size > field:
+            fh.seek(struct.unpack(order + ("Q" if big else "I"), raw)[0])
+            raw = fh.read(size)
+        raw = raw[:size]
+        if typ == 2:
+            value: Any = raw.split(b"\0")[0].decode("latin-1").strip()
+        else:
+            value = struct.unpack(order + code * n, raw)
+            if typ in (5, 10):  # rationals: numerator/denominator pairs
+                value = tuple(value[i] / value[i + 1] if value[i + 1] else 0.0 for i in range(0, len(value), 2))
+            value = value[0] if len(value) == 1 else list(value)
+        tags[_TIFF_TAGS[tag]] = value
+    return tags
+
+
+def tiff_epsg(tags: dict[str, Any]) -> int | None:
+    """EPSG code from the GeoKey directory (projected first, else geographic)."""
+    keys = tags.get("geokeys")
+    if not isinstance(keys, list) or len(keys) < 4:
+        return None
+    found = {}
+    for k in range(keys[3]):
+        key_id, location, _count, value = keys[4 + 4 * k:8 + 4 * k]
+        if location == 0:
+            found[key_id] = value
+    for key_id in (3072, 2048):  # ProjectedCSTypeGeoKey, GeographicTypeGeoKey
+        code = found.get(key_id)
+        if code and code != 32767:  # 32767 = user-defined
+            return code
+    return None
+
+
+def tiff_bbox(tags: dict[str, Any]) -> tuple[list[float] | None, list[float] | None]:
+    """(native bbox, lon/lat bbox) from the tie point + pixel scale, or the transform."""
+    width, height = tags.get("width"), tags.get("height")
+    if not (width and height):
+        return None, None
+    tie, scale, matrix = tags.get("tiepoint"), tags.get("pixel_scale"), tags.get("transform")
+    if isinstance(tie, list) and len(tie) >= 6 and isinstance(scale, list) and len(scale) >= 2:
+        i, j, _k, x, y, _z = tie[:6]
+        x0, y0 = x - i * scale[0], y + j * scale[1]
+        corners = [(x0, y0), (x0 + width * scale[0], y0 - height * scale[1])]
+    elif isinstance(matrix, list) and len(matrix) >= 8:
+        a, b, _c, d, e, f, _g, h = matrix[:8]
+        corners = [(a * i + b * j + d, e * i + f * j + h) for i, j in ((0, 0), (width, 0), (0, height), (width, height))]
+    else:
+        return None, None
+    xs, ys = [c[0] for c in corners], [c[1] for c in corners]
+    native = [min(xs), min(ys), max(xs), max(ys)]
+    epsg = tiff_epsg(tags)
+    return native, to_lonlat(native, f"EPSG:{epsg}" if epsg else None)
