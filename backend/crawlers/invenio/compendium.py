@@ -52,7 +52,8 @@ MAX_TABLES_FOR_KEYS = 300
 
 
 def plural(role: str, n: int) -> str:
-    if n == 1 or role in ("documentation", "code", "model output", "spectra", "point clouds", "3D meshes"):
+    if n == 1 or role in ("documentation", "code", "model output", "spectra", "point clouds", "3D meshes",
+                          "not profiled", "other"):
         return role
     return {"copy of an indexed layer": "copies of indexed layers", "text corpus": "text corpora"}.get(role, role + "s")
 
@@ -176,7 +177,9 @@ def build_compendium(record: dict[str, Any], docs: list[dict[str, Any]], domain:
     for key, entry in ((record.get("files") or {}).get("entries") or {}).items():
         if key not in indexed_keys and not any(k.startswith(key) for k in indexed_keys):
             # The Spatial Data Repository's State Plane copy of an indexed WGS84 layer.
-            is_copy = any(k.replace("_WGS84_", "_") == key for k in indexed_keys if "_WGS84_" in k)
+            # ... or the original scan of an indexed georeferenced map.
+            is_copy = any(k.replace("_WGS84_", "_") == key for k in indexed_keys if "_WGS84_" in k) \
+                or key.replace("_original.", "_georeferenced.") in indexed_keys and "_original." in key
             parts.append({"dataset_id": None, "file_key": key, "role": "copy of an indexed layer" if is_copy else role_of_file(key),
                           "size": entry.get("size"),
                           "url": f"https://{domain}/api/records/{rid}/files/{key}/content"})

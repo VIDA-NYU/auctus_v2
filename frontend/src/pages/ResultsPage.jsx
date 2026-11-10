@@ -82,6 +82,7 @@ function ResultsPage() {
     const temporalEnd = searchParams.get('temporal_end')
     const bboxStr = searchParams.get('bbox')
 
+    f.group_by_record = searchParams.get('group') !== '0'
     if (sources && sources.length > 0) f.source = sources
     if (types && types.length > 0) f.types = types
     if (temporalStart) f.temporal_start = temporalStart
@@ -106,7 +107,14 @@ function ResultsPage() {
     })
   }, [query, filtersFromParams])
 
-  const { results, loading, error, totalResults } = useSearch(query, filtersFromParams)
+  const { results, groups, loading, error, totalResults, totalGroups } = useSearch(query, filtersFromParams)
+  const grouped = filtersFromParams.group_by_record
+  const toggleGrouping = () => {
+    const params = new URLSearchParams(searchParams)
+    if (grouped) params.set('group', '0')
+    else params.delete('group')
+    setSearchParams(params)
+  }
 
   useEffect(() => {
     if (Array.isArray(results) && results.length > 0) {
@@ -313,12 +321,24 @@ function ResultsPage() {
             </div>
           ) : (
             <div className="flex min-h-0 h-full flex-col">
-              <p className="mb-2 text-sm text-slate-600">
-                Found <span className="font-semibold text-slate-900">{totalResults}</span> dataset
-                {totalResults !== 1 ? 's' : ''} for "<span className="font-semibold text-[#64518c]">{query}</span>"
-              </p>
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-sm text-slate-600">
+                  {grouped ? (
+                    <>Found <span className="font-semibold text-slate-900">{totalGroups}</span> record{totalGroups !== 1 ? 's' : ''}{' '}
+                      ({totalResults} matching dataset{totalResults !== 1 ? 's' : ''})</>
+                  ) : (
+                    <>Found <span className="font-semibold text-slate-900">{totalResults}</span> dataset{totalResults !== 1 ? 's' : ''}</>
+                  )}{' '}
+                  for "<span className="font-semibold text-[#64518c]">{query}</span>"
+                </p>
+                <button type="button" onClick={toggleGrouping}
+                        className="text-xs font-medium text-[#64518c] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#64518c]">
+                  {grouped ? 'Show every dataset' : 'Group by record'}
+                </button>
+              </div>
               <div className="min-h-0 flex-1">
-              <DatasetResults results={results} selectedDataset={selectedDataset} setSelectedDataset={setSelectedDataset} />
+              <DatasetResults results={results} groups={grouped ? groups : null}
+                              selectedDataset={selectedDataset} setSelectedDataset={setSelectedDataset} />
               </div>
             </div>
           )}

@@ -49,6 +49,8 @@ METADATA_FIELDS = ["profiler_metadata.attribute_keywords", "source_record.subjec
 #   weighted  field weights (curator text first, generated text next, column words last) + raw kNN
 #   hybrid    the weighted BM25 and the kNN each min-max normalized, then blended (search pipeline)
 RANKINGS = ("legacy", "weighted", "hybrid")
+MAX_GROUP_WINDOW = 300
+MATCHES_PER_GROUP = 5
 DEFAULT_RANKING = os.getenv("SEARCH_RANKING", "hybrid")  # eval known_item, 2026-11-10: MRR +0.10 UV, +0.16 Caltech
 WEIGHTED_FIELDS = ["title^3", "description^2", "source_record.subjects^1.5", "autoddg_search_description^1",
                    "image_description^1", "profiler_metadata.attribute_keywords^0.5"]
@@ -91,6 +93,9 @@ class SearchQueryRequest(BaseModel):
     peak_tolerance: float = 10.0
     # How keyword and vector scores combine (see RANKINGS); eval/known_item.py compares them.
     ranking: Optional[str] = None
+    # One result per repository record (its best-matching dataset first, then its other
+    # matches); limit / offset then count records. Datasets outside records stay single.
+    group_by_record: bool = False
 
 
 def get_client():
@@ -210,6 +215,10 @@ async def search(req: SearchQueryRequest):
             }
         )
 
+    # Grouping ranks records by their best dataset, so it reads a window of top datasets.
+    size, from_ = ((min(MAX_GROUP_WINDOW, max(100, (req.offset + req.limit) * 10)), 0) if req.group_by_record
+                   else (req.limit, req.offset))
+    finish = (lambda r: group_response(client, r, req)) if req.group_by_record else format_response
     ranking = req.ranking or DEFAULT_RANKING
     if ranking not in RANKINGS:
         raise HTTPException(status_code=400, detail=f"Unknown ranking {ranking!r}; expected one of {list(RANKINGS)}")
@@ -233,13 +242,13 @@ async def search(req: SearchQueryRequest):
             "aggs": {"sources_count": {"terms": {"field": "domain"}}, "types_count": {"terms": {"field": "types"}}},
         }
         try:
-            resp = client.search(index="auctus_catalog_master", body=payload, size=req.limit, from_=req.offset,
+            resp = client.search(index="auctus_catalog_master", body=payload, size=size, from_=from_,
                                  params={"search_pipeline": HYBRID_PIPELINE})
         except Exception:
             ensure_hybrid_pipeline(client)
-            resp = client.search(index="auctus_catalog_master", body=payload, size=req.limit, from_=req.offset,
+            resp = client.search(index="auctus_catalog_master", body=payload, size=size, from_=from_,
                                  params={"search_pipeline": HYBRID_PIPELINE})
-        return format_response(resp)
+        return finish(resp)
     if req.keywords:
         should_clauses.append(keyword_query)
         should_clauses.append(
@@ -269,11 +278,11 @@ async def search(req: SearchQueryRequest):
     # print("RAW OPENSEARCH PAYLOAD:", json.dumps(payload, indent=2))
 
     try:
-        resp = client.search(index="auctus_catalog_master", body=payload, size=req.limit, from_=req.offset)
+        resp = client.search(index="auctus_catalog_master", body=payload, size=size, from_=from_)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Search backend error: {exc}")
 
-    return format_response(resp)
+    return finish(resp)
 
 
 def format_response(resp: dict) -> dict:
@@ -302,3 +311,40 @@ def format_response(resp: dict) -> dict:
     aggregations = resp.get("aggregations", {})
 
     return {"total": total_count, "results": results, "aggregations": aggregations}
+
+
+def group_response(client, resp: dict, req: "SearchQueryRequest") -> dict:
+    """Top datasets grouped by repository record, in rank order (a record ranks by its best dataset)."""
+    from crawlers.invenio.compendium import COMPENDIUM_INDEX
+
+    flat = format_response(resp)
+    groups: dict[str, dict] = {}
+    for rank, dataset in enumerate(flat["results"]):
+        rid = (dataset.get("source_record") or {}).get("record_id")
+        key = f"{dataset.get('domain')}:{rid}" if rid else f"dataset:{dataset.get('id')}"
+        group = groups.get(key)
+        if group is None:
+            group = groups[key] = {"key": key, "record_id": rid, "domain": dataset.get("domain"), "rank": rank,
+                                   "title": (dataset.get("source_record") or {}).get("title") or dataset.get("title"),
+                                   "landing_url": dataset.get("landing_url"), "best": dataset, "matches": [],
+                                   "n_matches": 0}
+        group["n_matches"] += 1
+        if dataset is not group["best"] and len(group["matches"]) < MATCHES_PER_GROUP:
+            group["matches"].append(dataset)
+    ordered = list(groups.values())
+    page = ordered[req.offset:req.offset + req.limit]
+    ids = [g["key"] for g in page if g["record_id"]]
+    if ids:
+        try:
+            docs = client.mget(index=COMPENDIUM_INDEX, body={"ids": ids},
+                               params={"_source_includes": "summary,role_counts"})["docs"]
+            found = {d["_id"]: d["_source"] for d in docs if d.get("found")}
+        except Exception:  # no compendia built yet: groups without summaries
+            found = {}
+        for g in page:
+            compendium = found.get(g["key"]) or {}
+            g["summary"] = compendium.get("summary")
+            g["n_parts"] = sum((compendium.get("role_counts") or {}).values()) or None
+    return {"total": flat["total"], "total_groups": len(ordered), "window": len(flat["results"]),
+            "groups": page, "results": [g["best"] for g in page], "aggregations": flat["aggregations"]}
+
