@@ -24,3 +24,6 @@ backend/eval/description_eval/data/
 
 # Regenerated review pages for the README gold (review_gold.py sheet)
 backend/eval/profiler_benchmark/gold/review/
+
+# run_in_worker.sh copy-back folders of runs in progress
+backend/eval/description_eval/data.incoming.*/
