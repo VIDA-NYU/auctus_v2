@@ -26,7 +26,10 @@ import pandas as pd
 LOGGER = logging.getLogger(__name__)
 
 SEMANTIC_TYPES_MODEL = os.getenv("SEMANTIC_TYPES_MODEL", os.getenv("AUTODDG_MODEL", "@vertexai/gemini-2.5-flash"))
-MAX_COLUMNS = 80
+# Columns typed per call. Every column gets typed; wide tables take several calls. One call
+# for 186-251 columns hit max_tokens (Gemini counts its thinking) on 4 of 8 wide tables and
+# lost all their labels; 80 per call never did (2026-11-27).
+COLUMNS_PER_CALL = 80
 SAMPLE_VALUES = 8
 MAX_LABEL_WORDS = 8
 
@@ -37,17 +40,17 @@ Use only the column name, the table's title and the sample values. If the values
 say, give the most specific type you can defend, not a guess about the study.
 
 Table: {title}
-Columns (name: sample of distinct values):
+{context}Columns (name: sample of distinct values):
 {columns}
 
 Return JSON only: {{"<column name>": "<semantic type>", ...}}
 """
 
 
-def column_listing(sample_csv: str) -> str:
+def column_listing(sample_csv: str, names: list[str] | None = None) -> str:
     frame = pd.read_csv(io.StringIO(sample_csv), dtype=str, keep_default_na=False)
     lines = []
-    for name in list(frame.columns)[:MAX_COLUMNS]:
+    for name in (list(frame.columns) if names is None else names):
         values = [v for v in dict.fromkeys(frame[name].tolist()) if v.strip()][:SAMPLE_VALUES]
         lines.append(f"- {name}: {', '.join(v[:40] for v in values)}")
     return "\n".join(lines)
@@ -76,10 +79,32 @@ def _norm(name: str) -> str:
 
 
 def infer_semantic_types(client, sample_csv: str, title: str, model: str = SEMANTIC_TYPES_MODEL) -> dict[str, str]:
-    """Labels keyed by column name. A reply whose keys mostly miss the columns (it typed
-    the rows of a data dictionary instead) gets one retry with the names spelled out."""
-    columns = list(pd.read_csv(io.StringIO(sample_csv), dtype=str, keep_default_na=False, nrows=0).columns)[:MAX_COLUMNS]
-    messages = [{"role": "user", "content": PROMPT.format(title=title, columns=column_listing(sample_csv))}]
+    """Labels keyed by column name, for every column: COLUMNS_PER_CALL columns per call.
+
+    A batch that fails is skipped (its columns stay unlabelled), the others still count.
+    In a wide table each call also gets the other column names, so it knows what table it
+    is typing."""
+    columns = list(pd.read_csv(io.StringIO(sample_csv), dtype=str, keep_default_na=False, nrows=0).columns)
+    labels: dict[str, str] = {}
+    for start in range(0, len(columns), COLUMNS_PER_CALL):
+        batch = columns[start:start + COLUMNS_PER_CALL]
+        others = [c for c in columns if c not in batch]
+        context = (f"Other columns of the table (for context, don't type them): {', '.join(others)}\n"
+                   if others else "")
+        try:
+            labels.update(_infer_batch(client, sample_csv, title, batch, context, model))
+        except Exception as exc:
+            if len(columns) <= COLUMNS_PER_CALL:
+                raise
+            LOGGER.warning("Semantic types failed for columns %d-%d of %r: %r", start + 1, start + len(batch), title, exc)
+    return labels
+
+
+def _infer_batch(client, sample_csv: str, title: str, columns: list[str], context: str, model: str) -> dict[str, str]:
+    """One call; a reply whose keys mostly miss the columns (it typed the rows of a data
+    dictionary instead) gets one retry with the names spelled out."""
+    messages = [{"role": "user", "content": PROMPT.format(title=title, context=context,
+                                                          columns=column_listing(sample_csv, columns))}]
     labels = _ask(client, model, messages)
     wanted = {_norm(c) for c in columns}
     if columns and sum(_norm(k) in wanted for k in labels) < len(columns) / 2:
