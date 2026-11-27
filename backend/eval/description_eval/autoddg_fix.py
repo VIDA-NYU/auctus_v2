@@ -16,6 +16,7 @@ only the named pieces differ:
   stock         AutoDDG's prompts.yaml + build_profile_text, as ingestion runs today (regenerated)
   inputs_fixed  stock prompt + fixed profile text
   all_fixed     fixed prompt + fixed profile text + semantic profile without usage context
+  fixed_with_uses  all_fixed, but uses kept ("what it can be used for, naming only uses its columns support")
 Scored with dataset_level.py's checks (grounding, Koesten vs the frozen evidence reference, tell-apart).
 
   MODULE=eval.description_eval.autoddg_fix ./run_in_worker.sh [--records ID ...]
@@ -41,7 +42,7 @@ from eval.description_eval.evidence import record_evidence
 OUT = DATA_DIR / "autoddg_fix"
 MODEL = "@vertexai/gemini-2.5-flash"  # AUTODDG_MODEL at ingestion
 WORDS = 100                           # description_words at ingestion
-ARMS = ("stock", "inputs_fixed", "all_fixed")
+ARMS = ("stock", "inputs_fixed", "all_fixed", "fixed_with_uses")
 
 FIXED_PROMPT = {
     "introduction": (
@@ -67,6 +68,18 @@ FIXED_PROMPT = {
 }
 
 
+# Ablation (Cedric, 2026-11-27): uses are search terms, so keep them, but only ones the columns
+# support; everything else as all_fixed.
+WITH_USES = {
+    **FIXED_PROMPT,
+    "topic_instruction": (
+        "Moreover, the dataset topic is: {data_topic}. Based on this topic, please add sentence(s) describing "
+        "what this dataset can be used for, naming only uses its columns support.\n"),
+    "closing_instruction": FIXED_PROMPT["closing_instruction"].replace(
+        "do not guess who made it, why, or what it could be used for", "do not guess who made it or why"),
+}
+
+
 def stock_prompt() -> dict[str, str]:
     from autoddg.utils import load_prompts
 
@@ -75,11 +88,78 @@ def stock_prompt() -> dict[str, str]:
                               "closing_instruction", "system_message")}
 
 
+# Ingestion's build_profile_text as it was before the input fix (auctus_v2 825daaa^), frozen here so
+# the "stock" arm stays stock after the fix landed in storage.arq_worker.
+WIDE_TABLE_COLUMN_THRESHOLD = 40
+MAX_COLUMNS_IN_PROFILE = 80
+_COLUMN_CORE_FIELDS = ("name", "structural_type", "semantic_types")
+_COLUMN_STAT_FIELDS = ("num_distinct_values", "mean", "std", "min", "max")
+
+
+def stock_profile_text(record: dict[str, Any]) -> str:
+    """Render a trimmed, content-focused profile as a JSON string for AutoDDG.
+
+    AutoDDG injects this string into its prompt (use_profile=True). We keep only
+    fields that describe *what the dataset contains* — size, column schema, and
+    geographic coverage — and drop operational/rendering fields (telemetry,
+    profiling times, raw geohash grids, redundant keyword splits). This is the
+    profile-aware usage emphasized in the AutoDDG paper. Returns "" if there is
+    nothing useful to report. The selection is deterministic (no LLM).
+
+    The per-column detail is *adaptive* to table width: narrow tables keep full
+    numeric stats, wide tables keep only the core meaning-bearing fields and cap
+    the number of columns, so the prompt stays focused on wide datasets. The
+    keep/drop rules and thresholds are documented in
+    "docs/Profiler_metadata — Field Reference.md".
+    """
+    pm = record.get("profiler_metadata")
+    if not isinstance(pm, dict):
+        return ""
+
+    profile: dict[str, Any] = {}
+    for key in ("nb_rows", "nb_columns", "types"):
+        if pm.get(key) is not None:
+            profile[key] = pm[key]
+
+    columns = [col for col in (pm.get("columns") or []) if isinstance(col, dict)]
+    # Decide per-column detail by table width: wide tables -> core fields only.
+    n_columns = pm.get("nb_columns") or len(columns)
+    is_wide = isinstance(n_columns, int) and n_columns >= WIDE_TABLE_COLUMN_THRESHOLD
+    kept_fields = _COLUMN_CORE_FIELDS if is_wide else _COLUMN_CORE_FIELDS + _COLUMN_STAT_FIELDS
+
+    trimmed_columns: list[dict[str, Any]] = []
+    for col in columns[:MAX_COLUMNS_IN_PROFILE]:
+        entry = {
+            key: col[key] for key in kept_fields if col.get(key) not in (None, [], "")
+        }
+        if entry:
+            trimmed_columns.append(entry)
+
+    if trimmed_columns:
+        profile["columns"] = trimmed_columns
+        if len(columns) > MAX_COLUMNS_IN_PROFILE:
+            # Tell the LLM the schema was truncated so it doesn't over-claim coverage.
+            profile["columns_truncated"] = {
+                "shown": len(trimmed_columns),
+                "total": len(columns),
+            }
+    elif pm.get("attribute_keywords"):
+        # Fallback when profiling produced no columns (edge cases): names only.
+        profile["column_names"] = pm["attribute_keywords"]
+
+    # Geographic coverage: clean label + bbox only (drop the raw geohash grids).
+    spatial = record.get("spatial_coverage")
+    if isinstance(spatial, dict) and (spatial.get("label") or spatial.get("bbox")):
+        profile["spatial_coverage"] = {
+            k: spatial[k] for k in ("label", "bbox") if spatial.get(k)
+        }
+
+    return json.dumps(profile, ensure_ascii=False) if profile else ""
+
+
 def fixed_profile_text(profile: dict[str, Any]) -> str:
     """build_profile_text with the input bugs fixed: dates, stddev, min/max for wide tables, distinct
     counts capped at the row count."""
-    from storage.arq_worker import MAX_COLUMNS_IN_PROFILE, WIDE_TABLE_COLUMN_THRESHOLD
-
     pm = profile.get("profiler_metadata") or {}
     out: dict[str, Any] = {k: pm[k] for k in ("nb_rows", "nb_columns", "types") if pm.get(k) is not None}
     columns = [c for c in (pm.get("columns") or []) if isinstance(c, dict)]
@@ -108,13 +188,11 @@ def fixed_profile_text(profile: dict[str, Any]) -> str:
 
 
 def describe(arm: str, profile: dict[str, Any]) -> str:
-    from storage.arq_worker import build_profile_text
-
     stock = stock_prompt()
-    seg = stock if arm != "all_fixed" else {**stock, **FIXED_PROMPT}
-    profile_text = build_profile_text(profile) if arm == "stock" else fixed_profile_text(profile)
+    seg = {**stock, **FIXED_PROMPT} if arm == "all_fixed" else {**stock, **WITH_USES} if arm == "fixed_with_uses" else stock
+    profile_text = stock_profile_text(profile) if arm == "stock" else fixed_profile_text(profile)
     semantic = profile.get("autoddg_semantic_profile")
-    if arm == "all_fixed" and isinstance(semantic, str):
+    if arm in ("all_fixed", "fixed_with_uses") and isinstance(semantic, str):
         semantic = re.sub(r"\s*Function/Usage context:[^.\n]*\.?", "", semantic)
     topic = profile.get("autoddg_topic")
     parts = [seg["introduction"].format(dataset_sample=profile.get("sample") or "")]
