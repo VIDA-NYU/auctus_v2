@@ -24,10 +24,13 @@ numpy<2; sys_platform == "darwin" and platform_machine == "x86_64"
 # Data Ingestion & Processing
 httpx>=0.28.1
 python-dateutil>=2.9.0.post0
-# atlas-profiler with the Auctus type/geo fixes (VIDA-NYU/atlas-profiler branch auctus-fixes),
-# pinned to a commit so rebuilds don't change under a benchmark. An archive URL, since
-# the python:3.12-slim image has no git. Bump the hash to take newer fixes.
-atlas-profiler @ https://github.com/VIDA-NYU/atlas-profiler/archive/89d28a9e3d4e1ac28e6d7d6476a3a81164d82ab7.zip
+# atlas-profiler 0.1.0 with the Auctus type/geo fixes ported onto it: the head of
+# VIDA-NYU/atlas-profiler PR #5 (branch feat/html-report), not merged yet. Move this to
+# the merged commit once it is. Was auctus-fixes 89d28a9; on the UltraViolet benchmark
+# the two give the same types (288/498 README, 156/182 synthetic) and this one is faster
+# (6.1 vs 9.6 s per file). Pinned to a commit so rebuilds don't change under a benchmark;
+# an archive URL, since the python:3.12-slim image has no git.
+atlas-profiler @ https://github.com/VIDA-NYU/atlas-profiler/archive/27b98c1c5f6b324ec29e5ebdcdae021e3e46c235.zip
 # auctus-fixes supports polars 2, but the whole-file benchmark numbers were measured on 1.x.
 polars<2
 openpyxl>=3.1.0  # XLSX samples for InvenioRDM files

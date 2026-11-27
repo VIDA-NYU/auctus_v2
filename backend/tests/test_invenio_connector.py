@@ -562,7 +562,13 @@ class TransformerTests(unittest.TestCase):
         frame = pd.DataFrame({"latitude": lat, "longitude": np.linspace(-120.0, 100.0, 8000), "v": range(8000)})
         record = self.profile("sorted_by_lat.csv", lambda p: frame.to_csv(p, index=False))
         west, south, east, north = record["profiler_metadata"]["spatial_bbox"]
-        self.assertTrue(south <= -29.9 and north >= 59.9 and west <= -119.9 and east >= 99.9, (west, south, east, north))
+        # The box spans the whole file, not the rows read first. atlas-profiler 0.1.0 builds it from
+        # the 0.1% and 99.9% quantiles (ENVELOPE_QUANTILES), so stray points and (0, 0) placeholders
+        # don't stretch it: here that trims about 0.2 degrees of longitude off each side.
+        lon_lo, lon_hi = np.quantile(frame["longitude"], [0.001, 0.999])
+        lat_lo, lat_hi = np.quantile(frame["latitude"], [0.001, 0.999])
+        self.assertTrue(south <= lat_lo + 0.01 and north >= lat_hi - 0.01 and west <= lon_lo + 0.01 and east >= lon_hi - 0.01,
+                        (west, south, east, north))
 
     @unittest.skipUnless(geo_data(), "datamart-geo data not downloaded")
     def test_place_names_after_the_first_rows_count(self):
@@ -955,6 +961,50 @@ class SemanticTypeTests(unittest.TestCase):
         self.assertNotIn("semantic_type_label", cols[2])
         self.assertIn("US ZIP code", record["profiler_metadata"]["attribute_keywords"])
         self.assertIn("- zip: 10003, 11201", column_listing("zip,score\n10003,1\n11201,5\n10003,\n"))
+
+    @staticmethod
+    def _fake_client(broken_calls=()):
+        """Answers each typer call with a label per listed column; calls in broken_calls return bad JSON."""
+        import json
+        import re
+        from types import SimpleNamespace
+
+        calls = []
+
+        def create(**kw):
+            prompt = kw["messages"][-1]["content"]
+            calls.append(prompt)
+            listed = re.findall(r"^- ([^:]+):", prompt, re.M)
+            content = '{"oops": ' if len(calls) in broken_calls else json.dumps({c: f"type of {c}" for c in listed})
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
+
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        return client, calls
+
+    def test_every_column_is_typed_in_batches(self):  # wide tables used to stop at 80 columns
+        from storage.semantic_types import COLUMNS_PER_CALL, infer_semantic_types
+        sample = ",".join(f"q{i}" for i in range(230)) + "\n" + ",".join("1" for _ in range(230)) + "\n"
+        client, calls = self._fake_client()
+        labels = infer_semantic_types(client, sample, "survey")
+        self.assertEqual(len(labels), 230)
+        self.assertEqual(len(calls), -(-230 // COLUMNS_PER_CALL))  # 3 calls of at most 80
+        self.assertIn("Other columns of the table", calls[0])
+        self.assertIn("q200", calls[0].split("Columns (name")[0])  # later columns given as context
+
+    def test_a_failed_batch_keeps_the_others(self):
+        from storage.semantic_types import infer_semantic_types
+        sample = ",".join(f"q{i}" for i in range(230)) + "\n" + ",".join("1" for _ in range(230)) + "\n"
+        client, _ = self._fake_client(broken_calls={2})
+        labels = infer_semantic_types(client, sample, "survey")
+        self.assertEqual(len(labels), 150)  # batches 1 and 3
+        self.assertNotIn("q100", labels)
+
+    def test_narrow_table_is_one_call_without_context(self):
+        from storage.semantic_types import infer_semantic_types
+        client, calls = self._fake_client()
+        self.assertEqual(infer_semantic_types(client, "zip,score\n10003,1\n", "t"), {"zip": "type of zip", "score": "type of score"})
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn("Other columns", calls[0])
 
     def test_carry_over_keeps_type_labels(self):
         import io
