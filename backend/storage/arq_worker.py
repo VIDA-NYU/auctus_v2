@@ -147,13 +147,16 @@ def get_autoddg():
 # --- Adaptive profile-trimming thresholds (see "docs/Profiler_metadata — Field Reference.md") ---
 # Wide tables blow up the AutoDDG prompt and dilute it with per-column noise, so the
 # wider the table the less we keep per column. These are deterministic, no LLM.
-WIDE_TABLE_COLUMN_THRESHOLD = 40   # at/above this, drop numeric stats per column
+WIDE_TABLE_COLUMN_THRESHOLD = 40   # at/above this, drop mean / stddev per column (ranges stay)
 MAX_COLUMNS_IN_PROFILE = 80        # cap how many columns we emit at all
 
-# Meaning-bearing fields kept for every column regardless of table width.
-_COLUMN_CORE_FIELDS = ("name", "structural_type", "semantic_types")
-# Numeric stats kept only for narrow tables (where prompt budget allows detail).
-_COLUMN_STAT_FIELDS = ("num_distinct_values", "mean", "std", "min", "max")
+# Meaning-bearing fields kept for every column regardless of table width. min / max /
+# distinct values stay even for wide tables: without them AutoDDG reads ranges off the
+# few sample rows ("2001-2020 as shown in the sample" for data running to 2021).
+_COLUMN_CORE_FIELDS = ("name", "structural_type", "semantic_types", "num_distinct_values", "min", "max")
+# Extra stats kept only for narrow tables (where prompt budget allows detail). The profile
+# key is `stddev`; this read `std`, so AutoDDG never got the standard deviation.
+_COLUMN_STAT_FIELDS = ("mean", "stddev")
 
 
 def build_profile_text(record: dict[str, Any]) -> str:
@@ -182,16 +185,21 @@ def build_profile_text(record: dict[str, Any]) -> str:
             profile[key] = pm[key]
 
     columns = [col for col in (pm.get("columns") or []) if isinstance(col, dict)]
-    # Decide per-column detail by table width: wide tables -> core fields only.
+    # Decide per-column detail by table width: wide tables -> core fields (with ranges) only.
     n_columns = pm.get("nb_columns") or len(columns)
     is_wide = isinstance(n_columns, int) and n_columns >= WIDE_TABLE_COLUMN_THRESHOLD
     kept_fields = _COLUMN_CORE_FIELDS if is_wide else _COLUMN_CORE_FIELDS + _COLUMN_STAT_FIELDS
 
+    n_rows = pm.get("nb_rows")
     trimmed_columns: list[dict[str, Any]] = []
     for col in columns[:MAX_COLUMNS_IN_PROFILE]:
         entry = {
             key: col[key] for key in kept_fields if col.get(key) not in (None, [], "")
         }
+        # atlas-profiler's distinct count is an estimate that can exceed the row count
+        # (418 for 399 rows), which makes a unique ID look non-unique.
+        if isinstance(n_rows, int) and isinstance(entry.get("num_distinct_values"), (int, float)):
+            entry["num_distinct_values"] = min(entry["num_distinct_values"], n_rows)
         if entry:
             trimmed_columns.append(entry)
 
@@ -206,6 +214,12 @@ def build_profile_text(record: dict[str, Any]) -> str:
     elif pm.get("attribute_keywords"):
         # Fallback when profiling produced no columns (edge cases): names only.
         profile["column_names"] = pm["attribute_keywords"]
+
+    # The file's date range. Without it AutoDDG takes years from the sample rows and gets
+    # them wrong for any file whose sample doesn't reach both ends.
+    temporal = record.get("temporal_coverage")
+    if isinstance(temporal, dict) and temporal.get("start"):
+        profile["temporal_coverage"] = {k: temporal[k] for k in ("start", "end") if temporal.get(k)}
 
     # Geographic coverage: clean label + bbox only (drop the raw geohash grids).
     spatial = record.get("spatial_coverage")
