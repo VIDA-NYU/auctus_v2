@@ -8,6 +8,7 @@ import io
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -148,7 +149,12 @@ def get_autoddg():
 # Wide tables blow up the AutoDDG prompt and dilute it with per-column noise, so the
 # wider the table the less we keep per column. These are deterministic, no LLM.
 WIDE_TABLE_COLUMN_THRESHOLD = 40   # at/above this, drop mean / stddev per column (ranges stay)
-MAX_COLUMNS_IN_PROFILE = 80        # cap how many columns we emit at all
+# Every column is sent. Wide tables used to stop at 80 columns: on the 38 UltraViolet
+# tables with 40+ columns that hid half the columns, and a 230-column survey's description
+# never mentioned its subject (child sexual abuse prevention), whose items start after
+# column 80. With every column: curator facts +12 points per record (8 of 10 up, none
+# down), unsupported claims 9.8% -> 8.2%, same latency, ~1k more input tokens per table.
+# Columns whose names differ only by numbers (csa1_v2 ... csa14_v3) are sent as one group.
 
 # Meaning-bearing fields kept for every column regardless of table width. min / max /
 # distinct values stay even for wide tables: without them AutoDDG reads ranges off the
@@ -157,6 +163,45 @@ _COLUMN_CORE_FIELDS = ("name", "structural_type", "semantic_types", "num_distinc
 # Extra stats kept only for narrow tables (where prompt budget allows detail). The profile
 # key is `stddev`; this read `std`, so AutoDDG never got the standard deviation.
 _COLUMN_STAT_FIELDS = ("mean", "stddev")
+
+
+def _group_numbered_columns(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Columns whose names differ only by numbers (and share a type) as one entry, in place of the first.
+
+    csa1_v2 ... csa14_v3 become {"columns": [...], "count": 44, "min": ..., "max": ...}: the range
+    over the group, and the smallest and largest distinct count.
+    """
+    def key(entry: dict[str, Any]) -> tuple[str, Any]:
+        return re.sub(r"\d+", "#", str(entry.get("name", "")).lower()), entry.get("structural_type")
+
+    members: dict[tuple[str, Any], list[dict[str, Any]]] = {}
+    for entry in entries:
+        members.setdefault(key(entry), []).append(entry)
+    out, done = [], set()
+    for entry in entries:
+        k = key(entry)
+        group = members[k]
+        if len(group) < 2:
+            out.append(entry)
+            continue
+        if k in done:
+            continue
+        done.add(k)
+        merged: dict[str, Any] = {"columns": [e["name"] for e in group], "count": len(group)}
+        if entry.get("structural_type"):
+            merged["structural_type"] = entry["structural_type"]
+        semantic = list(dict.fromkeys(t for e in group for t in e.get("semantic_types") or []))
+        if semantic:
+            merged["semantic_types"] = semantic
+        lows = [e["min"] for e in group if isinstance(e.get("min"), (int, float))]
+        highs = [e["max"] for e in group if isinstance(e.get("max"), (int, float))]
+        if lows and highs:
+            merged["min"], merged["max"] = min(lows), max(highs)
+        distinct = [e["num_distinct_values"] for e in group if isinstance(e.get("num_distinct_values"), (int, float))]
+        if distinct:
+            merged["num_distinct_values"] = [min(distinct), max(distinct)] if min(distinct) != max(distinct) else distinct[0]
+        out.append(merged)
+    return out
 
 
 def build_profile_text(record: dict[str, Any]) -> str:
@@ -169,11 +214,11 @@ def build_profile_text(record: dict[str, Any]) -> str:
     profile-aware usage emphasized in the AutoDDG paper. Returns "" if there is
     nothing useful to report. The selection is deterministic (no LLM).
 
-    The per-column detail is *adaptive* to table width: narrow tables keep full
-    numeric stats, wide tables keep only the core meaning-bearing fields and cap
-    the number of columns, so the prompt stays focused on wide datasets. The
-    keep/drop rules and thresholds are documented in
-    "docs/Profiler_metadata — Field Reference.md".
+    Every column is described. The per-column detail is *adaptive* to table width:
+    narrow tables keep full numeric stats; wide tables keep the core meaning-bearing
+    fields (ranges included) and send columns whose names differ only by numbers as one
+    group, so a survey's 44 attitude items read as one battery. The keep/drop rules and
+    thresholds are documented in "docs/Profiler_metadata — Field Reference.md".
     """
     pm = record.get("profiler_metadata")
     if not isinstance(pm, dict):
@@ -191,8 +236,8 @@ def build_profile_text(record: dict[str, Any]) -> str:
     kept_fields = _COLUMN_CORE_FIELDS if is_wide else _COLUMN_CORE_FIELDS + _COLUMN_STAT_FIELDS
 
     n_rows = pm.get("nb_rows")
-    trimmed_columns: list[dict[str, Any]] = []
-    for col in columns[:MAX_COLUMNS_IN_PROFILE]:
+    entries: list[dict[str, Any]] = []
+    for col in columns:
         entry = {
             key: col[key] for key in kept_fields if col.get(key) not in (None, [], "")
         }
@@ -201,16 +246,11 @@ def build_profile_text(record: dict[str, Any]) -> str:
         if isinstance(n_rows, int) and isinstance(entry.get("num_distinct_values"), (int, float)):
             entry["num_distinct_values"] = min(entry["num_distinct_values"], n_rows)
         if entry:
-            trimmed_columns.append(entry)
+            entries.append(entry)
+    trimmed_columns = _group_numbered_columns(entries) if is_wide else entries
 
     if trimmed_columns:
         profile["columns"] = trimmed_columns
-        if len(columns) > MAX_COLUMNS_IN_PROFILE:
-            # Tell the LLM the schema was truncated so it doesn't over-claim coverage.
-            profile["columns_truncated"] = {
-                "shown": len(trimmed_columns),
-                "total": len(columns),
-            }
     elif pm.get("attribute_keywords"):
         # Fallback when profiling produced no columns (edge cases): names only.
         profile["column_names"] = pm["attribute_keywords"]
@@ -263,13 +303,12 @@ def attach_autoddg_description(record: dict[str, Any]) -> dict[str, Any]:
 
     # Semantic profile: per-column meaning inferred by the LLM. Needs a DataFrame,
     # so parse the CSV sample. group-prompting = one API call for all columns.
-    # Cap the column count like build_profile_text does, so very wide tables don't
-    # blow the prompt budget the structural trim just saved.
+    # Every column, like build_profile_text (it used to stop at 80). The cost is in
+    # wide tables only: 186-251 columns took 82-172 s and 23k-47k output tokens,
+    # against 51-56 s and ~15k for the first 80 (2026-11-27, Gemini 2.5 Flash).
     semantic_profile: str | None = None
     try:
         dataframe = pd.read_csv(io.StringIO(sample))
-        if dataframe.shape[1] > MAX_COLUMNS_IN_PROFILE:
-            dataframe = dataframe.iloc[:, :MAX_COLUMNS_IN_PROFILE]
         # pandas >= 2 astype(str) keeps missing values as float NaN, which crashes
         # AutoDDG's SemanticProfiler (beartype expects list[str] sample values).
         # Any dataset with a missing value in the 5 sampled rows would silently
