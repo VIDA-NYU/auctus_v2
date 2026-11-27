@@ -6,7 +6,7 @@ Every check goes through the connector's own code (`crawlers.invenio.transformer
 
 ## Data
 
-- **Real files:** the tabular files downloaded by `invenio_fetching harvest` (any instance). The reference runs use NYU UltraViolet (66 files) and CaltechDATA (1,741 files from its 310 tabular records).
+- **Real files:** the tabular files downloaded by `invenio_fetching harvest` (any instance). The reference runs use NYU UltraViolet (66 files in October; 202 in the 2026-11-26 harvest) and CaltechDATA (1,741 files from its 310 tabular records).
 - **Synthetic tables** (`synthetic.py`): 26 columns with known types (numbers, formatted numbers, dates in four formats, lat/lon, places, booleans, categories, free text, identifiers), written in 7 file variants: comma, semicolon, tab, Windows-1252, UTF-8 BOM, XLSX, and title rows above the header.
 - **README data dictionaries:** column types from UltraViolet's curator-written READMEs. They're extracted by `description_eval` (LLM-assisted) and must be human-verified before the numbers are reported (`verified` flag).
 
