@@ -95,13 +95,21 @@ def data_evidence(profile: dict[str, Any], rows: int = 10) -> str:
     """What the data says, for checking claims: per-column profile over the whole file, and the first rows."""
     pm = profile.get("profiler_metadata") or {}
     lines = [f"rows: {pm.get('nb_rows')}, columns: {pm.get('nb_columns')}"]
+    if pm.get("spatial_bbox"):
+        lines.append(f"bounding box (lon/lat min, max): {pm['spatial_bbox']}")
+    dates = profile.get("temporal_coverage") or {}
+    if dates.get("start"):
+        lines.append(f"dates: {dates['start']} to {dates.get('end')}")
     for col in (pm.get("columns") or [])[:MAX_COLUMNS]:
         if not isinstance(col, dict):
             continue
         line = f"{col.get('name')}: {str(col.get('structural_type', '')).rsplit('/', 1)[-1]}"
-        ranges = [c.get("range") for c in col.get("coverage") or [] if isinstance(c, dict) and c.get("range")]
-        if ranges:
-            line += f", range {min(r['gte'] for r in ranges)} to {max(r['lte'] for r in ranges)}"
+        # The true extremes, not the k-means coverage clusters: the clusters' ends are not the
+        # column's, so a correct range read as unsupported (37 of arm A's 108, number_check.py)
+        if col.get("min") is not None and col.get("max") is not None:
+            line += f", range {col['min']} to {col['max']}"
+        if col.get("mean") is not None:
+            line += f", mean {col['mean']:.4g}"
         if col.get("num_distinct_values") is not None:
             line += f", {col['num_distinct_values']} distinct"
         lines.append(line)

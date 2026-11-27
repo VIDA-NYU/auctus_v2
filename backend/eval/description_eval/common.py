@@ -30,6 +30,10 @@ PORTKEY_BASE_URL = os.getenv("PORTKEY_BASE_URL", "https://ai-gateway.apps.cloud.
 # enabled on the NYU gateway; Claude now works via @vertexai/anthropic.*.)
 JUDGE_MODEL = os.getenv("DESCRIPTION_EVAL_JUDGE", "@vertexai/gemini-2.5-pro")
 
+# How much evidence a judge call sees. Was 40,000 characters, which cut off the linked-paper excerpts
+# (14k-36k characters, placed last) and flagged paper-backed claims as unsupported (V10, 2026-11-26).
+EVIDENCE_CHARS = 150_000
+
 _client = None
 
 
@@ -84,6 +88,31 @@ def ask_json(prompt: str, model: str = JUDGE_MODEL, max_tokens: int = 16000) -> 
                                     "usage": tokens}, ensure_ascii=False))
         return parsed
     raise RuntimeError(f"LLM did not return valid JSON after 3 attempts: {last_error}")
+
+
+def ask_text(prompt: str, model: str = JUDGE_MODEL, max_tokens: int = 4000, nonce: str = "", system: str = "") -> str:
+    """One free-text LLM call (SAFE and VeriTrail parse code blocks / brackets, not JSON), cached on
+    disk by (model, system, prompt, nonce). `nonce` separates repeated samples of the same prompt."""
+    key = hashlib.sha256(f"text\n{model}\n{nonce}\n{system}\n{prompt}".encode()).hexdigest()
+    path = CACHE_DIR / f"{key}.json"
+    if path.exists():
+        return json.loads(path.read_text())["raw"]
+    sampling = {} if "anthropic." in model else {"temperature": 0}
+    messages = ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": prompt}]
+    response = llm_client().chat.completions.create(model=model, messages=messages, max_tokens=max_tokens, **sampling)
+    content = response.choices[0].message.content or ""
+    # Claude Haiku 5.5 refused every VeriTrail evidence-selection prompt (finish_reason "refusal", no
+    # tokens); an empty reply must never be cached as an answer, or reruns replay it forever
+    # and a reply cut off at max_tokens (Gemini 2.5 Flash spends hidden thinking tokens from the same
+    # budget: SAFE's fact split came back as "...contains 4") is not an answer either
+    if response.choices[0].finish_reason in ("refusal", "length", "max_tokens") or not content.strip():
+        raise RuntimeError(f"{model} returned no usable text (finish_reason {response.choices[0].finish_reason})")
+    usage = getattr(response, "usage", None)
+    tokens = {"prompt": getattr(usage, "prompt_tokens", None), "completion": getattr(usage, "completion_tokens", None)}
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"model": model, "prompt": prompt, "nonce": nonce, "raw": content, "usage": tokens},
+                               ensure_ascii=False))
+    return content
 
 
 def read_json(path: Path) -> Any:

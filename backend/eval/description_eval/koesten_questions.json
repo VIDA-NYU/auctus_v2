@@ -1,0 +1,15 @@
+{
+ "source": "Koesten, Simperl, Blount, Kacprzak, Tennison. Everything you always wanted to know about a dataset: Studies in data summarisation. IJHCS 135 (2020) 102367, Sec. 7 (version of record, CC BY). Question + explanation verbatim; notes in reference/methods/koesten.md.",
+ "note": "The paper derives this template as an authoring checklist and does not evaluate it; scoring descriptions with it is our adaptation. Q1-4 REQUIRED, Q5-9 OPTIONAL (Q5 'required if not mentioned in metadata').",
+ "questions": [
+  {"key": "q1_one_sentence", "group": "required", "q": "How would you describe the dataset in one sentence? (What is the dataset about?)"},
+  {"key": "q2_look", "group": "required", "q": "What does the dataset look like? (File format, data type, information about the structure of the dataset)"},
+  {"key": "q3_headers", "group": "required", "q": "What are the headers? (Can you group them in a sensible way? Is there a key column?)"},
+  {"key": "q4_value_types", "group": "required", "q": "What are the value types and value ranges for the most important headers? (Words/numbers/dates and their possible ranges)"},
+  {"key": "q5_provenance", "group": "optional", "q": "Where is the data from? (When was the data collected/published/updated? Where was the data published and by whom?)"},
+  {"key": "q6_time", "group": "optional", "q": "In what way does the dataset mention time? (What timeframes are covered by the data, what do they refer to and what is the level of detail they are reported in? E.g. years/day/time/hours etc.)"},
+  {"key": "q7_location", "group": "optional", "q": "In what way does the dataset mention location? (What geographical areas does the data refer to? To what level of detail is the area or location reported? E.g. latitude/longitude, streetname, city, county, country etc.)"},
+  {"key": "q8_quality", "group": "optional", "q": "Is there anything unclear about the data, or do you have reason to doubt the quality? (How complete is the data (are there missing values)? Are all column names self explanatory? What do missing values mean?)"},
+  {"key": "q9_patterns", "group": "optional", "q": "Is there anything that you would like to point out or analyse in more detail? (Particular trends or patterns in the data?)"}
+ ]
+}

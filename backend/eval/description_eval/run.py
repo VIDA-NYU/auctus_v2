@@ -8,6 +8,8 @@
   compare [--include-unverified]          run the four comparisons, write results/
   human-sample [--n 30]                   write a CSV of judge decisions for a person to grade
   human-score                             agreement between the judge and the person's grades
+  questions                               question-generation (both ways) + checklist evals, curator vs AutoDDG
+  claims [--records ID ...]               Claimify-style claim extraction; curator-claim coverage + claim support
 
 Runs inside the arq-worker container (portkey, minio, sentence-transformers); see
 run_in_worker.sh. Needs PORTKEY_API_KEY and the NYU VPN for LLM stages.
@@ -36,6 +38,10 @@ def main() -> None:
     p = sub.add_parser("human-sample")
     p.add_argument("--n", type=int, default=30)
     sub.add_parser("human-score")
+    sub.add_parser("questions")
+    p = sub.add_parser("claims")
+    p.add_argument("--workers", type=int, default=6)
+    p.add_argument("--records", nargs="+", help="only these records (for a smoke test)")
     args = parser.parse_args()
 
     if args.stage == "scan":
@@ -56,6 +62,12 @@ def main() -> None:
     elif args.stage == "human-score":
         from eval.description_eval import human_check
         human_check.score()
+    elif args.stage == "questions":
+        from eval.description_eval import questions
+        questions.main()
+    elif args.stage == "claims":
+        from eval.description_eval import claims
+        claims.main(args.workers, args.records)
 
 
 if __name__ == "__main__":
