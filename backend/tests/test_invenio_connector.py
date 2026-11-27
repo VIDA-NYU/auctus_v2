@@ -999,6 +999,17 @@ class SemanticTypeTests(unittest.TestCase):
         self.assertEqual(len(labels), 150)  # batches 1 and 3
         self.assertNotIn("q100", labels)
 
+    def test_binary_tables_are_not_sent(self):
+        from storage.semantic_types import attach_semantic_types, readable_columns
+        binary = "SQLite format 3\x00\x10\x00\x01GPKG\x00\x00\n\x00\x00\x00\n"  # a GeoPackage read as CSV
+        self.assertFalse(readable_columns(binary))
+        self.assertFalse(readable_columns(("x" * 300) + ",b\n1,2\n"))
+        self.assertTrue(readable_columns("zip,score\n10003,1\n"))
+        client, calls = self._fake_client()
+        record = {"id": "g", "sample": binary, "profiler_metadata": {"columns": [{"name": "SQLite format 3"}]}}
+        attach_semantic_types(record, client)
+        self.assertEqual(calls, [])  # no paid call for a table the model can't read
+
     def test_narrow_table_is_one_call_without_context(self):
         from storage.semantic_types import infer_semantic_types
         client, calls = self._fake_client()

@@ -141,9 +141,26 @@ def apply_semantic_types(record: dict[str, Any], labels: dict[str, str]) -> int:
     return len(matched)
 
 
+MAX_NAME_CHARS = 200
+
+
+def readable_columns(sample_csv: str) -> bool:
+    """False when the "columns" aren't text: a binary file read as a table (a GeoPackage member of a
+    zip group came through with the SQLite header as its one column name). The model can't type
+    those and an attempt costs up to max_tokens for nothing."""
+    try:
+        names = list(pd.read_csv(io.StringIO(sample_csv), dtype=str, keep_default_na=False, nrows=0).columns)
+    except Exception:
+        return False
+    return bool(names) and all(len(str(n)) <= MAX_NAME_CHARS and str(n).isprintable() for n in names)
+
+
 def attach_semantic_types(record: dict[str, Any], client) -> dict[str, Any]:
     """Best effort: a failed call leaves the record as it was."""
     if client is None or not record.get("sample"):
+        return record
+    if not readable_columns(record["sample"]):
+        LOGGER.warning("Semantic types skipped for %s: column names aren't text", record.get("id"))
         return record
     try:
         labels = infer_semantic_types(client, record["sample"], record.get("title", "") or "")
