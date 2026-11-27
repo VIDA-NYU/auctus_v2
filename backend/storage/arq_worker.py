@@ -17,7 +17,7 @@ import pandas as pd
 from arq.connections import RedisSettings
 
 from crawlers.invenio.formats import DATABASE_EXTENSIONS
-from crawlers.invenio.transformer import (TooLarge, build_archive_records, build_database_records, build_group_records,
+from crawlers.invenio.transformer import (TooLarge, Unprofilable, build_archive_records, build_database_records, build_group_records,
                                           build_invenio_record, too_large_database_record)
 from crawlers.socrata.transformer import build_validation_record
 from storage.minio_client import PROFILE_BUCKET_NAME, get_heavy_profile_object, get_storage_client, upload_heavy_profile
@@ -566,8 +566,8 @@ async def process_dataset_task(ctx: dict[str, Any], dataset_meta: dict[str, Any]
             )
         except Exception as exc:
             profiled = False
-            # Over a size cap: deterministic, so stamp it like a success (below).
-            final = isinstance(exc, TooLarge)
+            # Over a size cap, or not a readable table: deterministic, so stamp it like a success (below).
+            final = isinstance(exc, Unprofilable)
             LOGGER.warning(
                 "⚠️ Profiler mathematical edge-case failed for dataset %s. Skipping profiling metrics. Error: %r",
                 dataset_id,

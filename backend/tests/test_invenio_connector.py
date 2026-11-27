@@ -305,6 +305,55 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(sorted(r["source_record"]["member_group"]["sampled_parts"] for r in records), [1, 11])
         self.assertTrue(all(r["source_record"]["member_group"]["all_parts_read"] for r in records))
 
+    def test_group_of_geopackages_reads_their_tables(self):
+        """Per-city GeoPackages grouped by name were read as CSV: one "column" of SQLite header bytes."""
+        import sqlite3
+
+        from crawlers.invenio.crawler import archive_member_entries, group_job
+        from crawlers.invenio.transformer import profile_member_group
+        path = Path(self.tmp.name) / "cities.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            for i, city in enumerate(["accra", "lagos", "nairobi", "kampala"]):
+                db = Path(self.tmp.name) / f"{city}.gpkg"
+                con = sqlite3.connect(db)
+                con.execute("create table plots (city text, plot_area real, min_size real)")
+                con.executemany("insert into plots values (?, ?, ?)", [(city, 100.0 + j, 50.0) for j in range(10 + i)])
+                if city == "lagos":  # a second table in one file: its own schema
+                    con.execute("create table notes (note text)")
+                    con.execute("insert into notes values ('surveyed 2019')")
+                con.commit()
+                con.close()
+                archive.write(db, f"{city}/city_name_large_{city}.gpkg")
+        entry = {"dataset_id": f"{DOMAIN}:gp-rec:cities", "file_key": "cities.zip", "file_extension": "zip",
+                 "file_size": path.stat().st_size, "file_url": str(path), "record": {"title": "Plot sizes"}}
+        with zipfile.ZipFile(path) as archive:
+            members = archive_member_entries(entry, archive)
+        records = profile_member_group(group_job("city_name_large_#.gpkg", members),
+                                       opener=lambda url, size: zipfile.ZipFile(url))
+        self.assertEqual(len(records), 2)
+        plots = max(records, key=lambda r: r["profiler_metadata"]["nb_rows"])
+        self.assertEqual([c["name"] for c in plots["profiler_metadata"]["columns"]], ["city", "plot_area", "min_size"])
+        self.assertEqual(plots["profiler_metadata"]["nb_rows"], 10 + 11 + 12 + 13)  # every city
+        self.assertEqual(plots["source_record"]["member_group"]["sampled_parts"], 4)
+
+    def test_binary_files_are_not_parsed_as_text(self):
+        from crawlers.invenio.transformer import NotTabular, Unprofilable, normalize_table
+        binary = Path(self.tmp.name) / "upload.csv"
+        binary.write_bytes(b"SQLite format 3\x00\x10\x00\x01\x01\x00@  " + bytes(range(256)) * 50)
+        with self.assertRaises(NotTabular):
+            normalize_table(binary, "csv")
+        with self.assertRaises(NotTabular):  # a database is read table by table, never as text
+            normalize_table(binary, "gpkg")
+        self.assertTrue(issubclass(NotTabular, Unprofilable))  # final: indexed as metadata, not retried
+
+    def test_utf16_csv_is_read(self):  # Windows "Unicode text" exports
+        from crawlers.invenio.transformer import normalize_table
+        path = Path(self.tmp.name) / "utf16.csv"
+        path.write_bytes("name,score\nAda,1\nGrace,2\n".encode("utf-16"))
+        table = normalize_table(path, "csv")
+        self.assertEqual(table.headers, ["name", "score"])
+        self.assertEqual(table.rows, 2)
+
     def test_group_profile_from_a_sample_estimates_rows(self):
         from crawlers.invenio.crawler import group_job
         from crawlers.invenio.transformer import profile_member_group

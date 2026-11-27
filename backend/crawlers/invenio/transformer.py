@@ -16,6 +16,7 @@ Differences from the Socrata path:
 from __future__ import annotations
 
 import asyncio
+import codecs
 import csv
 import datetime as dt
 import gzip
@@ -85,8 +86,24 @@ PROFILER_SLOTS = asyncio.Semaphore(int(os.getenv("PROFILER_CONCURRENCY", "2")))
 MAX_PROFILED_COLUMNS = int(os.getenv("MAX_PROFILED_COLUMNS", "300"))
 
 
-class TooLarge(ValueError):
-    """A file over a size cap: retrying can't help, so the job counts as done."""
+class Unprofilable(ValueError):
+    """A file that can't be profiled for a reason retrying won't change: the job counts as done
+    and the file stays findable through its record's metadata."""
+
+
+class TooLarge(Unprofilable):
+    """A file over a size cap."""
+
+
+class NotTabular(Unprofilable):
+    """A file that isn't a table we can read: a database (its tables are read instead) or binary
+    bytes under a text extension. Parsed as CSV it became one "column" named after its header bytes."""
+
+
+# Control characters (other than tab, newlines, form feed) above this share of a file's first
+# characters mean it isn't text. NUL bytes alone are enough.
+MAX_CONTROL_SHARE = 0.01
+TEXT_CHECK_CHARS = 64 * 1024
 
 
 @dataclass
@@ -166,6 +183,8 @@ def guess_encoding(head: bytes) -> str:
     """UTF-8 when the sample decodes as UTF-8 (a character cut at the sample's end
     allowed), else the legacy encoding whose decoding reads most like words.
     Decoding as UTF-8 with replacement indexed "Cartografía" as "Cartograf\ufffda"."""
+    if head.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        return "utf-16"  # Windows "Unicode text" exports; read as UTF-8 they are full of NULs
     try:
         head.decode("utf-8")
         return "utf-8-sig"
@@ -250,12 +269,28 @@ def normalize_table(raw: Path, extension: str) -> Table:
             if not frame.empty or len(frame.columns):
                 break
         return _write_table(list(frame.columns), frame.itertuples(index=False, name=None), out)
+    if extension in DATABASE_EXTENSIONS:
+        raise NotTabular("a database: its tables are profiled one by one, not the file as text")
+    require_text(raw, extension)
     separator = detect_separator(raw, extension)
     # utf-8-sig drops a BOM; undecodable bytes (Windows-1252 uploads) are replaced.
     with _open_text(raw, extension) as fh:
         reader = csv.reader(fh, delimiter=separator)
         header = next(reader, [])
         return _write_table(header, reader, out)
+
+
+def require_text(raw: Path, extension: str) -> None:
+    """Refuse a file whose first characters aren't text, before it's parsed as delimited text.
+
+    Any format without a reader falls through to the CSV parser, so a binary file (a database,
+    an image, a mislabelled upload) would otherwise be "profiled" as one column of header bytes.
+    """
+    with _open_text(raw, extension) as fh:
+        head = fh.read(TEXT_CHECK_CHARS)
+    controls = sum(1 for ch in head if ch < " " and ch not in "\t\r\n\x0b\x0c")
+    if "\x00" in head or (head and controls / len(head) > MAX_CONTROL_SHARE):
+        raise NotTabular(f".{extension} file isn't text ({controls} control characters in its first {len(head)})")
 
 
 def copy_capped(source, out: Path, limit: int) -> Path:
@@ -739,7 +774,7 @@ def profile_archive(path: Path, dataset_meta: dict[str, Any], *_unused) -> list[
                     continue
                 records.append(member_record(dataset_meta, archive_id, archive_key, info,
                                              *member_table(archive, info), totals))
-            except TooLarge as exc:
+            except Unprofilable as exc:
                 LOGGER.warning("Skipping archive member %s: %r", info.filename, exc)
                 too_large.append((info, str(exc)))
             except Exception as exc:
@@ -994,6 +1029,25 @@ def partition_summary(sampled: dict[str, dict[str, Any]], totals: dict[str, int]
     return out
 
 
+def _part_tables(raw: Path, ext: str) -> list[Table]:
+    """The tables of one group part: its user tables for a database, else the file itself."""
+    if ext not in DATABASE_EXTENSIONS:
+        return [normalize_table(raw, ext)]
+    tables = []
+    try:
+        for name in database_tables(raw):
+            read = read_database_table(raw, name)
+            out = Path(tempfile.NamedTemporaryFile(delete=False, suffix=".csv").name)
+            table = _write_table(read.header, read.rows, out)
+            table.geo_bbox, table.geometry_type = read.bbox, read.geometry_type
+            tables.append(table)
+    except Exception:
+        for table in tables:
+            table.path.unlink(missing_ok=True)
+        raise
+    return tables
+
+
 def profile_member_group(dataset_meta: dict[str, Any], opener=open_remote_zip) -> list[dict[str, Any]]:
     """Profile a table split into many zip members as one dataset (one record per schema).
 
@@ -1028,6 +1082,19 @@ def profile_member_group(dataset_meta: dict[str, Any], opener=open_remote_zip) -
         state["profiled"] += 1
         return bbox, time
 
+    def add_part(state, sample, info, rows, part_bbox, part_time, nbytes=None):
+        state["rows"] += rows
+        state["bytes"] += info.file_size if nbytes is None else nbytes
+        state["parts"] += 1
+        label = sample.get("partition")
+        if label is not None:
+            part = state["partitions"].setdefault(label, {"sampled_parts": 0, "rows_sampled": 0,
+                                                          "bbox": None, "time": (None, None)})
+            part["sampled_parts"] += 1
+            part["rows_sampled"] += rows
+            part["bbox"] = _union_bbox(part["bbox"], part_bbox)
+            part["time"] = _union_range(part["time"], part_time)
+
     for archive_id, samples in samples_by_archive.items():
         archive = archives[archive_id]
         try:
@@ -1051,29 +1118,33 @@ def profile_member_group(dataset_meta: dict[str, Any], opener=open_remote_zip) -
                             part_time = _union_range(part_time, _stats_dates(summary["stats"], state["output"]))
                             state["bbox"] = _union_bbox(state["bbox"], part_bbox)
                             state["time"] = _union_range(state["time"], part_time)
-                            rows = summary["rows"]
+                            add_part(state, sample, info, summary["rows"], part_bbox, part_time)
                         else:
-                            table = normalize_table(raw, ext)
-                            key = tuple(table.headers)
-                            if key not in schemas or schemas[key]["profiled"] < MAX_GROUP_FULL_PROFILES:
-                                part_bbox, part_time = add_full(key, table, ext, archive, info)
-                            state = schemas[key]
-                            # Layer formats know their extent without profiling (shapefile header).
-                            if table.geometry_type:
-                                part_bbox = _union_bbox(part_bbox, table.geo_bbox)
-                                state["bbox"] = _union_bbox(state["bbox"], table.geo_bbox)
-                            rows = table.rows
-                        state["rows"] += rows
-                        state["bytes"] += info.file_size
-                        state["parts"] += 1
-                        label = sample.get("partition")
-                        if label is not None:
-                            part = state["partitions"].setdefault(label, {"sampled_parts": 0, "rows_sampled": 0,
-                                                                          "bbox": None, "time": (None, None)})
-                            part["sampled_parts"] += 1
-                            part["rows_sampled"] += rows
-                            part["bbox"] = _union_bbox(part["bbox"], part_bbox)
-                            part["time"] = _union_range(part["time"], part_time)
+                            # A database part (GeoPackage, SQLite) holds tables, not rows: each table
+                            # is a part of its own schema. Read as text it was one binary "column".
+                            tables = _part_tables(raw, ext)
+                            try:
+                                all_rows = sum(t.rows for t in tables) or 1
+                                for table in tables:
+                                    part_bbox, part_time = None, (None, None)
+                                    key = tuple(table.headers)
+                                    if key not in schemas or schemas[key]["profiled"] < MAX_GROUP_FULL_PROFILES:
+                                        part_bbox, part_time = add_full(key, table, ext, archive, info)
+                                    state = schemas[key]
+                                    # Layer formats know their extent without profiling (shapefile
+                                    # header, database geometry blobs).
+                                    if table.geometry_type:
+                                        part_bbox = _union_bbox(part_bbox, table.geo_bbox)
+                                        state["bbox"] = _union_bbox(state["bbox"], table.geo_bbox)
+                                    # A file's bytes are split over its tables, so the row
+                                    # extrapolation counts each file once.
+                                    share = table.rows / all_rows if len(tables) > 1 else 1.0
+                                    add_part(state, sample, info, table.rows, part_bbox, part_time,
+                                             nbytes=info.file_size * share)
+                            finally:
+                                for t in tables:
+                                    t.path.unlink(missing_ok=True)
+                                table = None
                     except Exception as exc:
                         LOGGER.warning("Skipping group part %s: %r", sample["member"], exc)
                     finally:
