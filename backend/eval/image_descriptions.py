@@ -124,8 +124,9 @@ def ask_text(model: str, prompt: str) -> dict[str, Any]:
     path = OUT / "cache" / f"{hashlib.sha256((model + prompt).encode()).hexdigest()}.json"
     if path.exists():
         return read_json(path)
+    extra = {} if "anthropic." in model else {"temperature": 0}
     r = llm_client().chat.completions.create(model=model, messages=[{"role": "user", "content": prompt}],
-                                             max_tokens=8000, temperature=0)
+                                             max_tokens=8000, **extra)
     out = {"parsed": parse_json(r.choices[0].message.content or ""),
            "usage": {"prompt": r.usage.prompt_tokens, "completion": r.usage.completion_tokens}}
     write_json(path, out)
