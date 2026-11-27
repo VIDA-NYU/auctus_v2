@@ -34,8 +34,11 @@ Per-column (`columns[]`) — the core signal. For each column:
 | `name` | always (core) | The column name (e.g. Facility Name). |
 | `structural_type` | always (core) | Storage type (e.g. http://schema.org/Text, integer, date). |
 | `semantic_types` | always (core) | Meaning, when detected (e.g. latitude, city name). |
-| `num_distinct_values` | narrow tables only | Cardinality (categorical columns). |
-| `mean`, `std`, `min`, `max` | narrow tables only | Numeric stats; present only for numerical columns. Help the description state real ranges instead of guessing. |
+| `num_distinct_values` | always (core) | Cardinality (categorical columns). Capped at `nb_rows` (atlas-profiler's estimate can exceed it). |
+| `min`, `max` | always (core) | Numeric range. Without it the model reads ranges off the few sample rows. |
+| `mean`, `stddev` | narrow tables only | Numeric moments; present only for numerical columns. |
+
+Dataset-level, also sent: `temporal_coverage` (`start`, `end`), the file's date range from the record.
 
 ## Fields we drop
 
@@ -57,36 +60,31 @@ Per-column (`columns[]`) — the core signal. For each column:
 - `_profiling_times` — how long each profiling step took. Purely operational.
 - `column_indexes` (inside spatial coverage) — internal positional indexes.
 
-## Adaptive trimming rule (by table width)
+## Adaptive detail rule (by table width)
 
-The per-column detail adapts to how wide the table is, because wide tables would
-otherwise produce an enormous, noisy profile:
+**Every column is sent**, for every table. The detail per column adapts to width:
 
-| Condition | Per-column fields emitted | Column cap |
+| Condition | Per-column fields emitted | Grouping |
 |---|---|---|
-| `nb_columns < WIDE_TABLE_COLUMN_THRESHOLD` (narrow) | core **+** numeric stats | `MAX_COLUMNS_IN_PROFILE` |
-| `nb_columns >= WIDE_TABLE_COLUMN_THRESHOLD` (wide) | core only | `MAX_COLUMNS_IN_PROFILE` |
+| `nb_columns < WIDE_TABLE_COLUMN_THRESHOLD` (narrow) | core **+** `mean`, `stddev` | none |
+| `nb_columns >= WIDE_TABLE_COLUMN_THRESHOLD` (wide) | core (ranges and distinct counts included) | columns whose names differ only by numbers and share a type are one entry |
 
-Current thresholds (module-level constants in `arq_worker.py`, tune there):
+`WIDE_TABLE_COLUMN_THRESHOLD = 40` (module-level constant in `arq_worker.py`).
 
-- `WIDE_TABLE_COLUMN_THRESHOLD = 40`
-- `MAX_COLUMNS_IN_PROFILE = 80`
+A group entry replaces its first member: `{"columns": [...], "count": n, "structural_type", "semantic_types" (union), "min", "max" (over the group), "num_distinct_values" (smallest and largest)}`. So `csa1_v2 ... csa14_v3` reads as one 44-item battery instead of 44 lines.
 
-When the table has more columns than `MAX_COLUMNS_IN_PROFILE`, only the first
-`MAX_COLUMNS_IN_PROFILE` are emitted and a `columns_truncated` marker
-(`{shown, total}`) is added so the LLM knows the schema is partial and does not
-over-claim coverage.
+The semantic profile (AutoDDG's per-column meaning pass) also covers every column.
 
-### Rationale for the thresholds
+### Why every column (2026-11-27)
 
-- **40 columns** is roughly where the per-column numeric stats start to dominate the
-  prompt without proportionally improving the description. Above it, the column
-  names + types + semantic types alone already convey the schema; exact numeric
-  ranges per column add bulk with diminishing returns.
-- **80 columns** caps truly wide tables (the AutoDDG benchmarks contain tables with
-  hundreds of columns) so a single dataset can't crowd out the rest of the prompt.
+Wide tables used to stop at 80 columns (`MAX_COLUMNS_IN_PROFILE`, with a `columns_truncated` marker), and the semantic pass too. On the 38 UltraViolet tables with 40+ columns:
 
-These are starting points; adjust as we evaluate description quality on real data.
+- the cut hid 52% of columns on average; a 230-column survey's description never mentioned its subject (child sexual abuse prevention), whose items start after column 80;
+- with every column (and the groups): curator facts covered +12 points per record (8 of 10 records up, none down), unsupported claims 9.8% -> 8.2%;
+- cost of the profile: same latency (~7.5 s per description), ~1k more input tokens per table;
+- cost of the semantic pass on every column: 82-172 s and 23k-47k output tokens for 186-251 columns, against ~55 s and ~15k for the first 80. Wide tables only (38 of 606 UltraViolet datasets).
+
+Coverage over speed for now: discovery needs what the data contains. Revisit with measurements if ingest time becomes the constraint.
 
 ## Notes on variability
 
